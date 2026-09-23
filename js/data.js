@@ -1,7 +1,8 @@
 // Dados do jogo: itens, receitas, máquinas, loja, níveis e objetivos.
 
 export const CELL = 1.5; // tamanho de um quadradinho do grid em metros
-export const GRID_MIN = -24, GRID_MAX = 23; // área construível (em células)
+export const GRID_MIN = -24, GRID_MAX = 23; // área inicial construível (em células)
+export const WORLD_MIN = -48, WORLD_MAX = 47; // mapa inteiro (com as regiões compráveis)
 
 export const ITEMS = {
   minerio_ferro: { nome: 'Minério de Ferro', base: 2, cor: '#8fa3c0' },
@@ -15,6 +16,14 @@ export const ITEMS = {
   chip: { nome: 'Chip', base: 55, cor: '#3fbf7f' },
   motor: { nome: 'Motor', base: 85, cor: '#7c86b8' },
   robozinho: { nome: 'Robozinho', base: 320, cor: '#e9f0ff' },
+  carvao: { nome: 'Carvão', base: 3, cor: '#3a3a44' },
+  escoria: { nome: 'Escória', base: 0.5, cor: '#7a6a5a' },
+  tijolo: { nome: 'Tijolo', base: 6, cor: '#c0643c' },
+  aco: { nome: 'Aço', base: 24, cor: '#8d9ab0' },
+  viga: { nome: 'Viga de Aço', base: 55, cor: '#6f7d96' },
+  processador: { nome: 'Processador', base: 170, cor: '#2f6fd6' },
+  modulo_foguete: { nome: 'Módulo de Foguete', base: 1200, cor: '#f0f0f5' },
+  satelite: { nome: 'Satélite', base: 1500, cor: '#ffd35a' },
 };
 
 // Minérios que existem no mapa
@@ -22,13 +31,15 @@ export const ORES = {
   ferro: { item: 'minerio_ferro', nome: 'Ferro', cor: 0x9fb4d6, tempo: 3 },
   cobre: { item: 'minerio_cobre', nome: 'Cobre', cor: 0xe8844a, tempo: 3.5 },
   quartzo: { item: 'quartzo', nome: 'Quartzo', cor: 0xf3c4ff, tempo: 4.5, nivel: 5 },
+  carvao: { item: 'carvao', nome: 'Carvão', cor: 0x2e2e38, tempo: 3, tech: 'carvao' },
 };
 
-// Fornalha: minério -> resultado
+// Fornalha: receitas (a chave é o que você passa em .fundir(...)). escoria = quanto de escória sobra por fundição
 export const SMELT = {
-  minerio_ferro: { out: 'lingote_ferro', tempo: 2.5, nivel: 2 },
-  minerio_cobre: { out: 'lingote_cobre', tempo: 2.5, nivel: 2 },
-  quartzo: { out: 'silicio', tempo: 4, nivel: 5 },
+  minerio_ferro: { in: { minerio_ferro: 1 }, out: 'lingote_ferro', tempo: 2.5, nivel: 2, escoria: 0.5 },
+  minerio_cobre: { in: { minerio_cobre: 1 }, out: 'lingote_cobre', tempo: 2.5, nivel: 2, escoria: 0.5 },
+  quartzo: { in: { quartzo: 1 }, out: 'silicio', tempo: 4, nivel: 5 },
+  aco: { in: { lingote_ferro: 1, carvao: 1 }, out: 'aco', tempo: 4, nivel: 2, tech: 'metalurgia', escoria: 1 },
 };
 
 // Montadora: receitas
@@ -38,6 +49,11 @@ export const RECIPES = {
   chip: { in: { silicio: 1, fio: 2 }, qtd: 1, tempo: 4, nivel: 5 },
   motor: { in: { engrenagem: 2, fio: 2 }, qtd: 1, tempo: 5, nivel: 6 },
   robozinho: { in: { motor: 1, chip: 2 }, qtd: 1, tempo: 8, nivel: 8 },
+  tijolo: { in: { escoria: 3 }, qtd: 1, tempo: 3, nivel: 4 },
+  viga: { in: { aco: 2 }, qtd: 1, tempo: 4, nivel: 4, tech: 'metalurgia' },
+  processador: { in: { chip: 2, silicio: 1 }, qtd: 1, tempo: 6, nivel: 5, tech: 'foguete' },
+  modulo_foguete: { in: { motor: 2, viga: 4, processador: 1 }, qtd: 1, tempo: 12, nivel: 5, tech: 'foguete' },
+  satelite: { in: { processador: 2, robozinho: 1, fio: 4 }, qtd: 1, tempo: 14, nivel: 5, tech: 'foguete' },
 };
 
 // Máquinas colocáveis
@@ -88,7 +104,150 @@ export const MACHINES = {
     nome: 'Gerador Grande', preco: 700, nivel: 4, prefixo: 'geradorG', model: 'generatorBig', gera: 60,
     desc: 'Produz 60 ⚡ de uma vez.', solido: true,
   },
+  laboratorio: {
+    nome: 'Laboratório', preco: 250, nivel: 2, prefixo: 'lab', model: 'lab', energia: 5,
+    desc: 'Pesquisa tecnologias novas. Escolha uma pesquisa (E) e mande os itens pedidos por esteira. Gasta 5 ⚡.', solido: true,
+  },
+  lixeira: {
+    nome: 'Lixeira', preco: 25, nivel: 2, prefixo: 'lixeira', model: 'trash',
+    desc: 'Destrói qualquer item que chegar. Boa pra escória sobrando. Não gasta energia.', solido: true,
+  },
+  divisor: {
+    nome: 'Divisor', preco: 30, nivel: 1, tech: 'logistica', prefixo: 'divisor', model: 'splitter',
+    desc: 'Entra por trás e reparte os itens entre frente, esquerda e direita, um pra cada lado. Automático.', solido: false,
+  },
+  juntador: {
+    nome: 'Juntador', preco: 30, nivel: 1, tech: 'logistica', prefixo: 'juntador', model: 'merger',
+    desc: 'Junta até 3 esteiras (trás, esquerda, direita) numa só, sem engarrafar um lado. Automático.', solido: false,
+  },
+  sensor: {
+    nome: 'Esteira com Sensor', preco: 40, nivel: 1, tech: 'sensores', prefixo: 'sensor', model: 'belt', energia: 1,
+    desc: 'Uma esteira que conta e avisa cada item que passa. Use .esperar_item() ou ouvir("sensor1"). Gasta 1 ⚡.', solido: false,
+  },
+  esteira_alta: {
+    nome: 'Esteira Elevada', preco: 12, nivel: 1, tech: 'rampas', prefixo: 'alta', model: 'beltHigh',
+    desc: 'Esteira no 2º andar: passa por cima de outras esteiras e máquinas baixas. Use rampas pra subir e descer.', solido: false,
+  },
+  rampa_sobe: {
+    nome: 'Rampa (sobe)', preco: 20, nivel: 1, tech: 'rampas', prefixo: 'rampa', model: 'rampUp',
+    desc: 'Recebe do chão (por trás) e leva o item pra Esteira Elevada na frente.', solido: false,
+  },
+  rampa_desce: {
+    nome: 'Rampa (desce)', preco: 20, nivel: 1, tech: 'rampas', prefixo: 'rampa', model: 'rampDown',
+    desc: 'Recebe da Esteira Elevada (por trás) e desce o item pro chão na frente.', solido: false,
+  },
+  lampada: {
+    nome: 'Lâmpada', preco: 20, nivel: 1, tech: 'sinais', prefixo: 'lampada', model: 'lamp', energia: 1,
+    desc: 'Luz programável: .ligar(), .desligar(), .cor("verde"), .piscar(). Gasta 1 ⚡.', solido: true,
+  },
+  tela: {
+    nome: 'Tela', preco: 80, nivel: 1, tech: 'sinais', prefixo: 'tela', model: 'display', energia: 1,
+    desc: 'Painel programável: .escrever("texto"), .mostrar(), .grafico([1, 5, 3]). Gasta 1 ⚡.', solido: true,
+  },
+  altofalante: {
+    nome: 'Alto-falante', preco: 60, nivel: 1, tech: 'sinais', prefixo: 'som', model: 'speakerBox', energia: 1,
+    desc: 'Toca notas e sons: .tocar("do"), .som("sino"). Gasta 1 ⚡.', solido: true,
+  },
+  gerador_carvao: {
+    nome: 'Gerador a Carvão', preco: 400, nivel: 1, tech: 'carvao', prefixo: 'geradorC', model: 'coalGen', gera: 75, combustivel: true,
+    desc: 'Produz 75 ⚡ queimando carvão (1 a cada 8 s). Carvão entra pelas setas azuis. .ligar() / .desligar().', solido: true,
+  },
+  painel_solar: {
+    nome: 'Painel Solar', preco: 300, nivel: 1, tech: 'solar', prefixo: 'solar', model: 'solar', gera: 35, solar: true,
+    desc: 'Até 35 ⚡ de graça durante o dia. À noite e na chuva gera menos.', solido: true,
+  },
+  doca_drones: {
+    nome: 'Doca de Drones', preco: 800, nivel: 1, tech: 'drones', prefixo: 'doca', model: 'hangar', energia: 8,
+    desc: 'Cria um drone programável que voa e carrega itens: .ir_para("bau1"), .pegar(), .soltar(). Gasta 8 ⚡.', solido: true,
+  },
 };
+
+// Máquinas que podem ser melhoradas pra Mk2 / Mk3
+export const TIERS = [
+  { nome: 'Mk1', vel: 1, energia: 1 },
+  { nome: 'Mk2', vel: 1.5, energia: 1.5, tech: 'mk2', preco: 0.8 },
+  { nome: 'Mk3', vel: 2.2, energia: 2.2, tech: 'mk3', preco: 2 },
+];
+export const TIERABLE = ['minerador', 'fornalha', 'montadora', 'separador', 'laboratorio', 'doca_drones'];
+
+// Pesquisas do Laboratório. fase = fases do foguete que precisam estar prontas
+export const TECHS = {
+  logistica: { nome: 'Logística', icone: '🔀', desc: 'Divisor e Juntador de esteiras (automáticos, sem código).', custo: { lingote_ferro: 20 }, fase: 0 },
+  sinais: { nome: 'Sinais e Telas', icone: '💡', desc: 'Lâmpada, Tela e Alto-falante programáveis.', custo: { lingote_cobre: 15, lingote_ferro: 10 }, fase: 0 },
+  sensores: { nome: 'Sensores e Eventos', icone: '📡', desc: 'Esteira com Sensor, ouvir(), esperar_evento() e esperar_ate().', custo: { lingote_cobre: 20, lingote_ferro: 20 }, fase: 0 },
+  rampas: { nome: 'Esteiras Elevadas', icone: '🌉', desc: 'Rampas e esteiras no 2º andar pra cruzar linhas.', custo: { lingote_ferro: 40, lingote_cobre: 10 }, fase: 1, requer: ['logistica'] },
+  rede: { nome: 'Rede de Computadores', icone: '🛰️', desc: 'enviar(), receber(), compartilhar() e ler() entre computadores.', custo: { fio: 30, engrenagem: 10 }, fase: 1, requer: ['sensores'] },
+  carvao: { nome: 'Energia a Carvão', icone: '🔥', desc: 'Minerar carvão e o Gerador a Carvão (75 ⚡, precisa de combustível).', custo: { lingote_ferro: 30, engrenagem: 15 }, fase: 1 },
+  mk2: { nome: 'Máquinas Mk2', icone: '⬆️', desc: 'Melhore máquinas uma a uma pra Mk2: 1,5× mais rápidas.', custo: { engrenagem: 30, fio: 30 }, fase: 1 },
+  metalurgia: { nome: 'Metalurgia', icone: '⚒️', desc: 'Aço na fornalha (lingote de ferro + carvão) e Vigas na montadora.', custo: { tijolo: 20, carvao: 30 }, fase: 2, requer: ['carvao'] },
+  solar: { nome: 'Energia Solar', icone: '☀️', desc: 'Painel Solar: até 35 ⚡ de dia, nada à noite.', custo: { silicio: 20, lingote_cobre: 20 }, fase: 2 },
+  drones: { nome: 'Drones', icone: '🚁', desc: 'Doca de Drones: drones voadores programáveis que carregam itens.', custo: { motor: 10, chip: 15 }, fase: 2, requer: ['rede'] },
+  mk3: { nome: 'Máquinas Mk3', icone: '⏫', desc: 'Melhore máquinas pra Mk3: 2,2× mais rápidas.', custo: { aco: 30, chip: 20 }, fase: 3, requer: ['mk2', 'metalurgia'] },
+  foguete: { nome: 'Engenharia Espacial', icone: '🚀', desc: 'Processador, Módulo de Foguete e Satélite.', custo: { aco: 40, chip: 30, robozinho: 3 }, fase: 3, requer: ['metalurgia'] },
+};
+
+// Projeto Foguete: fases entregues na Plataforma de Lançamento (tipo o Elevador Espacial do Satisfactory)
+export const PHASES = [
+  { nome: 'Fundação', itens: { lingote_ferro: 50, lingote_cobre: 30 }, premio: 500, desc: 'A base da plataforma de lançamento.' },
+  { nome: 'Estrutura', itens: { engrenagem: 40, fio: 60, tijolo: 30 }, premio: 2000, desc: 'A torre e os tanques de combustível.' },
+  { nome: 'Tanques', itens: { aco: 40, chip: 25, motor: 10 }, premio: 6000, desc: 'O corpo do foguete.' },
+  { nome: 'Controle', itens: { viga: 25, processador: 10, robozinho: 5 }, premio: 15000, desc: 'Computador de bordo e a ponta.' },
+  { nome: 'Lançamento!', itens: { modulo_foguete: 8, satelite: 2 }, premio: 50000, desc: 'Carregue o foguete e lance o satélite.', final: true },
+];
+
+// Regiões do mapa que podem ser compradas
+export const REGIONS = {
+  norte: { nome: 'Floresta Norte', x0: -24, x1: 23, z0: -48, z1: -25, preco: 3000, nivel: 3, desc: 'Carvão, ferro e quartzo.' },
+  leste: { nome: 'Vale Leste', x0: 24, x1: 47, z0: -24, z1: 23, preco: 8000, nivel: 5, desc: 'Muito cobre, quartzo e carvão.' },
+  oeste: { nome: 'Colinas Oeste', x0: -48, x1: -25, z0: -24, z1: 23, preco: 15000, nivel: 6, desc: 'Quartzo, carvão e o acampamento.' },
+  sul: { nome: 'Campos do Sul', x0: -24, x1: 23, z0: 24, z1: 47, preco: 30000, nivel: 7, desc: 'Espaço de sobra pra megafábricas.' },
+};
+
+// Bônus de decoração (dentro de 3 células): cpu = +clock dos computadores, vel = +velocidade das máquinas
+export const DECOR_BONUS = {
+  planta: { cpu: 0.05 }, flores: { cpu: 0.04 }, arvore: { cpu: 0.06 },
+  luminaria: { vel: 0.05 }, barris: { vel: 0.03 }, antena: { cpu: 0.05, vel: 0.05 },
+  sofa: { cpu: 0.03 }, cafeteira: { vel: 0.04 }, banco: { cpu: 0.02 },
+  estatua: { cpu: 0.1, vel: 0.1, raio: 5 },
+};
+export const DECOR_BONUS_MAX = 0.3;
+
+export const ACHIEVEMENTS = [
+  { id: 'primeiro_minerio', nome: 'Primeira pedrinha', desc: 'Minere o primeiro minério.', icone: '⛏️' },
+  { id: 'primeira_venda', nome: 'Primeiro dinheirinho', desc: 'Venda algo.', icone: '💰' },
+  { id: 'primeiro_programa', nome: 'Olá, mundo', desc: 'Rode um programa.', icone: '🐍' },
+  { id: 'vendeu_100', nome: 'Comerciante', desc: 'Venda 100 itens.', icone: '🧺' },
+  { id: 'vendeu_1000', nome: 'Magnata', desc: 'Venda 1.000 itens.', icone: '🏦' },
+  { id: 'rico_1k', nome: 'Primeiro milhar', desc: 'Tenha $ 1.000.', icone: '💵' },
+  { id: 'rico_10k', nome: 'Rico', desc: 'Tenha $ 10.000.', icone: '💎' },
+  { id: 'rico_100k', nome: 'Milionário (quase)', desc: 'Tenha $ 100.000.', icone: '👑' },
+  { id: 'lingote', nome: 'Forjado no fogo', desc: 'Faça um lingote.', icone: '🔥' },
+  { id: 'engrenagem', nome: 'Engrenado', desc: 'Fabrique uma engrenagem.', icone: '⚙️' },
+  { id: 'chip', nome: 'Vale do Silício', desc: 'Fabrique um chip.', icone: '💾' },
+  { id: 'robozinho', nome: 'Pai de robô', desc: 'Fabrique um robozinho.', icone: '🤖' },
+  { id: 'cinco_pcs', nome: 'Data center', desc: 'Tenha 5 computadores rodando.', icone: '🖥️' },
+  { id: 'erros_10', nome: 'Errar é humano', desc: 'Tenha 10 erros de programa. Faz parte!', icone: '🐛' },
+  { id: 'ouro', nome: 'Código de ouro', desc: 'Ganhe uma medalha de ouro no placar.', icone: '🥇' },
+  { id: 'pesquisa', nome: 'Cientista', desc: 'Termine uma pesquisa.', icone: '🔬' },
+  { id: 'todas_pesquisas', nome: 'Sabe-tudo', desc: 'Termine todas as pesquisas.', icone: '🎓' },
+  { id: 'fase1', nome: 'Pé na estrada', desc: 'Complete a fase 1 do foguete.', icone: '🏗️' },
+  { id: 'foguete', nome: 'Houston, temos um jogo', desc: 'Lance o foguete!', icone: '🚀' },
+  { id: 'regiao', nome: 'Desbravador', desc: 'Compre uma região nova.', icone: '🗺️' },
+  { id: 'todas_regioes', nome: 'Dono do mapa', desc: 'Compre todas as regiões.', icone: '🌎' },
+  { id: 'drone', nome: 'Controle aéreo', desc: 'Faça um drone voar.', icone: '🚁' },
+  { id: 'rede', nome: 'Conectado', desc: 'Mande uma mensagem pela rede.', icone: '🛰️' },
+  { id: 'biblioteca', nome: 'Reaproveitador', desc: 'Use importar() numa biblioteca.', icone: '📚' },
+  { id: 'depurador', nome: 'Caçador de bugs', desc: 'Pare num breakpoint do depurador.', icone: '🔍' },
+  { id: 'musico', nome: 'Maestro', desc: 'Toque 8 notas no alto-falante.', icone: '🎹' },
+  { id: 'esteiras_100', nome: 'Rodovia', desc: 'Tenha 100 esteiras.', icone: '🛤️' },
+  { id: 'noite', nome: 'Turno da noite', desc: 'Veja a fábrica funcionando à noite.', icone: '🌙' },
+  { id: 'chuva', nome: 'Cantando na chuva', desc: 'Fique na chuva.', icone: '🌧️' },
+  { id: 'foto', nome: 'Fotógrafo', desc: 'Tire uma foto no modo foto.', icone: '📷' },
+  { id: 'cafe_10', nome: 'Cafeinado', desc: 'Tome 10 cafezinhos.', icone: '☕' },
+  { id: 'pet', nome: 'Melhor amigo', desc: 'Faça carinho no Oopi.', icone: '💜' },
+  { id: 'mk3', nome: 'Turbinado', desc: 'Melhore uma máquina pra Mk3.', icone: '⏫' },
+  { id: 'copiar', nome: 'Ctrl+C, Ctrl+V', desc: 'Cole um grupo de máquinas.', icone: '📋' },
+];
 
 // ferramentas que ficam sempre na barra
 export const TOOLS = {
@@ -99,22 +258,22 @@ export const TOOLS = {
 };
 
 // quantos cabos cada coisa aceita
-export const WIRE_MAX = { poste: 6, gerador: 4, gerador_grande: 6 };
+export const WIRE_MAX = { poste: 6, gerador: 4, gerador_grande: 6, gerador_carvao: 4, painel_solar: 2 };
 export const WIRE_MAX_MACHINE = 2;
 export const WIRE_MAX_LEN = 16; // metros
 
 // Decoração — pra deixar a fábrica aconchegante
 export const DECOR = {
-  planta: { nome: 'Vaso de Planta', preco: 15, nivel: 1, model: 'd_plant' },
-  flores: { nome: 'Flores', preco: 10, nivel: 1, model: 'd_flowers' },
-  arvore: { nome: 'Árvore', preco: 40, nivel: 2, model: 'd_tree' },
-  banco: { nome: 'Banco', preco: 40, nivel: 2, model: 'd_bench' },
-  luminaria: { nome: 'Luminária', preco: 50, nivel: 3, model: 'd_lamp', luz: true },
-  sofa: { nome: 'Sofá', preco: 80, nivel: 3, model: 'd_sofa' },
-  cafeteira: { nome: 'Cafeteira', preco: 60, nivel: 4, model: 'd_coffee' },
-  barris: { nome: 'Barris', preco: 30, nivel: 4, model: 'd_barrels' },
-  antena: { nome: 'Antena Parabólica', preco: 150, nivel: 5, model: 'd_dish' },
-  estatua: { nome: 'Estátua do Oopi', preco: 1500, nivel: 8, model: 'd_statue' },
+  planta: { nome: 'Vaso de Planta', preco: 15, nivel: 1, model: 'd_plant', bonus: '+5% CPU nos computadores perto' },
+  flores: { nome: 'Flores', preco: 10, nivel: 1, model: 'd_flowers', bonus: '+4% CPU nos computadores perto' },
+  arvore: { nome: 'Árvore', preco: 40, nivel: 2, model: 'd_tree', bonus: '+6% CPU nos computadores perto' },
+  banco: { nome: 'Banco', preco: 40, nivel: 2, model: 'd_bench', bonus: '+2% CPU perto' },
+  luminaria: { nome: 'Luminária', preco: 50, nivel: 3, model: 'd_lamp', luz: true, bonus: '+5% velocidade nas máquinas perto' },
+  sofa: { nome: 'Sofá', preco: 80, nivel: 3, model: 'd_sofa', bonus: '+3% CPU perto' },
+  cafeteira: { nome: 'Cafeteira', preco: 60, nivel: 4, model: 'd_coffee', bonus: '+4% velocidade nas máquinas perto' },
+  barris: { nome: 'Barris', preco: 30, nivel: 4, model: 'd_barrels', bonus: '+3% velocidade nas máquinas perto' },
+  antena: { nome: 'Antena Parabólica', preco: 150, nivel: 5, model: 'd_dish', bonus: '+5% CPU e velocidade perto' },
+  estatua: { nome: 'Estátua do Oopi', preco: 1500, nivel: 8, model: 'd_statue', bonus: '+10% CPU e velocidade num raio grande' },
 };
 
 export const UPGRADES = {
@@ -138,9 +297,9 @@ export function xpForLevel(level) { // xp necessário pra passar do nível `leve
 
 export function unlocksAt(level) {
   const out = [];
-  for (const [k, m] of Object.entries(MACHINES)) if (m.nivel === level) out.push(m.nome);
-  for (const [k, r] of Object.entries(RECIPES)) if (r.nivel === level) out.push('Receita: ' + ITEMS[k].nome);
-  for (const [k, s] of Object.entries(SMELT)) if (s.nivel === level && level > 2) out.push('Fundir: ' + ITEMS[k].nome);
+  for (const m of Object.values(MACHINES)) if (m.nivel === level && !m.tech) out.push(m.nome);
+  for (const [k, r] of Object.entries(RECIPES)) if (r.nivel === level && !r.tech) out.push('Receita: ' + ITEMS[k].nome);
+  for (const [k, s] of Object.entries(SMELT)) if (s.nivel === level && level > 2 && !s.tech) out.push('Fundir: ' + ITEMS[k].nome);
   for (const [k, u] of Object.entries(UPGRADES)) u.niveis.forEach((n) => { if (n === level) out.push('Melhoria: ' + u.nome); });
   for (const d of Object.values(DECOR)) if (d.nivel === level) out.push('Decoração: ' + d.nome);
   return out;
@@ -232,6 +391,113 @@ while True:
 `,
   },
 ];
+
+EXAMPLES.push(
+  {
+    nome: '🛰️ Rede: chefe e ajudante', code: `# Precisa da pesquisa "Rede de Computadores"
+# pc1 manda ordens, pc2 obedece (rode este no pc1)
+while True:
+    enviar("pc2", "minerar")
+    compartilhar("ultimo_pedido", tempo())
+    esperar(5)
+
+# --- no pc2, use: ---
+# while True:
+#     m = receber()
+#     if m["msg"] == "minerar":
+#         maquina("minerador1").minerar()
+`,
+  },
+  {
+    nome: '📡 Eventos do sensor', code: `# Precisa da pesquisa "Sensores e Eventos"
+ouvir("sensor1")      # avisa cada item que passa
+ouvir("vendas")       # avisa cada venda
+ouvir("tempo", 30)    # e um "tique" a cada 30 s
+total = 0
+while True:
+    e = esperar_evento()
+    if e["tipo"] == "item":
+        total += 1
+    elif e["tipo"] == "venda":
+        print("vendeu $", e["valor"])
+    elif e["tipo"] == "tempo":
+        print("itens nos últimos 30 s:", total)
+        total = 0
+`,
+  },
+  {
+    nome: '⏳ esperar_ate com função', code: `caixa = maquina("venda1")
+
+def caixa_cheia():
+    return caixa.quantidade() >= 20
+
+while True:
+    esperar_ate(caixa_cheia)   # checa a condição até ela virar True
+    caixa.vender()
+`,
+  },
+  {
+    nome: '🚁 Drone entregador', code: `# Precisa da pesquisa "Drones" e de uma Doca de Drones
+d = maquina("drone1")
+while True:
+    d.ir_para("bau1")
+    item = d.pegar()          # pega 1 item do baú
+    d.ir_para("venda1")
+    d.soltar()                # solta na caixa de venda
+    print("entreguei", item)
+`,
+  },
+  {
+    nome: '💡 Tela e lâmpada de status', code: `# Precisa da pesquisa "Sinais e Telas"
+t = maquina("tela1")
+l = maquina("lampada1")
+t.titulo("Fábrica")
+historico = []
+while True:
+    d = dinheiro()
+    historico.append(d)
+    t.grafico(historico)
+    if energia()["usado"] > energia()["gerado"]:
+        l.cor("vermelho")
+        l.piscar(0.5)
+    else:
+        l.cor("verde")
+        l.ligar()
+    esperar(10)
+`,
+  },
+  {
+    nome: '⚒️ Aço + escória', code: `# Aço precisa da pesquisa "Metalurgia"
+forno = maquina("fornalha1")
+sep = maquina("separador1")   # na frente da fornalha
+while True:
+    forno.fundir("aco")       # lingote de ferro + carvão
+    item = sep.esperar_item()
+    if item == "escoria":
+        sep.enviar("direita")  # manda a escória pra lixeira/montadora de tijolo
+    else:
+        sep.enviar("frente")
+`,
+  },
+  {
+    nome: '📚 Usando uma biblioteca', code: `# A biblioteca "util" fica na aba Bibliotecas
+importar("util")
+caixa = maquina("venda1")
+while True:
+    minerar_varios(["minerador1"])
+    vender_se_caro(caixa, "minerio_ferro", 2.3)
+`,
+  },
+  {
+    nome: '🎹 Musiquinha', code: `# Precisa de um Alto-falante (pesquisa "Sinais e Telas")
+som = maquina("som1")
+musica = ["do", "mi", "sol", "do5", "sol", "mi", "do"]
+for nota in musica:
+    som.tocar(nota, 0.25)
+som.som("sino")
+`,
+  },
+);
 
 export const OBJECTIVES = [
   { id: 'miner', texto: 'Coloque o Minerador em cima de um veio de Ferro (cristais azuis). Tecla 1-9 escolhe, R gira, clique coloca. A seta laranja é por onde o minério sai.', premio: 10 },

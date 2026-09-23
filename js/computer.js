@@ -1,7 +1,7 @@
 // Computador: roda programas Jiboia devagarinho e controla as máquinas.
 import * as THREE from 'three';
 import { Machine, ENTITY_CLASSES, MachineRef, findByName } from './machines.js';
-import { parse, Interpreter, Builtin, Blocking, JiboiaError, JDict, STEP, WAIT, suggest, str } from './lang/jiboia.js';
+import { parse, Interpreter, Builtin, Blocking, JiboiaError, JDict, JRange, STEP, WAIT, suggest, str, repr, truthy } from './lang/jiboia.js';
 import { powerText } from './power.js';
 import { ITEMS, STARTER_CODE, MACHINES } from './data.js';
 import { game } from './state.js';
@@ -10,6 +10,28 @@ import { audio } from './audio.js';
 const SCREEN_W = 512, SCREEN_H = 234;
 // posição da tela em cima do modelo "screen-panel-wide" (coordenadas do modelo já normalizado)
 export const SCREEN_POSE = { x: 0, y: 0.775, z: 0.01, rx: -0.2014, ry: Math.PI, w: 1.17, h: 0.535 };
+
+// pesquisas que liberam partes da linguagem
+const TECH_LABEL = { rede: 'Rede de Computadores', sensores: 'Sensores e Eventos' };
+function needTech(id) {
+  if (!game.economy.hasTech(id)) throw new JiboiaError(`Isso precisa da pesquisa "${TECH_LABEL[id]}" no Laboratório`);
+}
+// cópia de valores pra mandar pela rede (listas e dicionários não ficam compartilhados)
+function copyValue(v) {
+  if (Array.isArray(v)) return v.map(copyValue);
+  if (v instanceof JDict) return new JDict([...v.m].map(([k, x]) => [k, copyValue(x)]));
+  if (v instanceof JRange) return v;
+  return v;
+}
+
+// eventos globais (vendas, sensores) chegam em quem estiver ouvindo
+game.on('evento', (ev) => {
+  for (const pc of game.entities) {
+    if (pc.type !== 'computador' || !pc.running) continue;
+    if (ev.tipo === 'venda' && pc.listening.has('vendas')) pc.pushEvent(ev);
+    if (ev.tipo === 'item' && pc.listening.has(ev.fonte)) pc.pushEvent(ev);
+  }
+});
 
 export class Computer extends Machine {
   constructor(type, x, z, dir) {
@@ -27,6 +49,81 @@ export class Computer extends Machine {
     this.makeScreen();
     this.dirty = true;
     this.screenTimer = 0;
+    // depurador
+    this.breakpoints = new Set();
+    this.paused = false;
+    this.stepOnce = false;
+    this.skipBreak = false;
+    // rede e eventos
+    this.inbox = [];
+    this.msgWaiters = [];
+    this.events = [];
+    this.eventWaiters = [];
+    this.listening = new Map(); // fonte -> intervalo (pra "tempo")
+    // placar de eficiência
+    this.sc = { items: 0, money: 0 };
+    this.scHist = [];
+    this.scT = 10;
+    this.lastInstr = 0;
+    this.board = { itemsMin: 0, moneyMin: 0, instrPerItem: 0, medal: null };
+  }
+
+  // chamado pelas máquinas quando um pedido deste computador termina
+  score(kind, n) {
+    if (kind === 'item') this.sc.items += n;
+    if (kind === 'money') this.sc.money += n;
+  }
+  updateBoard(dt) {
+    this.scT -= dt;
+    if (this.scT > 0) return;
+    this.scT = 10;
+    this.scHist.push({ items: this.sc.items, money: this.sc.money, instr: this.instructions - this.lastInstr });
+    this.sc = { items: 0, money: 0 };
+    this.lastInstr = this.instructions;
+    if (this.scHist.length > 6) this.scHist.shift();
+    const n = this.scHist.length;
+    const it = this.scHist.reduce((a, b) => a + b.items, 0);
+    const mo = this.scHist.reduce((a, b) => a + b.money, 0);
+    const ins = this.scHist.reduce((a, b) => a + b.instr, 0);
+    const mins = (n * 10) / 60;
+    const b = this.board;
+    b.itemsMin = Math.round((it / mins) * 10) / 10;
+    b.moneyMin = Math.round((mo / mins) * 10) / 10;
+    b.instrPerItem = it ? Math.round((ins / it) * 10) / 10 : 0;
+    b.medal = n < 3 ? null : (b.itemsMin >= 30 || b.moneyMin >= 300) ? 'ouro' : (b.itemsMin >= 12 || b.moneyMin >= 100) ? 'prata' : (b.itemsMin >= 4 || b.moneyMin >= 25) ? 'bronze' : null;
+    if (b.medal === 'ouro') game.economy.stats.gold = true;
+  }
+  get medalIcon() { return { ouro: '🥇', prata: '🥈', bronze: '🥉' }[this.board.medal] || ''; }
+
+  // eventos (sensor, vendas, rede, tempo)
+  pushEvent(ev) {
+    const d = new JDict(Object.entries(ev));
+    const w = this.eventWaiters.shift();
+    if (w) w.b.resolve(d);
+    else { this.events.push(d); if (this.events.length > 50) this.events.shift(); }
+  }
+  deliver(msg) {
+    const d = new JDict([['de', msg.de], ['msg', msg.msg]]);
+    const w = this.msgWaiters.shift();
+    if (w) w.b.resolve(d);
+    else { this.inbox.push(d); if (this.inbox.length > 50) this.inbox.shift(); }
+    if (this.listening.has('rede')) this.pushEvent({ tipo: 'mensagem', fonte: msg.de, msg: msg.msg });
+  }
+  // depurador
+  pause() { if (this.running) { this.paused = true; this.dirty = true; game.emit('computer', this); } }
+  resume() { this.paused = false; this.skipBreak = true; this.stepOnce = false; game.emit('computer', this); }
+  step() { if (this.running) { this.paused = true; this.stepOnce = true; this.skipBreak = true; } }
+  toggleBreak(line) {
+    if (this.breakpoints.has(line)) this.breakpoints.delete(line); else this.breakpoints.add(line);
+    game.emit('computer', this);
+  }
+  vars() {
+    const I = this.interp;
+    if (!I) return { globais: [], locais: [] };
+    const skip = (v) => v instanceof Builtin;
+    const fmt = (m) => [...m].filter(([, v]) => !skip(v) && !(v && v.node)).map(([k, v]) => [k, repr(v)]);
+    const f = I.frame;
+    return { globais: fmt(I.globals), locais: f && !f.isGlobal ? fmt(f.vars) : [] };
   }
 
   makeScreen() {
@@ -69,6 +166,13 @@ export class Computer extends Machine {
     this.acc = 1;
     this.running = true;
     this.instructions = 0;
+    this.lastInstr = 0;
+    this.paused = false;
+    this.stepOnce = false;
+    this.skipBreak = false;
+    this.events = [];
+    this.inbox = [];
+    this.listening = new Map();
     this.log('▶ Programa iniciado', 'sys');
     game.economy.stats.ranCode = true;
     audio.play('run', { pos: this.pos, volume: 0.6 });
@@ -80,6 +184,10 @@ export class Computer extends Machine {
     if (this.interp && this.interp.currentBlocking) this.interp.currentBlocking.cancelled = true;
     for (const t of this.timers) t.b.cancelled = true;
     this.timers = [];
+    for (const w of [...this.msgWaiters, ...this.eventWaiters]) w.b.cancelled = true;
+    this.msgWaiters = [];
+    this.eventWaiters = [];
+    this.paused = false;
     const was = this.running;
     this.running = false;
     this.gen = null;
@@ -92,11 +200,14 @@ export class Computer extends Machine {
     const line = e instanceof JiboiaError ? e.line : this.curLine;
     const msg = e instanceof JiboiaError ? e.message : 'Erro interno: ' + (e.message || e);
     if (!(e instanceof JiboiaError)) console.error(e);
+    const lib = e && e.lib;
     this.error = msg;
-    this.errorLine = line;
-    this.log(`✖ Linha ${line}: ${msg}`, 'err');
+    this.errorLine = lib ? this.curLine : line;
+    game.economy.stats.errors = (game.economy.stats.errors || 0) + 1;
+    this.log(lib ? `✖ Biblioteca "${lib}", linha ${line}: ${msg}` : `✖ Linha ${line}: ${msg}`, 'err');
     this.stop(true);
     audio.play('error', { pos: this.pos, volume: 0.6 });
+    game.emit('computerError', this);
   }
 
   builtins() {
@@ -138,6 +249,78 @@ export class Computer extends Machine {
         const n = self.net;
         return new JDict([['gerado', n ? n.supply : 0], ['usado', n ? n.demand : 0], ['nivel', Math.round(self.power * 100) / 100]]);
       }),
+      // ── rede entre computadores (pesquisa "rede") ──
+      enviar: B('enviar', ([para, msg]) => {
+        needTech('rede');
+        const alvos = para === 'todos' ? game.entities.filter((e) => e.type === 'computador' && e !== self) : [findByName(para)];
+        if (!alvos[0] || alvos[0].type !== 'computador') throw new JiboiaError(`Não achei o computador "${para}". Use o nome dele (ex: "pc2") ou "todos"`);
+        for (const a of alvos) a.deliver({ de: self.name, msg: copyValue(msg) });
+        game.economy.stats.netMsgs = (game.economy.stats.netMsgs || 0) + 1;
+        return alvos.length;
+      }, 2),
+      receber: B('receber', (a) => {
+        needTech('rede');
+        const b = new Blocking();
+        b.label = 'esperando mensagem';
+        if (self.inbox.length) { b.resolve(self.inbox.shift()); return b; }
+        const w = { b, until: a.length ? game.time + a[0] : Infinity };
+        self.msgWaiters.push(w);
+        return b;
+      }, 0, 1),
+      tem_mensagem: B('tem_mensagem', () => { needTech('rede'); return self.inbox.length > 0; }),
+      compartilhar: B('compartilhar', ([k, v]) => { needTech('rede'); if (typeof k !== 'string') throw new JiboiaError('compartilhar() precisa de uma chave de texto'); game.economy.netStore[k] = copyValue(v); return null; }, 2),
+      ler: B('ler', (a) => { needTech('rede'); const v = game.economy.netStore[a[0]]; return v === undefined ? (a[1] ?? null) : copyValue(v); }, 1, 2),
+      // ── sensores e eventos (pesquisa "sensores") ──
+      ouvir: B('ouvir', (a) => {
+        needTech('sensores');
+        const fonte = a[0];
+        if (typeof fonte !== 'string') throw new JiboiaError('ouvir() precisa de uma fonte: "vendas", "rede", "tempo" ou o nome de um sensor');
+        if (fonte === 'tempo') {
+          const s = a[1] ?? 5;
+          if (typeof s !== 'number' || s < 0.5) throw new JiboiaError('ouvir("tempo", segundos) precisa de pelo menos 0.5 segundo');
+          self.listening.set('tempo', { every: s, next: game.time + s });
+        } else if (fonte === 'vendas' || fonte === 'rede') self.listening.set(fonte, true);
+        else {
+          const e = findByName(fonte);
+          if (!e || e.type !== 'sensor') throw new JiboiaError(`"${fonte}" não é um sensor. Fontes: "vendas", "rede", "tempo" ou o nome de uma Esteira com Sensor`);
+          self.listening.set(fonte, true);
+        }
+        return null;
+      }, 1, 2),
+      esperar_evento: B('esperar_evento', (a) => {
+        needTech('sensores');
+        const b = new Blocking();
+        b.label = 'esperando evento';
+        if (self.events.length) { b.resolve(self.events.shift()); return b; }
+        self.eventWaiters.push({ b, until: a.length ? game.time + a[0] : Infinity });
+        return b;
+      }, 0, 1),
+      esperar_ate: new Builtin('esperar_ate', function* ([cond, timeout], I, line) {
+        needTech('sensores');
+        if (!cond || !(cond.node || cond instanceof Builtin)) throw new JiboiaError('esperar_ate() precisa de uma função, ex: esperar_ate(tem_minerio)');
+        const t0 = game.time;
+        for (;;) {
+          const v = yield* I.call(cond, [], line);
+          if (truthy(v)) return true;
+          if (timeout != null && game.time - t0 >= timeout) return false;
+          I.waitLabel = 'esperando condição';
+          yield WAIT;
+        }
+      }, 1, 2, true),
+      // ── bibliotecas ──
+      importar: new Builtin('importar', function* ([nome], I) {
+        const libs = game.economy.libs;
+        if (typeof nome !== 'string' || !libs[nome]) {
+          const s = suggest(String(nome), Object.keys(libs));
+          throw new JiboiaError(`Biblioteca "${nome}" não existe` + (s ? `. Você quis dizer "${s}"?` : `. Crie na aba Bibliotecas do editor`));
+        }
+        let ast;
+        try { ast = parse(libs[nome], nome); }
+        catch (e) { throw new JiboiaError(`Erro na biblioteca "${nome}", linha ${e.line}: ${e.message}`); }
+        yield* I.execBlock(ast, I.globalFrame);
+        game.economy.stats.libsImported = (game.economy.stats.libsImported || 0) + 1;
+        return null;
+      }, 1, 1, true),
     };
   }
 
@@ -147,36 +330,63 @@ export class Computer extends Machine {
     for (let i = this.timers.length - 1; i >= 0; i--) {
       if (game.time >= this.timers[i].until) { this.timers[i].b.resolve(null); this.timers.splice(i, 1); }
     }
+    // tempo esgotado de receber()/esperar_evento()
+    for (const list of [this.msgWaiters, this.eventWaiters]) {
+      for (let i = list.length - 1; i >= 0; i--) if (game.time >= list[i].until) { list[i].b.resolve(null); list.splice(i, 1); }
+    }
+    // eventos de relógio
+    const tempo = this.listening.get('tempo');
+    if (tempo && this.running && game.time >= tempo.next) { tempo.next = game.time + tempo.every; this.pushEvent({ tipo: 'tempo', fonte: 'relogio', segundos: Math.round(game.time) }); }
     const pw = this.power;
     if (this.noPower !== (pw <= 0)) { this.noPower = pw <= 0; this.dirty = true; }
-    if (this.running && this.gen && pw > 0) {
-      const hz = game.economy.cpuHz * pw;
+    if (this.running && this.gen && pw > 0 && (!this.paused || this.stepOnce)) {
+      const hz = game.economy.cpuHz * pw * (1 + this.decorCpu);
       this.acc = Math.min(this.acc + dt * hz, Math.max(1.5, hz * 0.25));
+      if (this.stepOnce) this.acc = Math.max(this.acc, 1);
       let guard = 0;
+      game.currentPC = this;
       try {
         while (this.running && guard++ < 200) {
           if (this.lastYield === STEP) {
+            // breakpoint: para ANTES de executar a linha marcada
+            if (!this.skipBreak && !this.interp.lib && this.breakpoints.has(this.interp.line)) {
+              this.paused = true;
+              this.stepOnce = false;
+              this.curLine = this.interp.line;
+              this.dirty = true;
+              game.economy.stats.breakpoints = (game.economy.stats.breakpoints || 0) + 1;
+              this.log(`⏸ Parou no breakpoint da linha ${this.curLine}`, 'sys');
+              game.emit('computer', this);
+              break;
+            }
+            if (this.paused && !this.stepOnce) break;
             if (this.acc < 1) break;
             this.acc -= 1;
             this.instructions++;
+            this.skipBreak = false;
+            if (this.stepOnce) this.stepped = true;
           }
           const r = this.gen.next();
           if (r.done) {
             this.running = false;
+            this.paused = false;
             this.log('✔ Programa terminou', 'sys');
             game.emit('computer', this);
             break;
           }
           const prevLine = this.curLine;
           this.lastYield = r.value;
-          this.curLine = this.interp.line;
+          if (!this.interp.lib) this.curLine = this.interp.line;
           if (prevLine !== this.curLine) this.dirty = true;
+          if (this.stepOnce && this.stepped && r.value === STEP) { this.stepOnce = false; this.stepped = false; game.emit('computer', this); break; }
           if (r.value === WAIT) break;
         }
       } catch (e) {
         this.fail(e);
       }
+      game.currentPC = null;
     }
+    if (this.running) this.updateBoard(dt);
     this.screenTimer -= dt;
     if (this.dirty && this.screenTimer <= 0) {
       const d = this.pos.distanceTo(game.camera.position);
@@ -202,6 +412,7 @@ export class Computer extends Machine {
     if (this.noPower) return 'Sem energia ⚡ (ligue um cabo 🔌)';
     if (this.error) return 'Erro na linha ' + this.errorLine;
     if (!this.running) return 'Parado';
+    if (this.paused) return '⏸ Pausado na linha ' + this.curLine;
     if (this.lastYield === WAIT) return 'Esperando: ' + (this.interp?.waitLabel || '...');
     return 'Executando linha ' + this.curLine;
   }
@@ -273,11 +484,17 @@ export class Computer extends Machine {
   }
 
   api() { return {}; }
-  infoLines() { return [this.statusText, powerText(this), `Instruções executadas: ${this.instructions}`]; }
-  serialize() { return { ...super.serialize(), code: this.code, running: this.running }; }
+  infoLines() {
+    const b = this.board;
+    return [this.statusText, powerText(this),
+      `Placar: ${this.medalIcon} ${b.itemsMin} itens/min · $ ${b.moneyMin}/min · ${b.instrPerItem || '—'} instr/item`,
+      `CPU: ${(game.economy.cpuHz * (1 + this.decorCpu)).toFixed(1)} instr/s${this.decorCpu ? ` (decoração +${Math.round(this.decorCpu * 100)}%)` : ''}`];
+  }
+  serialize() { return { ...super.serialize(), code: this.code, running: this.running, breakpoints: [...this.breakpoints] }; }
   load(d) {
     super.load(d);
     if (typeof d.code === 'string') this.code = d.code;
+    this.breakpoints = new Set(d.breakpoints || []);
     this.dirty = true;
     if (d.running) setTimeout(() => { if (!this.removed) this.run(); }, 500);
   }

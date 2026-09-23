@@ -1,8 +1,10 @@
 // Monta o cenário: céu, chão, floresta, veios de minério, escritório, loja e painel do mercado.
 import * as THREE from 'three';
 import { assets, cloneModel, tint, TREE_KEYS, PROP_KEYS } from './assets.js';
-import { CELL, GRID_MIN, GRID_MAX, ORES, ITEMS } from './data.js';
+import { CELL, GRID_MIN, GRID_MAX, ORES, ITEMS, REGIONS } from './data.js';
 import { grid, ores, key, cellCenter } from './machines.js';
+import { Platform } from './machines2.js';
+import { makeLabel } from './fx.js';
 import { game } from './state.js';
 
 export const colliders = []; // círculos {x, z, r}
@@ -13,10 +15,37 @@ let seed = 1234;
 const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 
 export const ORE_NODES = {
-  ferro: [[-4, -4], [-5, -6], [-8, -3], [6, -14], [-16, 5], [-15, 7], [-3, -9]],
-  cobre: [[5, -5], [7, -7], [10, 1], [-12, -12], [14, 10], [9, -10]],
-  quartzo: [[0, -16], [2, -18], [17, -15], [-19, -17]],
+  ferro: [[-4, -4], [-5, -6], [-8, -3], [6, -14], [-16, 5], [-15, 7], [-3, -9],
+    [12, -30], [15, -34], [-44, 10], [-10, 34], [8, 40]],
+  cobre: [[5, -5], [7, -7], [10, 1], [-12, -12], [14, 10], [9, -10],
+    [30, -10], [34, -5], [40, 5], [-18, 30]],
+  quartzo: [[0, -16], [2, -18], [17, -15], [-19, -17],
+    [-18, -42], [28, 12], [38, -18], [-30, -8], [-36, 4], [0, 44]],
+  carvao: [[-20, -20], [19, -19],
+    [-10, -30], [-6, -34], [5, -40], [44, -2], [-40, -14], [-28, 16], [15, 30]],
 };
+
+// ─── regiões compráveis ───
+export function regionAt(x, z) {
+  for (const [id, r] of Object.entries(REGIONS)) if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) return id;
+  return null;
+}
+export function isBuildableCell(x, z) {
+  if (x >= GRID_MIN && x <= GRID_MAX && z >= GRID_MIN && z <= GRID_MAX) return true;
+  const r = regionAt(x, z);
+  return !!r && game.economy.hasRegion(r);
+}
+// tira árvores/pedras da região comprada
+export function clearRegion(id) {
+  const list = game.regionDecor?.[id] || [];
+  for (const d of list) {
+    game.scene.remove(d.obj);
+    if (d.col) { const i = colliders.indexOf(d.col); if (i >= 0) colliders.splice(i, 1); }
+  }
+  if (game.regionDecor) game.regionDecor[id] = [];
+  const s = game.regionSigns?.[id];
+  if (s) { game.scene.remove(s.group); const i = interactables.indexOf(s.inter); if (i >= 0) interactables.splice(i, 1); const ci = colliders.indexOf(s.col); if (ci >= 0) colliders.splice(ci, 1); }
+}
 
 function blockCell(x, z, info = {}) {
   grid.set(key(x, z), { static: true, solid: true, ...info });
@@ -41,6 +70,7 @@ export function buildWorld() {
   // luzes
   const hemi = new THREE.HemisphereLight(0xcfe3ff, 0x5b6b3a, 0.7);
   scene.add(hemi);
+  game.hemi = hemi;
   const sun = new THREE.DirectionalLight(0xffe4bf, 2.4);
   sun.position.set(40, 60, 25);
   sun.castShadow = true;
@@ -132,6 +162,34 @@ export function buildWorld() {
   buildOffice();
   buildShop();
   buildMarketBoard();
+  buildRegionSigns();
+  // plataforma de lançamento do Projeto Foguete
+  game.platform = new Platform(0, -21);
+  interactables.push({ obj: game.platform.obj, label: 'Plataforma de Lançamento: Projeto Foguete 🚀', action: 'platform' });
+}
+
+function buildRegionSigns() {
+  game.regionSigns = {};
+  const spots = { norte: [0, -37.5, 0], leste: [37.5, 0, -Math.PI / 2], oeste: [-37.5, 0, Math.PI / 2], sul: [8, 37.5, Math.PI] };
+  for (const [id, r] of Object.entries(REGIONS)) {
+    const [x, z, rot] = spots[id];
+    const g = new THREE.Group();
+    g.position.set(x, 0, z);
+    g.rotation.y = rot;
+    const s = cloneModel('sign');
+    s.scale.multiplyScalar(1.6);
+    g.add(s);
+    const lab = makeLabel(`🔒 ${r.nome} · $ ${r.preco.toLocaleString('pt-BR')}`);
+    lab.position.y = 3;
+    lab.scale.set(3.2, 0.8, 1);
+    g.add(lab);
+    game.scene.add(g);
+    const inter = { obj: g, label: `Comprar ${r.nome} ($ ${r.preco.toLocaleString('pt-BR')}, nível ${r.nivel})`, action: 'region:' + id };
+    interactables.push(inter);
+    const col = { x, z, r: 0.6 };
+    colliders.push(col);
+    game.regionSigns[id] = { group: g, inter, col };
+  }
 }
 
 function buildOres() {
@@ -166,19 +224,29 @@ export function setOreVisible(x, z, v) {
 
 function buildNature() {
   const half = (GRID_MAX + 1) * CELL; // ~36m
+  game.regionDecor = {};
+  const nearOre = (x, z) => { const c = { x: Math.floor(x / CELL), z: Math.floor(z / CELL) }; for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) if (ores.has(key(c.x + dx, c.z + dz))) return true; return false; };
+  // árvore/pedra dentro de uma região comprável fica anotada pra sumir quando comprar
+  const tag = (x, z, obj, col) => {
+    const id = regionAt(Math.floor(x / CELL), Math.floor(z / CELL));
+    if (id) (game.regionDecor[id] || (game.regionDecor[id] = [])).push({ obj, col });
+  };
   const addTree = (x, z) => {
     const k = TREE_KEYS[Math.floor(rnd() * TREE_KEYS.length)];
     const m = place(k, x, z, rnd() * Math.PI * 2);
     m.scale.setScalar(1.1 + rnd() * 0.9);
-    colliders.push({ x, z, r: 0.7 });
+    const col = { x, z, r: 0.7 };
+    colliders.push(col);
+    tag(x, z, m, col);
   };
   // anel de floresta
   let n = 0;
-  while (n < 260) {
+  while (n < 320) {
     const a = rnd() * Math.PI * 2;
     const r = half + 6 + Math.pow(rnd(), 0.8) * 90;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     if (Math.max(Math.abs(x), Math.abs(z)) < half + 5) continue;
+    if (nearOre(x, z)) continue;
     addTree(x, z);
     n++;
   }
@@ -188,11 +256,14 @@ function buildNature() {
     const r = half + 1 + rnd() * 40;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     if (Math.max(Math.abs(x), Math.abs(z)) < half + 1) continue;
+    if (nearOre(x, z)) continue;
     const k = PROP_KEYS[Math.floor(rnd() * PROP_KEYS.length)];
     const m = place(k, x, z, rnd() * Math.PI * 2);
     const small = /flower|grass|mushroom/.test(k);
     m.scale.setScalar(small ? 0.6 + rnd() * 0.3 : 0.7 + rnd() * 0.7);
-    if (/rock_large|rock_tall|log|stump/.test(k)) colliders.push({ x, z, r: 0.9 });
+    let col = null;
+    if (/rock_large|rock_tall|log|stump/.test(k)) { col = { x, z, r: 0.9 }; colliders.push(col); }
+    tag(x, z, m, col);
   }
   // gramadinhos dentro da área (só na grama, fora do piso)
   for (let i = 0; i < 90; i++) {

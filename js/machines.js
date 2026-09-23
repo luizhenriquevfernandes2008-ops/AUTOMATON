@@ -1,16 +1,18 @@
 // Grid, entidades e máquinas da fábrica.
 import * as THREE from 'three';
-import { CELL, ITEMS, ORES, SMELT, RECIPES, MACHINES, DECOR } from './data.js';
+import { CELL, ITEMS, ORES, SMELT, RECIPES, MACHINES, DECOR, TIERS, TIERABLE, DECOR_BONUS, DECOR_BONUS_MAX } from './data.js';
 import { cloneModel } from './assets.js';
 import { game } from './state.js';
 import { takeItemMesh, releaseItemMesh } from './itemMeshes.js';
 import { Blocking, Builtin, JDict, JiboiaError, suggest } from './lang/jiboia.js';
 import { audio } from './audio.js';
 import { puff, floatText, makeLabel, setLabel } from './fx.js';
-import { powerRatio, powerText, usesPower, disconnectAll, recompute as recomputePower, canWire } from './power.js';
+import { powerRatio, powerText, usesPower, disconnectAll, recompute as recomputePower, canWire, outputOf } from './power.js';
 
 export const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // N L S O
-export const grid = new Map();     // "x,z" -> entidade ou bloqueio estático
+export const grid = new Map();     // "x,z" -> entidade ou bloqueio estático (chão)
+export const gridUp = new Map();   // "x,z" -> entidade no 2º andar (esteiras elevadas)
+export const ELEV = 1.8;           // altura do 2º andar
 export const ores = new Map();     // "x,z" -> tipo de minério
 export const ENTITY_CLASSES = {};
 export const key = (x, z) => x + ',' + z;
@@ -84,9 +86,9 @@ function portArrow(color, side, inward) {
 export function isItem(name) { return Object.prototype.hasOwnProperty.call(ITEMS, name); }
 export function itemName(t) { return ITEMS[t]?.nome || t; }
 
-function uniqueName(prefix) {
+export function uniqueName(prefix) {
   let i = 1;
-  const names = new Set(game.entities.map((e) => e.name));
+  const names = new Set(game.entities.map((e) => e.name).concat((game.drones || []).map((d) => d.name)));
   while (names.has(prefix + i)) i++;
   return prefix + i;
 }
@@ -109,6 +111,9 @@ export class Entity {
   get isMachine() { return !!MACHINES[this.type]; }
   cellIn(d) { return [this.x + DIRS[d][0], this.z + DIRS[d][1]]; }
   entityIn(d) { const [x, z] = this.cellIn(d); return grid.get(key(x, z)); }
+  // pra onde o item vai quando sai (esteiras elevadas e rampas mudam isso)
+  nextTarget(d = this.dir) { return this.entityIn(d); }
+  get layer() { return 0; }
   canAccept() { return false; }
   accept() { }
   update() { }
@@ -150,7 +155,7 @@ export class Belt extends Entity {
   accept(type, travelDir, mesh) {
     mesh = mesh || takeItemMesh(type);
     if (mesh.parent !== game.scene) game.scene.add(mesh);
-    const it = { type, p: 0, entry: (travelDir + 2) % 4, mesh };
+    const it = { type, p: 0, entry: travelDir < 0 ? (this.dir + 2) % 4 : (travelDir + 2) % 4, mesh };
     this.items.push(it);
     this.placeItem(it);
   }
@@ -160,17 +165,20 @@ export class Belt extends Entity {
     let px, pz;
     if (it.p < 0.5) { const k = it.p * 2; px = e[0] * 0.5 * (1 - k); pz = e[1] * 0.5 * (1 - k); }
     else { const k = (it.p - 0.5) * 2; px = x[0] * 0.5 * k; pz = x[1] * 0.5 * k; }
-    it.mesh.position.set(c.x + px * CELL, BELT_Y, c.z + pz * CELL);
+    it.mesh.position.set(c.x + px * CELL, this.itemY(it), c.z + pz * CELL);
     it.mesh.rotation.y = -this.dir * Math.PI / 2;
   }
+  itemY() { return BELT_Y; }
+  onItemPassed() { }
   update(dt) {
     const v = game.economy.beltSpeed * dt;
     for (let i = 0; i < this.items.length; i++) {
       const it = this.items[i];
       const limit = i === 0 ? 1 : this.items[i - 1].p - SPACING;
       if (it.p < limit) it.p = Math.min(it.p + v, limit);
+      if (it.p >= 0.5 && !it.seen) { it.seen = true; this.onItemPassed(it.type); }
       if (i === 0 && it.p >= 1) {
-        const t = this.entityIn(this.dir);
+        const t = this.nextTarget();
         if (t && !t.removed && t.canAccept(it.type, this.dir)) {
           this.items.shift();
           i--;
@@ -240,6 +248,9 @@ export class Machine extends Entity {
     this.ejectCd = 0;
     this.anim = 0;
     this.name = uniqueName(this.def.prefixo || type);
+    this.tier = 0;
+    this.decorVel = 0;
+    this.decorCpu = 0;
     this.addModel(this.def.model);
     this.label = makeLabel(this.name);
     this.label.position.y = (this.model.userData.size?.y || 1.3) + 0.45;
@@ -258,7 +269,23 @@ export class Machine extends Entity {
   // item chegando pela frente (andando contra a máquina)?
   fromFront(travelDir) { return travelDir === (this.dir + 2) % 4; }
   get power() { return powerRatio(this); }
-  rename(n) { this.name = n; setLabel(this.label, n); }
+  get canTier() { return TIERABLE.includes(this.type); }
+  // multiplicador de velocidade: melhoria global × Mk × decoração
+  get speedMul() { return game.economy.machineSpeed * (TIERS[this.tier]?.vel || 1) * (1 + this.decorVel); }
+  labelText() { return this.name + (this.tier ? ' ' + TIERS[this.tier].nome : ''); }
+  rename(n) { this.name = n; setLabel(this.label, this.labelText()); }
+  setTier(t) {
+    this.tier = t;
+    setLabel(this.label, this.labelText());
+    if (this.tierRing) this.obj.remove(this.tierRing);
+    if (t > 0) {
+      const col = t === 1 ? 0x3ee6b8 : 0xffcf5c;
+      this.tierRing = new THREE.Mesh(new THREE.TorusGeometry(CELL * 0.44, 0.035, 6, 32), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.6 }));
+      this.tierRing.rotation.x = Math.PI / 2;
+      this.tierRing.position.y = 0.06;
+      this.obj.add(this.tierRing);
+    }
+  }
   invCount(t) { return t ? (this.inv[t] || 0) : Object.values(this.inv).reduce((a, b) => a + b, 0); }
   addInv(t, n = 1) { this.inv[t] = (this.inv[t] || 0) + n; }
   takeInv(t, n = 1) { this.inv[t] -= n; if (this.inv[t] <= 0) delete this.inv[t]; }
@@ -272,19 +299,29 @@ export class Machine extends Entity {
   request(opts) {
     const b = new Blocking();
     b.label = opts.label || '';
+    b.owner = game.currentPC || null; // quem pediu (pro placar)
     this.queue.push({ ...opts, b });
     return b;
+  }
+
+  // avisa o computador dono do pedido (placar de eficiência)
+  credit(b, v, kind) {
+    const pc = b.owner;
+    if (!pc || !pc.score) return;
+    if (kind === 'item' && typeof v === 'string') pc.score('item', 1);
+    if (kind === 'money' && typeof v === 'number') pc.score('money', v);
   }
 
   update(dt) {
     const pw = this.power;
     this.noPower = pw <= 0;
     if (this.job) {
-      this.job.t += dt * game.economy.machineSpeed * pw;
+      this.job.t += dt * this.speedMul * pw;
       if (this.job.t >= this.job.dur) {
         const j = this.job;
         this.job = null;
         const v = j.finish ? j.finish() : null;
+        if (j.counts) this.credit(j.b, v, j.counts);
         j.b.resolve(v);
       }
     }
@@ -301,7 +338,7 @@ export class Machine extends Entity {
         this.queue.shift();
         if (q.start) q.start();
         const dur = typeof q.dur === 'function' ? q.dur() : q.dur;
-        if (!dur) { q.b.resolve(q.finish ? q.finish() : null); continue; }
+        if (!dur) { const v = q.finish ? q.finish() : null; if (q.counts) this.credit(q.b, v, q.counts); q.b.resolve(v); continue; }
         this.job = { ...q, dur, t: 0 };
         break;
       }
@@ -350,15 +387,17 @@ export class Machine extends Entity {
     const l = [`Status: ${this.status}`];
     const pt = powerText(this);
     if (pt) l.push(pt);
+    if (this.canTier || this.decorVel) l.push(`Velocidade: ${this.speedMul.toFixed(2)}×${this.tier ? ' (' + TIERS[this.tier].nome + ')' : ''}${this.decorVel ? ` · decoração +${Math.round(this.decorVel * 100)}%` : ''}`);
     const inv = Object.entries(this.inv);
     if (inv.length) l.push('Entrada: ' + inv.map(([k, v]) => `${v}× ${itemName(k)}`).join(', '));
     if (this.out.length) l.push(`Saída: ${this.out.length}× ${itemName(this.out[0])}${this.out.length >= this.outCap ? ' (cheia!)' : ''}`);
     return l;
   }
 
-  serialize() { return { ...super.serialize(), inv: this.inv, out: this.out }; }
+  serialize() { return { ...super.serialize(), inv: this.inv, out: this.out, tier: this.tier }; }
   load(d) {
     if (d.name) this.rename(d.name);
+    if (d.tier) this.setTier(d.tier);
     this.inv = {}; for (const [k, v] of Object.entries(d.inv || {})) if (isItem(k)) this.inv[k] = v;
     this.out = (d.out || []).filter(isItem);
   }
@@ -401,8 +440,10 @@ export class Miner extends Machine {
           if (!ore) throw new JiboiaError(`O minerador '${this.name}' não está em cima de um veio de minério`);
           return this.request({
             label: 'Minerando',
+            counts: 'item',
             check: () => {
               if (ore.nivel && game.economy.level < ore.nivel) throw new JiboiaError(`Minerar ${ore.nome} precisa do nível ${ore.nivel}`);
+              if (ore.tech && !game.economy.hasTech(ore.tech)) throw new JiboiaError(`Minerar ${ore.nome} precisa da pesquisa "${TECH_NAME(ore.tech)}" no Laboratório`);
               return this.out.length >= this.outCap ? 'Saída cheia' : null;
             },
             dur: ore.tempo,
@@ -422,52 +463,87 @@ export class Miner extends Machine {
   infoLines() { return [`Veio: ${this.oreType ? ORES[this.oreType].nome : 'nenhum!'}`, ...super.infoLines()]; }
 }
 
+// nome bonitinho de uma pesquisa (preenchido pelo research.js pra não ter import circular)
+export let TECH_NAME = (id) => id;
+export function setTechNamer(fn) { TECH_NAME = fn; }
+
 // ───────────────────────── Fornalha ─────────────────────────
+const SMELT_INPUTS = new Set(Object.values(SMELT).flatMap((r) => Object.keys(r.in)));
+// acha a receita pelo nome passado (minério, ou o produto, ex "aco")
+function smeltRecipe(want) {
+  if (SMELT[want]) return want;
+  const k = Object.keys(SMELT).find((r) => SMELT[r].out === want);
+  return k || null;
+}
+function smeltUnlocked(r) {
+  const s = SMELT[r];
+  return s.nivel <= game.economy.level && (!s.tech || game.economy.hasTech(s.tech));
+}
 export class Smelter extends Machine {
+  constructor(...a) { super(...a); this.slag = 0; }
   get hasOutput() { return true; }
   get inputSides() { return [1, 2, 3]; }
-  canAccept(type, travelDir) { return !this.fromFront(travelDir) && !!SMELT[type] && this.invCount() < 20; }
+  canAccept(type, travelDir) { return !this.fromFront(travelDir) && SMELT_INPUTS.has(type) && this.invCount() < 20; }
+  hasInputs(r) { return Object.entries(SMELT[r].in).every(([k, n]) => (this.inv[k] || 0) >= n); }
   api() {
     return {
       ...super.api(),
       fundir: {
         max: 1,
-        doc: 'Derrete 1 minério em lingote. Espera o minério chegar se não tiver.',
+        doc: 'Derrete 1 minério em lingote (ou faz "aco" com lingote de ferro + carvão). Espera os itens chegarem.',
         fn: (a) => {
-          const want = a[0] ?? null;
-          if (want !== null) {
-            checkItemArg(want, 'fundir');
-            if (!SMELT[want]) throw new JiboiaError(`A fornalha não sabe derreter "${want}". Ela funde: ${Object.keys(SMELT).join(', ')}`);
+          const wantRaw = a[0] ?? null;
+          let want = null;
+          if (wantRaw !== null) {
+            checkItemArg(wantRaw, 'fundir');
+            want = smeltRecipe(wantRaw);
+            if (!want) throw new JiboiaError(`A fornalha não sabe fazer "${wantRaw}". Ela funde: ${Object.keys(SMELT).join(', ')}`);
           }
           let chosen = null;
           return this.request({
             label: 'Fundindo',
+            counts: 'item',
             check: () => {
-              const lvl = game.economy.level;
-              if (want && SMELT[want].nivel > lvl) throw new JiboiaError(`Fundir ${itemName(want)} precisa do nível ${SMELT[want].nivel}`);
-              if (this.out.length >= this.outCap) return 'Saída cheia';
-              chosen = want || Object.keys(this.inv).find((k) => SMELT[k] && SMELT[k].nivel <= lvl);
-              if (!chosen) {
-                const locked = Object.keys(this.inv).find((k) => SMELT[k]);
-                if (locked) throw new JiboiaError(`Fundir ${itemName(locked)} precisa do nível ${SMELT[locked].nivel}`);
+              if (want) {
+                const s = SMELT[want];
+                if (s.nivel > game.economy.level) throw new JiboiaError(`Fundir ${itemName(s.out)} precisa do nível ${s.nivel}`);
+                if (s.tech && !game.economy.hasTech(s.tech)) throw new JiboiaError(`Fazer ${itemName(s.out)} precisa da pesquisa "${TECH_NAME(s.tech)}"`);
               }
-              if (!chosen || !this.inv[chosen]) return want ? `Esperando ${itemName(want)} chegar pela esteira` : 'Esperando minério chegar pela esteira';
+              if (this.out.length >= this.outCap) return 'Saída cheia';
+              chosen = want || Object.keys(SMELT).find((r) => smeltUnlocked(r) && this.hasInputs(r));
+              if (!chosen) {
+                const locked = Object.keys(SMELT).find((r) => this.hasInputs(r));
+                if (locked) {
+                  const s = SMELT[locked];
+                  throw new JiboiaError(s.tech && !game.economy.hasTech(s.tech) ? `Fazer ${itemName(s.out)} precisa da pesquisa "${TECH_NAME(s.tech)}"` : `Fundir ${itemName(locked)} precisa do nível ${s.nivel}`);
+                }
+              }
+              if (!chosen || !this.hasInputs(chosen)) {
+                if (want) return 'Esperando ' + Object.entries(SMELT[want].in).map(([k, n]) => `${n}× ${itemName(k)}`).join(' + ') + ' chegar pela esteira';
+                return 'Esperando minério chegar pela esteira';
+              }
               return null;
             },
-            start: () => { this.takeInv(chosen); },
+            start: () => { for (const [k, n] of Object.entries(SMELT[chosen].in)) this.takeInv(k, n); },
             dur: () => SMELT[chosen].tempo,
             finish: () => {
-              const o = SMELT[chosen].out;
-              this.out.push(o);
-              game.economy.produced(o);
+              const s = SMELT[chosen];
+              this.out.push(s.out);
+              game.economy.produced(s.out);
+              // sobra escória!
+              this.slag += s.escoria || 0;
+              if (this.slag >= 1) { this.slag -= 1; this.out.push('escoria'); game.economy.produced('escoria'); }
               audio.play('smelt', { pos: this.pos, volume: 0.35 });
-              return o;
+              return s.out;
             },
           });
         },
       },
+      receitas: { fn: () => Object.keys(SMELT).filter(smeltUnlocked), doc: 'O que esta fornalha já sabe fundir' },
     };
   }
+  serialize() { return { ...super.serialize(), slag: this.slag }; }
+  load(d) { super.load(d); this.slag = d.slag || 0; }
   animate(dt) {
     super.animate(dt);
     if (this.job && Math.random() < dt * 4) puff(new THREE.Vector3(this.pos.x, 1.7, this.pos.z), { color: 0xd8d0e8, count: 1, size: 0.4, up: 0.9, life: 1.8, opacity: 0.45 });
@@ -477,6 +553,7 @@ export class Smelter extends Machine {
 
 // ───────────────────────── Montadora ─────────────────────────
 const ALL_INGREDIENTS = new Set(Object.values(RECIPES).flatMap((r) => Object.keys(r.in)));
+const recipeUnlocked = (r) => RECIPES[r].nivel <= game.economy.level && (!RECIPES[r].tech || game.economy.hasTech(RECIPES[r].tech));
 export class Assembler extends Machine {
   get hasOutput() { return true; }
   get inputSides() { return [1, 2, 3]; }
@@ -489,6 +566,7 @@ export class Assembler extends Machine {
       throw new JiboiaError(`Receita "${r}" não existe` + (s ? `. Você quis dizer "${s}"?` : `. Receitas: ${Object.keys(RECIPES).join(', ')}`));
     }
     if (RECIPES[r].nivel > game.economy.level) throw new JiboiaError(`A receita "${r}" precisa do nível ${RECIPES[r].nivel}`);
+    if (RECIPES[r].tech && !game.economy.hasTech(RECIPES[r].tech)) throw new JiboiaError(`A receita "${r}" precisa da pesquisa "${TECH_NAME(RECIPES[r].tech)}" no Laboratório`);
   }
   api() {
     return {
@@ -501,6 +579,7 @@ export class Assembler extends Machine {
           const rec = RECIPES[r];
           return this.request({
             label: 'Fabricando ' + itemName(r),
+            counts: 'item',
             check: () => {
               if (this.out.length + rec.qtd > this.outCap) return 'Saída cheia';
               if (!this.hasIngredients(r)) return 'Esperando ' + Object.entries(rec.in).map(([k, n]) => `${n}× ${itemName(k)}`).join(' + ');
@@ -522,7 +601,7 @@ export class Assembler extends Machine {
         min: 1, max: 1, doc: 'True se já tem os ingredientes da receita',
         fn: ([r]) => { this.checkRecipe(r); return this.hasIngredients(r) && this.out.length + RECIPES[r].qtd <= this.outCap; },
       },
-      receitas: { fn: () => Object.keys(RECIPES).filter((k) => RECIPES[k].nivel <= game.economy.level), doc: 'Lista de receitas liberadas' },
+      receitas: { fn: () => Object.keys(RECIPES).filter(recipeUnlocked), doc: 'Lista de receitas liberadas' },
     };
   }
   animate(dt) {
@@ -530,7 +609,6 @@ export class Assembler extends Machine {
     if (this.cog) this.cog.rotation.y += dt * (this.job ? 6 : 0.3);
   }
 }
-
 // ───────────────────────── Separador ─────────────────────────
 export class Sorter extends Machine {
   constructor(...a) {
@@ -614,6 +692,7 @@ export class Seller extends Machine {
           if (want !== null) checkItemArg(want, 'vender');
           return this.request({
             label: 'Vendendo',
+            counts: 'money',
             dur: 0.5,
             finish: () => {
               let total = 0;
@@ -628,6 +707,7 @@ export class Seller extends Machine {
                 floatText(new THREE.Vector3(this.pos.x, 2.3, this.pos.z), `+$ ${total}`);
                 puff(new THREE.Vector3(this.pos.x, 1.6, this.pos.z), { color: 0xffd35a, count: 10, size: 0.14, up: 2, gravity: 4, additive: true, life: 0.9 });
                 game.emit('sold', total);
+                game.emit('evento', { tipo: 'venda', fonte: this.name, valor: total });
               }
               return total;
             },
@@ -706,7 +786,7 @@ export class Generator extends Machine {
   get producing() { return this.net && this.net.demand > 0; }
   api() {
     return {
-      producao: { fn: () => MACHINES[this.type].gera, doc: 'Quanto ⚡ este gerador produz' },
+      producao: { fn: () => Math.round(outputOf(this) * 10) / 10, doc: 'Quanto ⚡ este gerador produz agora' },
       consumo: { fn: () => this.net ? this.net.demand : 0, doc: 'Quanto ⚡ a rede dele está usando' },
     };
   }
@@ -769,7 +849,9 @@ export function createEntity(type, x, z, dir) {
 
 export function addEntity(e) {
   game.entities.push(e);
-  grid.set(key(e.x, e.z), e);
+  if (e.layer === 1) gridUp.set(key(e.x, e.z), e);
+  else grid.set(key(e.x, e.z), e);
+  if (e.alsoUp) gridUp.set(key(e.x, e.z), e); // rampas ocupam os dois andares
   game.scene.add(e.obj);
   refreshBeltsAround(e.x, e.z);
   if (canWire(e)) recomputePower();
@@ -782,7 +864,9 @@ export function removeEntity(e) {
   disconnectAll(e);
   e.onRemove();
   game.scene.remove(e.obj);
-  grid.delete(key(e.x, e.z));
+  const k = key(e.x, e.z);
+  if (grid.get(k) === e) grid.delete(k);
+  if (gridUp.get(k) === e) gridUp.delete(k);
   const i = game.entities.indexOf(e);
   if (i >= 0) game.entities.splice(i, 1);
   refreshBeltsAround(e.x, e.z);
@@ -798,7 +882,23 @@ export function refreshBeltsAround(x, z) {
 }
 
 export function findByName(name) {
-  return game.entities.find((e) => e.name === name && e.isMachine);
+  return game.entities.find((e) => e.name === name && e.isMachine) || (game.drones || []).find((d) => d.name === name && !d.removed);
+}
+
+// bônus de decoração perto de máquinas e computadores (recalculado de tempos em tempos)
+export function updateDecorBonus() {
+  const decos = game.entities.filter((e) => DECOR_BONUS[e.type]);
+  for (const e of game.entities) {
+    if (!e.isMachine) continue;
+    let cpu = 0, vel = 0;
+    for (const d of decos) {
+      const b = DECOR_BONUS[d.type];
+      const r = (b.raio || 3) + 0.5;
+      if (Math.abs(d.x - e.x) <= r && Math.abs(d.z - e.z) <= r) { cpu += b.cpu || 0; vel += b.vel || 0; }
+    }
+    e.decorCpu = Math.min(DECOR_BONUS_MAX, cpu);
+    e.decorVel = Math.min(DECOR_BONUS_MAX, vel);
+  }
 }
 
 // Referência de máquina usada dentro da Jiboia

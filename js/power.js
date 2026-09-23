@@ -1,7 +1,7 @@
 // Energia: cabos entre geradores, postes e máquinas. Cada grupo conectado é uma "rede".
 import * as THREE from 'three';
 import { game } from './state.js';
-import { MACHINES, WIRE_MAX, WIRE_MAX_MACHINE, WIRE_MAX_LEN } from './data.js';
+import { MACHINES, WIRE_MAX, WIRE_MAX_MACHINE, WIRE_MAX_LEN, TIERS } from './data.js';
 
 export const wires = []; // {a, b, mesh}
 const wireMat = new THREE.MeshStandardMaterial({ color: 0x2b2445, roughness: 0.6 });
@@ -10,6 +10,10 @@ const wireMatLive = new THREE.MeshStandardMaterial({ color: 0x3a2f60, roughness:
 // consumo/geração
 export const usesPower = (e) => !!(MACHINES[e.type]?.energia);
 export const makesPower = (e) => !!(MACHINES[e.type]?.gera);
+// quanto ⚡ a entidade gera AGORA (carvão precisa de combustível, solar depende do sol)
+export const outputOf = (e) => (e.powerOutput ? e.powerOutput() : (MACHINES[e.type]?.gera || 0));
+// quanto ⚡ ela pede (Mk2/Mk3 gastam mais)
+export const demandOf = (e) => (MACHINES[e.type]?.energia || 0) * (TIERS[e.tier || 0]?.energia || 1);
 export function wireMax(e) {
   if (WIRE_MAX[e.type]) return WIRE_MAX[e.type];
   return usesPower(e) ? WIRE_MAX_MACHINE : 0;
@@ -74,6 +78,16 @@ export function disconnectAll(e) {
   return n;
 }
 
+export function disconnect(a, b) {
+  const i = wires.findIndex((w) => (w.a === a && w.b === b) || (w.a === b && w.b === a));
+  if (i < 0) return false;
+  const w = wires[i];
+  if (w.mesh) { game.scene.remove(w.mesh); w.mesh.geometry.dispose(); }
+  wires.splice(i, 1);
+  recompute();
+  return true;
+}
+
 export function clearAll() {
   for (const w of wires) if (w.mesh) { game.scene.remove(w.mesh); w.mesh.geometry.dispose(); }
   wires.length = 0;
@@ -96,23 +110,42 @@ export function recompute() {
       net.members.push(e);
       for (const n of adj.get(e) || []) if (!n.net) { n.net = net; stack.push(n); }
     }
-    for (const e of net.members) {
-      net.supply += MACHINES[e.type]?.gera || 0;
-      net.demand += MACHINES[e.type]?.energia || 0;
-    }
-    net.ratio = net.demand === 0 ? 1 : Math.min(1, net.supply / net.demand);
     nets.push(net);
   }
   // máquina sozinha, sem cabo nenhum: sem rede
   for (const e of ents) if (usesPower(e) && !wiresOf(e).length) e.net = null;
   game.powerNets = nets.filter((n) => n.members.some((m) => m.net === n));
+  for (const n of game.powerNets) n.members = n.members.filter((m) => m.net === n);
+  updatePower(true);
   // redesenha cabos (acesos se a rede tem energia)
   for (const w of wires) {
     if (w.mesh) { game.scene.remove(w.mesh); w.mesh.geometry.dispose(); }
     w.mesh = buildWireMesh(w.a, w.b, (w.a.net?.supply || 0) > 0);
+    w.live = (w.a.net?.supply || 0) > 0;
     game.scene.add(w.mesh);
   }
   game.emit('power');
+}
+
+// recalcula geração x consumo de cada rede (chamado sempre, porque carvão/sol mudam)
+export function updatePower(silent) {
+  let changed = false;
+  for (const net of game.powerNets || []) {
+    let s = 0, d = 0;
+    for (const e of net.members) { if (!e.removed) { s += outputOf(e); d += demandOf(e); } }
+    s = Math.round(s * 10) / 10;
+    d = Math.round(d * 10) / 10;
+    if (s !== net.supply || d !== net.demand) changed = true;
+    net.supply = s; net.demand = d;
+    net.ratio = d === 0 ? 1 : Math.min(1, s / d);
+  }
+  if (changed && !silent) {
+    for (const w of wires) {
+      const live = (w.a.net?.supply || 0) > 0;
+      if (w.mesh && live !== w.live) { w.mesh.material = live ? wireMatLive : wireMat; w.live = live; }
+    }
+    game.emit('power');
+  }
 }
 
 // 0..1: quanto da energia pedida a máquina está recebendo
@@ -125,11 +158,13 @@ export function powerRatio(e) {
 export function powerText(e) {
   if (makesPower(e)) {
     const n = e.net;
-    return n ? `⚡ Rede: gera ${n.supply} · usa ${n.demand}${n.demand > n.supply ? ' (sobrecarregada!)' : ''}` : `⚡ Gera ${MACHINES[e.type].gera}`;
+    const now = outputOf(e);
+    const extra = e.powerNote ? ' · ' + e.powerNote() : '';
+    return n ? `⚡ Gerando ${Math.round(now)}${extra} · rede usa ${n.demand}/${n.supply}${n.demand > n.supply ? ' (sobrecarregada!)' : ''}` : `⚡ Gerando ${Math.round(now)}${extra}`;
   }
   if (!usesPower(e)) return '';
   const r = powerRatio(e);
-  const need = MACHINES[e.type].energia;
+  const need = demandOf(e);
   if (!e.net) return `⚡ Sem energia: ligue um cabo 🔌 (gasta ${need} ⚡)`;
   if (r === 0) return `⚡ Sem energia: a rede não tem gerador (gasta ${need} ⚡)`;
   if (r < 1) return `⚡ Energia fraca (${Math.round(r * 100)}%): rede usa ${e.net.demand}, gera ${e.net.supply}. Compre mais geradores!`;

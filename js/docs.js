@@ -76,6 +76,28 @@ ${code(`enquanto Verdadeiro:
 <tr><td><code>len, range, str, int, float, abs, min, max, round, sum, sorted, aleatorio(a, b)</code></td><td>Funções comuns do Python</td></tr>
 </table>
 
+<h3>Rede entre computadores 🛰️ <small>(pesquisa "Rede")</small></h3>
+<table>
+<tr><td><code>enviar("pc2", valor)</code></td><td>Manda uma mensagem (texto, número, lista, dicionário). Use <code>"todos"</code> pra todos</td></tr>
+<tr><td><code>receber()</code> ⏳ / <code>receber(5)</code></td><td>Espera uma mensagem: <code>{"de": "pc1", "msg": ...}</code>. Com número, desiste depois de N segundos (retorna None)</td></tr>
+<tr><td><code>tem_mensagem()</code></td><td>True se tem mensagem esperando</td></tr>
+<tr><td><code>compartilhar("chave", valor)</code> / <code>ler("chave")</code></td><td>Uma memória compartilhada por todos os computadores</td></tr>
+</table>
+
+<h3>Sensores e eventos 📡 <small>(pesquisa "Sensores")</small></h3>
+<table>
+<tr><td><code>ouvir("sensor1")</code></td><td>Recebe um evento pra cada item que passa na Esteira com Sensor</td></tr>
+<tr><td><code>ouvir("vendas")</code>, <code>ouvir("rede")</code>, <code>ouvir("tempo", 10)</code></td><td>Eventos de vendas, de mensagens e de relógio (a cada N segundos)</td></tr>
+<tr><td><code>esperar_evento()</code> ⏳</td><td>Espera o próximo evento: <code>{"tipo": "item", "fonte": "sensor1", "item": "..."}</code></td></tr>
+<tr><td><code>esperar_ate(funcao)</code> ⏳</td><td>Fica chamando a função até ela retornar True. Ex: <code>esperar_ate(caixa_cheia)</code></td></tr>
+</table>
+
+<h3>Bibliotecas 📚</h3>
+<p>Na aba <b>Bibliotecas</b> você escreve funções uma vez. Em qualquer computador: <code>importar("util")</code> e as funções ficam disponíveis.</p>
+
+<h3>Depurador 🔍</h3>
+<p>Clique no <b>número da linha</b> pra marcar um breakpoint (bolinha vermelha). O programa pausa antes dela. Use <b>⏭ Passo</b> (<kbd>F10</kbd>) pra rodar uma instrução e veja as variáveis na aba <b>Depurar</b>.</p>
+
 <h3>Métodos das máquinas</h3>
 <p>Métodos marcados com ⏳ <b>esperam</b>: o programa fica parado até a máquina terminar (a setinha fica amarela).</p>
 <table>
@@ -106,6 +128,22 @@ ${code(`enquanto Verdadeiro:
 <tr><td><code>.enviar("esquerda")</code> ⏳</td><td>Manda o item pra "esquerda", "direita" ou "frente"</td></tr>
 <tr><th colspan="2">Baú</th></tr>
 <tr><td><code>.retirar()</code> ⏳ / <code>.retirar("item")</code></td><td>Solta 1 item pela frente</td></tr>
+<tr><th colspan="2">Laboratório</th></tr>
+<tr><td><code>.pesquisar("logistica")</code>, <code>.pesquisa()</code>, <code>.progresso()</code>, <code>.faltando()</code></td><td>Escolhe e acompanha a pesquisa</td></tr>
+<tr><th colspan="2">Drone (da Doca de Drones)</th></tr>
+<tr><td><code>.ir_para("bau1")</code> ⏳, <code>.ir(x, z)</code> ⏳, <code>.voltar()</code> ⏳</td><td>Voa até uma máquina, uma célula do mapa ou a doca</td></tr>
+<tr><td><code>.pegar()</code> ⏳ / <code>.pegar("item")</code>, <code>.soltar()</code> ⏳</td><td>Pega 1 item da máquina/esteira embaixo e solta em outra</td></tr>
+<tr><td><code>.carga()</code>, <code>.posicao()</code>, <code>.embaixo()</code>, <code>.ocupado()</code></td><td>O que carrega, onde está, o que tem embaixo</td></tr>
+<tr><th colspan="2">Lâmpada · Tela · Alto-falante</th></tr>
+<tr><td><code>.ligar()</code>, <code>.desligar()</code>, <code>.cor("verde")</code>, <code>.piscar(0.5)</code></td><td>Lâmpada colorida</td></tr>
+<tr><td><code>.escrever("txt")</code>, <code>.mostrar("txt")</code>, <code>.limpar()</code>, <code>.titulo("x")</code>, <code>.grafico([1,4,2])</code></td><td>Tela</td></tr>
+<tr><td><code>.tocar("do")</code> ⏳, <code>.tocar("sol#", 0.5)</code>, <code>.som("sino")</code></td><td>Alto-falante: notas do re mi fa sol la si (+ "#" e oitava, ex "do5")</td></tr>
+<tr><th colspan="2">Esteira com Sensor</th></tr>
+<tr><td><code>.contagem()</code>, <code>.ultimo()</code>, <code>.esperar_item()</code> ⏳, <code>.zerar()</code></td><td>Conta os itens que passam</td></tr>
+<tr><th colspan="2">Gerador a Carvão</th></tr>
+<tr><td><code>.ligar()</code>, <code>.desligar()</code>, <code>.combustivel()</code>, <code>.producao()</code></td><td>Desligue quando não precisar pra economizar carvão</td></tr>
+<tr><th colspan="2">Lixeira</th></tr>
+<tr><td><code>.destruidos()</code></td><td>Quantos itens já destruiu</td></tr>
 </table>
 
 <h3>Veios de minério</h3>

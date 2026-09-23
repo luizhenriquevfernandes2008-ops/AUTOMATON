@@ -106,9 +106,13 @@
             <kbd>E</kbd><span>programar / detalhes</span><kbd>X</kbd><span>guardar peça</span>
             <kbd>B</kbd><span>loja</span><kbd>H</kbd><span>guia</span>
             <kbd>M</kbd><span>próxima música</span><kbd>Esc</kbd><span>pausa</span>
+            <kbd>Tab</kbd><span>mapa</span><kbd>K</kbd><span>estatísticas</span>
+            <kbd>C</kbd><span>copiar grupo</span><kbd>V</kbd><span>colar grupo</span>
+            <kbd>Ctrl+Z</kbd><span>desfazer</span><kbd>P</kbd><span>modo foto</span>
+            <kbd>G</kbd><span>trocar rádio</span><kbd>F10</kbd><span>passo (depurador)</span>
           </div>
         </div>
-        <div class="row"><button class="primary" id="menu-guide">📖 Abrir o guia completo</button></div>
+        <div class="row"><button class="primary" id="menu-guide">📖 Abrir o guia completo</button><button id="menu-tutorial">🎓 Fazer o tutorial interativo</button></div>
       </div>
 
       <!-- configurações -->
@@ -126,6 +130,9 @@
           <div class="set-list">
             <label class="set-row">Sensibilidade<input type="range" data-setting="sens" min="0.2" max="2" step="0.05"><output></output></label>
             <label class="set-row">Campo de visão<input type="range" data-setting="fov" min="55" max="95" step="1"><output></output></label>
+            <label class="set-row">Rádio<select id="set-station" class="set-select"></select><output></output></label>
+            <div class="set-row"><span>Pet Oopi</span><span class="seg" id="set-pet"><button data-v="1">Ligado</button><button data-v="0">Desligado</button></span><output></output></div>
+            <div class="set-row"><span>Autocompletar</span><span class="seg" id="set-ac"><button data-v="1">Ligado</button><button data-v="0">Desligado</button></span><output></output></div>
             <div class="set-row"><span>Qualidade</span>
               <div class="seg" id="quality-seg">
                 <button data-q="baixa">Baixa</button><button data-q="media">Média</button><button data-q="alta">Alta</button>
@@ -142,8 +149,9 @@
           <div class="credit-list">
             <div><span>modelos 3d e efeitos sonoros</span>Kenney.nl: Factory, Space, Nature e Furniture Kit (CC0)</div>
             <div><span>céu e texturas</span>Poly Haven (CC0)</div>
-            <div><span>músicas</span>Kevin MacLeod, incompetech.com (CC BY 4.0): Lobby Time, Airport Lounge, Wallpaper, Local Forecast, Bossa Antigua, Deliberate Thought, Dreamer, Easy Lemon, Carefree, Laid Back Guitars</div>
-            <div><span>som ambiente</span>Forest Ambience, OpenGameArt.org (CC0)</div>
+            <div><span>músicas</span>Kevin MacLeod, incompetech.com (CC BY 4.0): Bossa Antigua, Casa Bossa Nova, BossaBossa, Samba Isobel, Cool Vibes, Sidewalk Shade, Latin Industries, Airport Lounge, Lobby Time, Wallpaper, Dreamer, Deliberate Thought, Carefree, Easy Lemon, Jazz Brunch, Smooth Lovin, Hep Cats, Bass Walker, George Street Shuffle, Local Forecast, Laid Back Guitars</div>
+            <div><span>bossas do OpenGameArt (CC0)</span>Bossa Town (KarateStudios), Bossa Shop Theme (SpringySpringo), Bossa Nova 8-bit (Joth)</div>
+            <div><span>som ambiente</span>Forest Ambience e Rain Loop (Ylmir), OpenGameArt.org (CC0)</div>
             <div><span>fontes</span>Chakra Petch, Space Grotesk, JetBrains Mono (SIL OFL)</div>
             <div><span>motor</span>three.js (MIT)</div>
           </div>
@@ -163,7 +171,9 @@
         <div id="cpu">⚡ 2 instr/s</div>
       </div>
     </div>
+    <div id="tutorial" class="hidden"></div>
     <div id="music">
+      <span id="clock">☀️ 08:00</span>
       <span class="note">♪</span><span id="track">—</span>
       <button id="music-toggle" title="Pausar música">⏸</button>
       <button id="music-next" title="Próxima (M)">⏭</button>
@@ -176,6 +186,9 @@
     <div id="toasts"></div>
   </div>
 
+  <div id="photo-hint" class="hidden"><b>📷 MODO FOTO</b> · <kbd>WASD</kbd> voar · <kbd>Espaço</kbd>/<kbd>C</kbd> subir/descer · <kbd>Shift</kbd> rápido · roda: zoom · <kbd>F</kbd> tirar foto · <kbd>T</kbd> congelar tempo · <kbd>N</kbd> avançar horário · <kbd>H</kbd> esconder dica · <kbd>P</kbd> sair</div>
+  <div id="photo-flash"></div>
+
   <div id="clickToPlay" class="hidden"><div>🖱️ Clique para continuar</div></div>
 
   <!-- editor -->
@@ -187,6 +200,9 @@
         <div class="grow"></div>
         <span id="ed-cpu"></span>
         <select id="ed-examples"><option value="">📚 Exemplos…</option></select>
+        <button id="ed-pause" title="Pausar (depurador)">⏸</button>
+        <button id="ed-step" title="Rodar 1 instrução (F10)">⏭ Passo</button>
+        <button id="ed-resume" class="primary">▶ Continuar</button>
         <button id="ed-run" class="primary">▶ Executar</button>
         <button id="ed-stop">■ Parar</button>
         <button id="ed-close" class="x">✕</button>
@@ -199,6 +215,7 @@
             <div id="err-line"></div>
             <pre id="code-hl" aria-hidden="true"></pre>
             <textarea id="code" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
+            <div id="ac" class="hidden"></div>
           </div>
         </div>
         <div class="ed-right">
@@ -207,11 +224,13 @@
             <button class="ed-tab" data-tab="manual">Manual</button>
             <button class="ed-tab" data-tab="guia">Guia</button>
             <button class="ed-tab" data-tab="maquinas">Máquinas</button>
+            <button class="ed-tab" data-tab="depurar">Depurar</button>
+            <button class="ed-tab" data-tab="libs">Bibliotecas</button>
           </div>
           <div id="ed-side"><div id="console"></div></div>
         </div>
       </div>
-      <div class="ed-foot"><span id="ed-lint"></span><span class="grow"></span><span><kbd>Ctrl+Enter</kbd> executar · <kbd>Tab</kbd> indentar · <kbd>Esc</kbd> fechar (o programa continua rodando)</span></div>
+      <div class="ed-foot"><span id="ed-lint"></span><span class="grow"></span><label class="ed-check"><input type="checkbox" id="ed-ac-toggle"> autocompletar</label><span><kbd>Ctrl+Enter</kbd> executar · <kbd>Tab</kbd> indentar · <kbd>Esc</kbd> fechar (o programa continua rodando)</span></div>
     </div>
   </div>
 
@@ -256,6 +275,10 @@
         <button id="panel-rotate">↻ Girar</button>
         <button id="panel-pick">📦 Guardar</button>
         <button id="panel-guide">📖 Como funciona?</button>
+        <button id="panel-research" class="primary">🔬 Pesquisas</button>
+      </div>
+      <div class="panel-actions">
+        <button id="panel-upgrade" class="primary">⬆ Melhorar</button>
       </div>
     </div>
   </div>
@@ -276,6 +299,8 @@
         <div class="row">
           <button id="btn-save">💾 Salvar</button>
           <button id="btn-guide">📖 Guia</button>
+          <button id="btn-stats">📊 Estatísticas</button>
+          <button id="btn-map">🗺️ Mapa</button>
           <button id="btn-menu">⌂ Menu</button>
           <button id="btn-reset" class="danger">Recomeçar</button>
         </div>
@@ -288,6 +313,23 @@
     <div class="win guide-win">
       <div class="shop-head"><div class="shop-title">Guia</div><div class="grow"></div><span class="muted">H ou Esc fecha</span><button id="guide-close" class="x">✕</button></div>
       <div id="guide-body"></div>
+    </div>
+  </div>
+
+  <!-- janela genérica (pesquisa, foguete, estatísticas, mapa) -->
+  <div id="xwin" class="overlay hidden">
+    <div class="win x-win">
+      <div class="shop-head"><div class="shop-title" id="xwin-title">—</div><div class="grow"></div><span class="muted" id="xwin-hint">Esc fecha</span><button id="xwin-close" class="x">✕</button></div>
+      <div id="xwin-body"></div>
+    </div>
+  </div>
+
+  <!-- confirmação -->
+  <div id="confirm" class="overlay hidden">
+    <div class="win confirm-win">
+      <div class="win-head"><span class="pause-title" id="confirm-title">—</span></div>
+      <div class="confirm-body" id="confirm-body"></div>
+      <div class="row confirm-row"><button id="confirm-no">Não</button><button id="confirm-yes" class="primary">Sim</button></div>
     </div>
   </div>
 

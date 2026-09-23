@@ -1,5 +1,7 @@
 # 📖 Guia do AUTOMATON
 
+> Num jogo novo, o jogo pergunta se você quer o **tutorial interativo** (dá pra refazer no menu → Como jogar).
+>
 > Esse guia também está **dentro do jogo**: aperte **`H`**. Ou abra **Pausa → 📖 Guia**, a aba **Guia** no editor de código, ou o botão **"📖 Como funciona?"** no painel de cada máquina.
 
 No AUTOMATON **nada funciona sozinho**:
@@ -217,7 +219,132 @@ while True:
 
 ---
 
-## 8. Problemas comuns
+## 8. 🔬 Laboratório e pesquisas
+
+1. Compre um **Laboratório** (nível 2) e ligue na energia (5 ⚡).
+2. Aperte **`E`** nele: abre a **árvore de pesquisas**.
+3. Escolha uma pesquisa. Ela mostra os itens que precisa (ex: 20 lingotes de ferro).
+4. Mande os itens **por esteira**: o laboratório aceita por qualquer lado, mas só o que a pesquisa pede.
+5. Quando completar, a tecnologia libera máquinas, receitas e funções novas da Jiboia.
+
+| Pesquisa | Libera | Precisa da fase |
+|---|---|---|
+| 🔀 Logística | Divisor e Juntador | – |
+| 💡 Sinais e Telas | Lâmpada, Tela, Alto-falante | – |
+| 📡 Sensores e Eventos | Esteira com Sensor, `ouvir()`, `esperar_evento()`, `esperar_ate()` | – |
+| 🌉 Esteiras Elevadas | Rampas e esteiras no 2º andar | 1 |
+| 🛰️ Rede de Computadores | `enviar()`, `receber()`, `compartilhar()`, `ler()` | 1 |
+| 🔥 Energia a Carvão | Minerar carvão, Gerador a Carvão | 1 |
+| ⬆️ Máquinas Mk2 | Melhorar máquinas pra Mk2 | 1 |
+| ⚒️ Metalurgia | Aço na fornalha, Vigas | 2 |
+| ☀️ Energia Solar | Painel Solar | 2 |
+| 🚁 Drones | Doca de Drones | 2 |
+| ⏫ Máquinas Mk3 | Melhorar máquinas pra Mk3 | 3 |
+| 🚀 Engenharia Espacial | Processador, Módulo de Foguete, Satélite | 3 |
+
+---
+
+## 9. 🚀 Projeto Foguete (o objetivo grande)
+
+Ao **norte** da fábrica fica a **Plataforma de Lançamento** (3×3). É como o Elevador Espacial do Satisfactory:
+
+- Cada **fase** pede uma lista de itens (aparece no canto direito da tela e no **`E`** da plataforma).
+- Leve os itens **por esteira até qualquer lado** da plataforma.
+- Cada fase dá **dinheiro, XP**, monta um pedaço do foguete e **libera pesquisas novas**.
+
+| Fase | Pede |
+|---|---|
+| 1 · Fundação | 50 lingotes de ferro, 30 lingotes de cobre |
+| 2 · Estrutura | 40 engrenagens, 60 fios, 30 tijolos |
+| 3 · Tanques | 40 aços, 25 chips, 10 motores |
+| 4 · Controle | 25 vigas, 10 processadores, 5 robozinhos |
+| 5 · Lançamento! | 8 módulos de foguete, 2 satélites, e então **🚀 Lançar** |
+
+---
+
+## 10. 🗺️ Regiões novas
+
+Nas bordas da floresta tem **placas 🔒**. Mire numa e aperte **`E`** pra comprar a região: as árvores somem e você pode construir lá, com veios novos (inclusive **carvão**).
+
+| Região | Preço | Nível |
+|---|---|---|
+| Floresta Norte | $ 3.000 | 3 |
+| Vale Leste | $ 8.000 | 5 |
+| Colinas Oeste | $ 15.000 | 6 |
+| Campos do Sul | $ 30.000 | 7 |
+
+Veja tudo no **mapa** (`Tab`).
+
+---
+
+## 11. 🔀 Logística
+
+- **Divisor**: o item entra por trás e sai revezando: esquerda → frente → direita. Sem código.
+- **Juntador**: junta até 3 esteiras (trás, esquerda, direita) numa só, revezando pra nenhum lado engarrafar.
+- **Esteira com Sensor**: igual a uma esteira, mas conta cada item e avisa o programa (`ouvir("sensor1")`). Gasta 1 ⚡.
+- **2º andar**: **Rampa (sobe)** → **Esteira Elevada** → **Rampa (desce)**. Passa por cima de outras esteiras e de máquinas baixas, e você passa por baixo.
+
+```
+chão:     [esteira →][rampa ↗]            [rampa ↘][baú]
+2º andar:                     [elevada →][elevada →]
+chão:                          ↓ outra esteira passando por baixo
+```
+
+- **Lixeira**: destrói qualquer item. Ótima pra escória sobrando.
+
+---
+
+## 12. 🔥 Carvão, sol, escória e aço
+
+- **Gerador a Carvão**: 75 ⚡, queimando 1 carvão a cada 8 segundos. O carvão entra pelas setas azuis. No código: `g.desligar()` quando não precisar (economiza carvão) e `g.ligar()` de novo.
+- **Painel Solar**: até 35 ⚡ de graça, só de dia. À noite dá zero, e na chuva, menos.
+- **Escória**: a fornalha solta 1 escória a cada 2 lingotes (e 1 a cada aço). Ela sai junto, pela seta laranja. Separe com um **Separador** e mande pra **Lixeira**, ou faça **tijolos** na montadora (3 escórias = 1 tijolo, usado no foguete).
+- **Aço**: lingote de ferro + carvão na fornalha: `forno.fundir("aco")`.
+
+---
+
+## 13. 🚁 Drones, ⬆ Mk2/Mk3 e decoração
+
+**Drones:** a **Doca de Drones** cria um drone (o nome aparece em cima dele).
+
+```python
+d = maquina("drone1")
+while True:
+    d.ir_para("bau1")
+    d.pegar()
+    d.ir_para("venda1")
+    d.soltar()
+```
+
+**Mk2 e Mk3:** depois das pesquisas, aperte **`E`** numa máquina e clique **⬆ Melhorar**. Mk2 = 1,5× mais rápida, Mk3 = 2,2×, e gastam um pouco mais de energia. Um anel colorido aparece no pé da máquina.
+
+**Decoração com bônus** (num raio de 3 células):
+
+| Decoração | Bônus |
+|---|---|
+| Vaso de Planta, Flores, Árvore, Sofá, Banco | + clock dos computadores |
+| Luminária, Barris, Cafeteira | + velocidade das máquinas |
+| Antena Parabólica | os dois |
+| Estátua do Oopi | +10% nos dois, raio grande |
+
+---
+
+## 14. 🧰 Ferramentas
+
+- **Copiar e colar** (`C` / `V`): clique em dois cantos pra copiar uma área (máquinas, código e cabos). Aparece um fantasma: `R` gira, clique cola. Peças que faltarem são compradas.
+- **Desfazer** (`Ctrl+Z`): colocar, guardar, cabos, colar e girar.
+- **Mapa** (`Tab`): visto de cima, com zoom (roda do mouse) e arrastar.
+- **Estatísticas** (`K`): gráficos de ganhos, produção e energia, **placar** dos computadores (🥉🥈🥇) e **conquistas**.
+- **Modo foto** (`P`): câmera voando livre, `F` tira foto (salva PNG), `T` congela o tempo, `N` avança o horário.
+- **Depurador** (no editor): clique no número da linha pra marcar um breakpoint, use **⏭ Passo** e veja as variáveis na aba **Depurar**.
+- **Autocompletar** (no editor): sugere funções, métodos, máquinas e itens. Desliga no rodapé do editor ou nas configurações.
+- **Bibliotecas** (no editor): funções que você escreve uma vez e usa com `importar("nome")`.
+- **Rádio**: `G` troca de estação (**Bossa FM**, Lo-fi, Jazz, Só Natureza). O rádio do escritório também.
+- **Oopi**: o pet robozinho. Mire nele e aperte `E` pra fazer carinho 💜.
+
+---
+
+## 15. Problemas comuns
 
 | Problema | Solução |
 |---|---|
@@ -240,6 +367,12 @@ while True:
 | `Clique` | colocar / ligar cabo / usar |
 | `X` / botão direito | guardar a peça (ou soltar o cabo) |
 | `E` | programar computador / ver máquina / loja / rádio / café |
+| `C` / `V` | copiar área / colar |
+| `Ctrl+Z` | desfazer |
 | `B` | loja |
+| `Tab` | mapa |
+| `K` | estatísticas, placar e conquistas |
+| `P` | modo foto |
+| `G` | trocar estação do rádio |
 | `H` | este guia |
 | `Esc` | pausa |

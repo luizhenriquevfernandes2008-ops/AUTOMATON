@@ -131,7 +131,49 @@ while True:
     else:
         sep.enviar("direita")`)}
 
-<h3>8. Problemas comuns</h3>
+<h3>8. 🔬 Laboratório e pesquisas</h3>
+<p>Compre um <b>Laboratório</b> (nível 2), ligue na energia e aperte <kbd>E</kbd> nele pra ver a <b>árvore de pesquisas</b>. Escolha uma e mande os itens pedidos por esteira: o laboratório aceita por qualquer lado. Quando completar, a tecnologia libera máquinas, receitas e funções novas da Jiboia.</p>
+<p>Algumas pesquisas só aparecem depois de completar <b>fases do Projeto Foguete</b>.</p>
+
+<h3>9. 🚀 Projeto Foguete (o objetivo grande)</h3>
+<p>Ao norte da fábrica tem a <b>Plataforma de Lançamento</b>. Cada fase pede uma lista de itens (aparece no canto direito e no <kbd>E</kbd> da plataforma). Leve tudo por esteira até qualquer lado da plataforma. Cada fase dá dinheiro, XP, monta um pedaço do foguete e libera pesquisas novas. Na fase 5, aperte <b>🚀 Lançar</b>!</p>
+
+<h3>10. 🗺️ Regiões novas</h3>
+<p>Nas bordas da floresta tem <b>placas 🔒</b>. Aperte <kbd>E</kbd> numa delas pra comprar a região: as árvores somem e aparecem veios novos (inclusive carvão). Veja tudo no mapa (<kbd>Tab</kbd>).</p>
+
+<h3>11. 🔀 Logística: divisor, juntador e 2º andar</h3>
+<ul>
+<li><b>Divisor</b>: entra por trás, sai um item pra esquerda, um pra frente, um pra direita. Sem código.</li>
+<li><b>Juntador</b>: junta até 3 esteiras numa só, revezando, sem engarrafar.</li>
+<li><b>Rampa (sobe)</b> → <b>Esteira Elevada</b> → <b>Rampa (desce)</b>: passa por cima de outras esteiras e máquinas baixas. Seu boneco passa por baixo.</li>
+<li><b>Esteira com Sensor</b>: conta os itens e avisa o programa (<code>ouvir("sensor1")</code>).</li>
+<li><b>Lixeira</b>: some com o que chegar (ótima pra sobras).</li>
+</ul>
+
+<h3>12. 🔥 Carvão, sol e escória</h3>
+<ul>
+<li><b>Gerador a Carvão</b>: 75 ⚡, mas queima 1 carvão a cada 8 s. Leve carvão por esteira nas setas azuis. <code>.desligar()</code> economiza.</li>
+<li><b>Painel Solar</b>: até 35 ⚡ de graça, só de dia (e menos na chuva).</li>
+<li>A fornalha solta <b>escória</b> junto com os lingotes. Separe com um separador e mande pra <b>Lixeira</b>, ou faça <b>tijolos</b> na montadora (3 escórias = 1 tijolo, usado no foguete).</li>
+<li><b>Aço</b> = lingote de ferro + carvão na fornalha: <code>forno.fundir("aco")</code>.</li>
+</ul>
+
+<h3>13. 🚁 Drones, ⬆ Mk2/Mk3 e decoração</h3>
+<ul>
+<li>A <b>Doca de Drones</b> cria um drone. No código: <code>d = maquina("drone1")</code>, <code>d.ir_para("bau1")</code>, <code>d.pegar()</code>, <code>d.ir_para("venda1")</code>, <code>d.soltar()</code>.</li>
+<li>Depois das pesquisas Mk2/Mk3, aperte <kbd>E</kbd> numa máquina e clique <b>⬆ Melhorar</b>: ela fica mais rápida (e gasta mais energia).</li>
+<li>Decoração perto das máquinas dá bônus: plantas/árvores aumentam o clock dos computadores; luminárias e barris aceleram as máquinas.</li>
+</ul>
+
+<h3>14. 🧰 Ferramentas</h3>
+<ul>
+<li><kbd>C</kbd> copiar uma área (clique em 2 cantos) · <kbd>V</kbd> colar de novo · <kbd>R</kbd> gira o grupo. Peças que faltarem são compradas.</li>
+<li><kbd>Ctrl+Z</kbd> desfaz (colocar, tirar, cabos, colar, girar).</li>
+<li><kbd>Tab</kbd> mapa · <kbd>K</kbd> estatísticas, placar dos computadores e conquistas · <kbd>P</kbd> modo foto · <kbd>G</kbd> troca a estação do rádio.</li>
+<li>No editor: autocompletar (dá pra desligar embaixo), depurador (clique no número da linha) e bibliotecas.</li>
+</ul>
+
+<h3>15. Problemas comuns</h3>
 <table>
 <tr><th>Problema</th><th>Solução</th></tr>
 <tr><td>O item para no fim da esteira</td><td>A próxima peça não aceita por esse lado (seta laranja) ou está cheia.</td></tr>

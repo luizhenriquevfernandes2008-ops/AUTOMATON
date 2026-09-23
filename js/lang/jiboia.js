@@ -425,8 +425,18 @@ class Parser {
   }
 }
 
-export function parse(src) {
-  return new Parser(lex(src)).program();
+export function parse(src, lib = null) {
+  const ast = new Parser(lex(src)).program();
+  if (lib) markLib(ast, lib);
+  return ast;
+}
+
+// marca os nós de uma biblioteca (pra mensagens de erro dizerem de onde veio)
+function markLib(node, lib) {
+  if (Array.isArray(node)) { node.forEach((n) => markLib(n, lib)); return; }
+  if (!node || typeof node !== 'object') return;
+  if (node.type && node.line) node.lib = lib;
+  for (const k of Object.keys(node)) if (k !== 'lib' && node[k] && typeof node[k] === 'object') markLib(node[k], lib);
 }
 
 // ─────────────────────────── VALORES ───────────────────────────
@@ -439,7 +449,8 @@ export class JRange {
   at(i) { return this.start + i * this.step; }
 }
 export class Builtin {
-  constructor(name, fn, minArgs = 0, maxArgs = Infinity) { this.name = name; this.fn = fn; this.minArgs = minArgs; this.maxArgs = maxArgs; }
+  // isGen: fn é um generator que roda dentro do interpretador (pode chamar funções Jiboia e gastar tempo)
+  constructor(name, fn, minArgs = 0, maxArgs = Infinity, isGen = false) { this.name = name; this.fn = fn; this.minArgs = minArgs; this.maxArgs = maxArgs; this.isGen = isGen; }
 }
 export class Blocking {
   constructor() { this.done = false; this.value = null; this.error = null; this.label = ''; }
@@ -562,7 +573,7 @@ export class Interpreter {
     yield* this.execBlock(this.ast, this.globalFrame);
   }
 
-  err(msg, line) { return new JiboiaError(msg, line ?? this.line); }
+  err(msg, line) { const e = new JiboiaError(msg, line ?? this.line); e.lib = this.lib; return e; }
 
   lookup(name, f, line) {
     if (!f.isGlobal && f.vars.has(name)) return f.vars.get(name);
@@ -585,7 +596,11 @@ export class Interpreter {
 
   *exec(s, f) {
     this.line = s.line;
+    this.lib = s.lib || null;
+    this.frame = f;
     yield STEP;
+    this.lib = s.lib || null;
+    this.frame = f;
     switch (s.type) {
       case 'Expr': yield* this.ev(s.expr, f); return;
       case 'Assign': {
@@ -780,6 +795,15 @@ export class Interpreter {
   }
 
   *call(fn, args, line) {
+    if (fn instanceof Builtin && fn.isGen) {
+      if (args.length < fn.minArgs || args.length > fn.maxArgs) throw this.err(`() recebeu  argumento(s), o que não é aceito`, line);
+      try { const r = yield* fn.fn(args, this, line); return r === undefined ? null : r; }
+      catch (err) {
+        if (err instanceof JiboiaError) { if (err.line == null) err.line = line; throw err; }
+        if (err instanceof ReturnSig || err instanceof BreakSig || err instanceof ContinueSig) throw err;
+        throw this.err(String(err.message || err), line);
+      }
+    }
     if (fn instanceof Builtin) {
       if (args.length < fn.minArgs || args.length > fn.maxArgs) {
         const exp = fn.minArgs === fn.maxArgs ? fn.minArgs : fn.maxArgs === Infinity ? `pelo menos ${fn.minArgs}` : `de ${fn.minArgs} a ${fn.maxArgs}`;

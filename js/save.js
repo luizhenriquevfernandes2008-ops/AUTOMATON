@@ -1,6 +1,7 @@
 // Salvar/carregar no navegador (localStorage).
 import { game } from './state.js';
-import { createEntity, addEntity, cellCenter, grid, key } from './machines.js';
+import { createEntity, addEntity, cellCenter, grid, gridUp, key } from './machines.js';
+import { serializeSky, loadSky } from './sky.js';
 import { serializeWires, loadWires } from './power.js';
 import { setOreVisible } from './world.js';
 import { MACHINES, DECOR, CELL } from './data.js';
@@ -43,6 +44,7 @@ export function saveGame() {
       economy: game.economy.serialize(),
       entities: game.entities.map((e) => e.serialize()),
       wires: serializeWires(),
+      sky: serializeSky(),
       player: { x: p.x, z: p.z, yaw: game.camera.rotation.y, pitch: game.camera.rotation.x },
       stash: game.builder.codeStash,
       settings: { ...audio.settings, sens: game.player.controls.pointerSpeed, musicOn: audio.musicOn },
@@ -79,7 +81,8 @@ export function loadGame() {
       for (const tf of game.tufts || []) if (Math.hypot(tf.position.x - c.x, tf.position.z - c.z) < CELL * 0.8) tf.visible = false;
     } catch (err) { console.warn('entidade não carregou', ed, err); }
   }
-  loadWires(d.wires, grid, key);
+  loadWires(d.wires, grid, key, gridUp);
+  loadSky(d.sky);
   game.builder.codeStash = d.stash || [];
   if (d.player) {
     game.camera.position.x = d.player.x;

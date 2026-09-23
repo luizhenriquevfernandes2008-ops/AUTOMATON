@@ -1,0 +1,252 @@
+// Janelas: pesquisa, projeto foguete, estatísticas/placar/conquistas e mapa visto de cima.
+import { game } from './state.js';
+import { TECHS, PHASES, ITEMS, ACHIEVEMENTS, REGIONS, MACHINES, CELL, WORLD_MIN, WORLD_MAX, GRID_MIN, GRID_MAX, ORES } from './data.js';
+import { thumbs } from './thumbs.js';
+import { audio } from './audio.js';
+import { ores } from './machines.js';
+import { wires } from './power.js';
+
+const fmt = (n) => Math.round(n).toLocaleString('pt-BR');
+const icon = (k) => `<img class="ic" src="${thumbs['item:' + k] || ''}" alt="">`;
+
+// ─────────────── Pesquisa ───────────────
+export function renderResearch(el, lab) {
+  const eco = game.economy;
+  const tiers = [0, 1, 2, 3];
+  const busy = new Set(game.entities.filter((e) => e.type === 'laboratorio' && e !== lab && e.research).map((e) => e.research));
+  el.innerHTML = `
+    <div class="rs-head">
+      <div><b>${lab.name}</b> · ${lab.research ? `pesquisando <b class="amber">${TECHS[lab.research].nome}</b> (${Math.round(lab.percent() * 100)}%)` : 'escolha uma pesquisa e mande os itens por esteira'}</div>
+      <div class="muted">${eco.techs.length}/${Object.keys(TECHS).length} pesquisas · fase do foguete: ${Math.min(eco.phase, PHASES.length)}/${PHASES.length}</div>
+    </div>
+    <div class="rs-tree">${tiers.map((f) => `
+      <div class="rs-col">
+        <div class="rs-col-h">${f === 0 ? 'Início' : `Fase ${f} do foguete`}${eco.phase < f ? ' 🔒' : ''}</div>
+        ${Object.entries(TECHS).filter(([, t]) => t.fase === f).map(([id, t]) => {
+    const done = eco.hasTech(id);
+    const why = eco.techBlocked(id);
+    const cur = lab.research === id;
+    const cls = done ? 'done' : cur ? 'cur' : why ? 'locked' : busy.has(id) ? 'busy' : 'avail';
+    const cost = Object.entries(t.custo).map(([k, n]) => `<span class="rs-cost">${icon(k)}${cur ? `${Math.min(n, lab.progress[k] || 0)}/` : ''}${n}</span>`).join('');
+    return `<button class="rs-node ${cls}" data-id="${id}" ${done || (why && !cur) || busy.has(id) ? 'disabled' : ''}>
+            <div class="rs-top"><span class="rs-ic">${t.icone}</span><b>${t.nome}</b></div>
+            <div class="rs-desc">${t.desc}</div>
+            <div class="rs-costs">${done ? '<span class="good">✔ pesquisado</span>' : cost}</div>
+            ${cur ? `<div class="rs-bar"><i style="width:${lab.percent() * 100}%"></i></div>` : ''}
+            ${!done && why && !cur ? `<div class="rs-why">${why}</div>` : ''}
+            ${busy.has(id) ? '<div class="rs-why">em outro laboratório</div>' : ''}
+          </button>`;
+  }).join('')}
+      </div>`).join('')}
+    </div>
+    <p class="muted" style="margin:10px 4px 0">Os itens entram no laboratório por qualquer lado (setas azuis). Ele só aceita o que a pesquisa pede. Trocar de pesquisa perde o que já foi entregue.</p>`;
+  el.querySelectorAll('.rs-node.avail, .rs-node.cur').forEach((b) => {
+    b.onclick = () => {
+      const id = b.dataset.id;
+      if (lab.research === id) return;
+      if (lab.research && lab.percent() > 0 && !confirm('Trocar de pesquisa? O que já foi entregue será perdido.')) return;
+      lab.setResearch(id);
+      audio.play('select', { volume: 0.6 });
+      renderResearch(el, lab);
+    };
+  });
+}
+
+// ─────────────── Projeto Foguete ───────────────
+export function renderPlatform(el) {
+  const eco = game.economy;
+  const pl = game.platform;
+  if (eco.launched) {
+    el.innerHTML = `<div class="pf-done"><div class="pf-big">🚀</div><h2>O foguete foi pro espaço!</h2><p>Parabéns, você terminou o Projeto Foguete. A fábrica continua sua, pra crescer o quanto quiser. ✨</p></div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="pf-phases">${PHASES.map((p, i) => {
+    const st = i < eco.phase ? 'done' : i === eco.phase ? 'cur' : 'next';
+    return `<div class="pf-step ${st}"><span>${i + 1}</span><b>${p.nome}</b></div>`;
+  }).join('<i class="pf-line"></i>')}</div>
+    ${(() => {
+    const p = PHASES[eco.phase];
+    if (!p) return '';
+    const rows = Object.entries(p.itens).map(([k, n]) => {
+      const have = Math.min(n, eco.phaseProgress[k] || 0);
+      return `<div class="pf-row">${icon(k)}<div class="pf-name">${ITEMS[k].nome}<small><code>"${k}"</code></small></div>
+          <div class="pf-bar"><i style="width:${(have / n) * 100}%"></i></div><div class="pf-n">${have}/${n}</div></div>`;
+    }).join('');
+    return `<div class="card-x pf-card">
+        <div class="card-h"><span>// fase ${eco.phase + 1} · ${p.nome}</span><b>prêmio $ ${fmt(p.premio)}</b></div>
+        <p class="muted" style="margin-top:0">${p.desc} Leve os itens por esteira até qualquer lado da plataforma (3×3). Cada fase libera novas pesquisas no Laboratório.</p>
+        ${rows}
+        ${p.final ? `<button id="pf-launch" class="big" ${pl.readyToLaunch() ? '' : 'disabled'}>🚀 Lançar foguete</button>` : ''}
+      </div>`;
+  })()}`;
+  const b = el.querySelector('#pf-launch');
+  if (b) b.onclick = () => { pl.launch(); game.ui.closeOverlay(); };
+}
+
+// ─────────────── Estatísticas ───────────────
+let statsTab = 'geral';
+export function renderStats(el, tab) {
+  if (tab) statsTab = tab;
+  const eco = game.economy;
+  const tabs = [['geral', 'Visão geral'], ['placar', 'Placar'], ['conquistas', `Conquistas ${eco.achievements.length}/${ACHIEVEMENTS.length}`], ['producao', 'Produção']];
+  el.innerHTML = `<div class="st-tabs">${tabs.map(([k, n]) => `<button class="shop-tab ${statsTab === k ? 'active' : ''}" data-t="${k}">${n}</button>`).join('')}</div><div id="st-body"></div>`;
+  el.querySelectorAll('.st-tabs button').forEach((b) => { b.onclick = () => { renderStats(el, b.dataset.t); audio.play('click', { volume: 0.4 }); }; });
+  const body = el.querySelector('#st-body');
+  if (statsTab === 'geral') {
+    const s = eco.series;
+    const last = s.slice(-30);
+    const mpm = eco.moneyPerMinute();
+    body.innerHTML = `
+      <div class="st-kpis">
+        <div><span>dinheiro</span><b>$ ${fmt(eco.money)}</b></div>
+        <div><span>$/min (5 min)</span><b class="amber">$ ${fmt(mpm)}</b></div>
+        <div><span>total ganho</span><b>$ ${fmt(eco.stats.earned)}</b></div>
+        <div><span>itens vendidos</span><b>${fmt(eco.stats.soldCount)}</b></div>
+        <div><span>tempo de jogo</span><b>${Math.floor(game.time / 60)} min</b></div>
+      </div>
+      <div class="st-chart"><div class="card-h"><span>// ganhos a cada 10 s (última hora)</span><b>$</b></div><canvas id="ch-money" width="900" height="170"></canvas></div>
+      <div class="st-chart"><div class="card-h"><span>// itens produzidos a cada 10 s</span><b>itens</b></div><canvas id="ch-items" width="900" height="140"></canvas></div>
+      <div class="st-chart"><div class="card-h"><span>// energia: gerada × usada</span><b>⚡</b></div><canvas id="ch-power" width="900" height="140"></canvas></div>`;
+    lineChart(body.querySelector('#ch-money'), s, [['money', '#ffb020']], true);
+    lineChart(body.querySelector('#ch-items'), s, [['items', '#3ee6b8']], true);
+    lineChart(body.querySelector('#ch-power'), s, [['supply', '#ffcf5c'], ['demand', '#ff5a6e']]);
+    void last;
+  } else if (statsTab === 'placar') {
+    const pcs = game.entities.filter((e) => e.type === 'computador').sort((a, b) => (b.board.moneyMin + b.board.itemsMin * 5) - (a.board.moneyMin + a.board.itemsMin * 5));
+    body.innerHTML = `<p class="muted">Medalhas pelo último minuto: 🥉 4+ itens/min ou $25/min · 🥈 12+ itens/min ou $100/min · 🥇 30+ itens/min ou $300/min. Menos instruções por item = código mais eficiente.</p>
+      <table class="market board"><tr><th>#</th><th>Computador</th><th>Medalha</th><th>Itens/min</th><th>$/min</th><th>Instr/item</th><th>Status</th></tr>
+      ${pcs.map((p, i) => `<tr><td>${i + 1}</td><td><b>${p.name}</b></td><td style="font-size:22px">${p.medalIcon || '—'}</td><td>${p.board.itemsMin}</td><td>$ ${p.board.moneyMin}</td><td>${p.board.instrPerItem || '—'}</td><td class="muted">${p.statusText}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum computador ainda.</td></tr>'}</table>`;
+  } else if (statsTab === 'conquistas') {
+    body.innerHTML = `<div class="ach-grid">${ACHIEVEMENTS.map((a) => {
+      const ok = eco.achievements.includes(a.id);
+      return `<div class="ach ${ok ? 'ok' : ''}"><span class="ach-ic">${ok ? a.icone : '🔒'}</span><b>${a.nome}</b><small>${a.desc}</small></div>`;
+    }).join('')}</div>`;
+  } else {
+    const p = eco.stats.produced;
+    body.innerHTML = `<table class="market"><tr><th></th><th>Item</th><th>Produzidos</th><th>Vendidos</th><th>Preço agora</th></tr>
+      ${Object.keys(ITEMS).map((k) => `<tr><td>${icon(k)}</td><td><b>${ITEMS[k].nome}</b></td><td>${fmt(p[k] || 0)}</td><td>${fmt(eco.stats.sold[k] || 0)}</td><td>$ ${eco.price(k).toFixed(1)}</td></tr>`).join('')}</table>`;
+  }
+}
+
+function lineChart(c, series, keys, fill) {
+  const g = c.getContext('2d');
+  const W = c.width, H = c.height;
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = '#0b1017'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(58,74,99,.35)'; g.lineWidth = 1;
+  for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(0, (H / 4) * i); g.lineTo(W, (H / 4) * i); g.stroke(); }
+  if (series.length < 2) {
+    g.fillStyle = '#5b6679'; g.font = '14px "JetBrains Mono", monospace'; g.fillText('juntando dados… (uma amostra a cada 10 s)', 16, H / 2);
+    return;
+  }
+  const mx = Math.max(1, ...series.flatMap((s) => keys.map(([k]) => s[k] || 0)));
+  g.fillStyle = '#5b6679'; g.font = '12px "JetBrains Mono", monospace'; g.fillText(fmt(mx), 6, 14);
+  for (const [k, col] of keys) {
+    g.beginPath();
+    series.forEach((s, i) => {
+      const x = (i / (series.length - 1)) * (W - 10) + 5;
+      const y = H - 6 - ((s[k] || 0) / mx) * (H - 22);
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    });
+    g.strokeStyle = col; g.lineWidth = 2.2; g.stroke();
+    if (fill) {
+      g.lineTo(W - 5, H - 6); g.lineTo(5, H - 6); g.closePath();
+      g.fillStyle = col + '22'; g.fill();
+    }
+  }
+}
+
+// ─────────────── Mapa visto de cima ───────────────
+const TYPE_COLOR = {
+  esteira: '#4a5570', esteira_alta: '#6a7aa0', rampa_sobe: '#6a7aa0', rampa_desce: '#6a7aa0', sensor: '#3ee6b8',
+  divisor: '#3ee6b8', juntador: '#ffcf5c', minerador: '#6cb8ff', fornalha: '#ff8a3a', montadora: '#b39bff', separador: '#ff6ec7',
+  venda: '#ffb020', bau: '#c0643c', computador: '#3ee6b8', gerador: '#ffd84a', gerador_grande: '#ffd84a', gerador_carvao: '#ffd84a',
+  painel_solar: '#8fb8ff', poste: '#ffa640', laboratorio: '#6cf5ff', doca_drones: '#9fd8ff', lampada: '#fff4a0', tela: '#9fa8c0',
+  altofalante: '#9fa8c0', lixeira: '#7a6a5a',
+};
+const ORE_COLOR = { ferro: '#9fb4d6', cobre: '#e8844a', quartzo: '#f3c4ff', carvao: '#555566' };
+const mapView = { zoom: 1, cx: 0, cz: 0, drag: null };
+export function renderMap(el) {
+  if (!el.querySelector('canvas')) {
+    el.innerHTML = `<div class="map-wrap"><canvas id="mapc" width="1100" height="720"></canvas>
+      <div class="map-legend">${Object.entries(ORE_COLOR).map(([k, c]) => `<span><i style="background:${c}"></i>${ORES[k].nome}</span>`).join('')}
+      <span><i style="background:#ffb020"></i>venda</span><span><i style="background:#3ee6b8"></i>computador</span><span><i style="background:#ffd84a"></i>energia</span>
+      <span class="muted">roda do mouse: zoom · arrastar: mover · Tab fecha</span></div></div>`;
+    const c = el.querySelector('canvas');
+    c.addEventListener('wheel', (e) => { e.preventDefault(); mapView.zoom = Math.max(0.6, Math.min(5, mapView.zoom * (e.deltaY < 0 ? 1.15 : 0.87))); drawMap(c); }, { passive: false });
+    c.addEventListener('mousedown', (e) => { mapView.drag = { x: e.clientX, y: e.clientY, cx: mapView.cx, cz: mapView.cz }; });
+    addEventListener('mouseup', () => { mapView.drag = null; });
+    c.addEventListener('mousemove', (e) => {
+      if (!mapView.drag) return;
+      const s = scaleOf(c);
+      mapView.cx = mapView.drag.cx - (e.clientX - mapView.drag.x) * (c.width / c.clientWidth) / s;
+      mapView.cz = mapView.drag.cz - (e.clientY - mapView.drag.y) * (c.height / c.clientHeight) / s;
+      drawMap(c);
+    });
+    const p = game.camera.position;
+    mapView.cx = p.x / CELL; mapView.cz = p.z / CELL;
+  }
+  drawMap(el.querySelector('canvas'));
+}
+const scaleOf = (c) => (Math.min(c.width, c.height) / (WORLD_MAX - WORLD_MIN + 1)) * mapView.zoom;
+function drawMap(c) {
+  const g = c.getContext('2d');
+  const W = c.width, H = c.height, s = scaleOf(c);
+  const X = (cx) => W / 2 + (cx - mapView.cx) * s, Z = (cz) => H / 2 + (cz - mapView.cz) * s;
+  g.fillStyle = '#0b1017'; g.fillRect(0, 0, W, H);
+  // mundo
+  g.fillStyle = '#1b2a1c'; g.fillRect(X(WORLD_MIN), Z(WORLD_MIN), (WORLD_MAX - WORLD_MIN + 1) * s, (WORLD_MAX - WORLD_MIN + 1) * s);
+  for (const [id, r] of Object.entries(REGIONS)) {
+    const own = game.economy.hasRegion(id);
+    g.fillStyle = own ? '#22362a' : 'rgba(8,11,16,.55)';
+    g.fillRect(X(r.x0), Z(r.z0), (r.x1 - r.x0 + 1) * s, (r.z1 - r.z0 + 1) * s);
+    if (!own) {
+      g.strokeStyle = '#ffb02066'; g.setLineDash([6, 6]); g.strokeRect(X(r.x0), Z(r.z0), (r.x1 - r.x0 + 1) * s, (r.z1 - r.z0 + 1) * s); g.setLineDash([]);
+      g.fillStyle = '#ffb020'; g.font = `600 ${Math.max(11, 13 * mapView.zoom)}px "Chakra Petch", sans-serif`; g.textAlign = 'center';
+      g.fillText(`🔒 ${r.nome} · $ ${fmt(r.preco)}`, X((r.x0 + r.x1 + 1) / 2), Z((r.z0 + r.z1 + 1) / 2));
+      g.textAlign = 'left';
+    }
+  }
+  g.fillStyle = '#24372a'; g.fillRect(X(GRID_MIN), Z(GRID_MIN), (GRID_MAX - GRID_MIN + 1) * s, (GRID_MAX - GRID_MIN + 1) * s);
+  g.fillStyle = '#2d2f4a'; g.fillRect(X(-12), Z(-12), 24 * s, 24 * s); // piso
+  g.fillStyle = '#34364f'; g.fillRect(X(-9), Z(13), 18 * s, 6 * s); // escritório
+  if (s > 6) { g.strokeStyle = 'rgba(255,255,255,.05)'; for (let x = WORLD_MIN; x <= WORLD_MAX + 1; x++) { g.beginPath(); g.moveTo(X(x), Z(WORLD_MIN)); g.lineTo(X(x), Z(WORLD_MAX + 1)); g.stroke(); } for (let z = WORLD_MIN; z <= WORLD_MAX + 1; z++) { g.beginPath(); g.moveTo(X(WORLD_MIN), Z(z)); g.lineTo(X(WORLD_MAX + 1), Z(z)); g.stroke(); } }
+  // veios
+  for (const [k, t] of ores) {
+    const [x, z] = k.split(',').map(Number);
+    g.fillStyle = ORE_COLOR[t]; g.beginPath(); g.arc(X(x + 0.5), Z(z + 0.5), Math.max(2.5, s * 0.45), 0, Math.PI * 2); g.fill();
+  }
+  // plataforma
+  g.fillStyle = '#ffffff22'; g.strokeStyle = '#ffb020'; g.lineWidth = 2;
+  g.fillRect(X(-1), Z(-22), 3 * s, 3 * s); g.strokeRect(X(-1), Z(-22), 3 * s, 3 * s);
+  g.fillStyle = '#ffb020'; g.font = `${Math.max(12, s * 1.2)}px sans-serif`; g.fillText('🚀', X(-0.5), Z(-19.6));
+  // cabos
+  g.strokeStyle = '#ffa64088'; g.lineWidth = 1.2;
+  for (const w of wires) { g.beginPath(); g.moveTo(X(w.a.x + 0.5), Z(w.a.z + 0.5)); g.lineTo(X(w.b.x + 0.5), Z(w.b.z + 0.5)); g.stroke(); }
+  // entidades
+  for (const e of game.entities) {
+    const col = TYPE_COLOR[e.type] || '#8b95a8';
+    const x = X(e.x), z = Z(e.z);
+    if (['esteira', 'esteira_alta', 'rampa_sobe', 'rampa_desce', 'sensor'].includes(e.type)) {
+      g.fillStyle = col; g.fillRect(x + s * 0.1, z + s * 0.1, s * 0.8, s * 0.8);
+      if (s > 5) { // setinha
+        const d = [[0, -1], [1, 0], [0, 1], [-1, 0]][e.dir];
+        g.strokeStyle = '#ffcf5c'; g.lineWidth = 1.5; g.beginPath();
+        g.moveTo(x + s / 2 - d[0] * s * 0.25, z + s / 2 - d[1] * s * 0.25); g.lineTo(x + s / 2 + d[0] * s * 0.3, z + s / 2 + d[1] * s * 0.3); g.stroke();
+      }
+    } else {
+      g.fillStyle = col; g.fillRect(x + s * 0.05, z + s * 0.05, s * 0.9, s * 0.9);
+      if (MACHINES[e.type]?.energia && e.noPower) { g.strokeStyle = '#ff5a6e'; g.lineWidth = 2; g.strokeRect(x + s * 0.05, z + s * 0.05, s * 0.9, s * 0.9); }
+    }
+    if (e.name && s > 9) { g.fillStyle = '#ece5d5'; g.font = '10px "JetBrains Mono", monospace'; g.fillText(e.name, x, z - 2); }
+  }
+  for (const d of game.drones || []) { g.fillStyle = '#9fd8ff'; g.beginPath(); g.arc(X(d.p.x / CELL), Z(d.p.z / CELL), Math.max(3, s * 0.35), 0, Math.PI * 2); g.fill(); }
+  // jogador
+  const p = game.camera.position;
+  const fwd = { x: -Math.sin(game.camera.rotation.y), z: -Math.cos(game.camera.rotation.y) };
+  const px = X(p.x / CELL), pz = Z(p.z / CELL);
+  g.fillStyle = '#ff5a6e'; g.beginPath();
+  g.moveTo(px + fwd.x * 12, pz + fwd.z * 12); g.lineTo(px - fwd.z * 6 - fwd.x * 5, pz + fwd.x * 6 - fwd.z * 5); g.lineTo(px + fwd.z * 6 - fwd.x * 5, pz - fwd.x * 6 - fwd.z * 5); g.closePath(); g.fill();
+  g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke();
+}

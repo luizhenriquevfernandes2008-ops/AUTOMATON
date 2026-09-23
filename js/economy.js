@@ -1,5 +1,20 @@
 // Dinheiro, XP, níveis, inventário, melhorias e mercado com preços que flutuam.
-import { ITEMS, UPGRADES, xpForLevel, START_INVENTORY, START_MONEY, OBJECTIVES } from './data.js';
+import { ITEMS, UPGRADES, xpForLevel, START_INVENTORY, START_MONEY, OBJECTIVES, TECHS, REGIONS, ACHIEVEMENTS } from './data.js';
+
+const DEFAULT_LIB = `# Biblioteca "util": use importar("util") em qualquer computador
+# Tudo que for definido aqui vira disponível no programa.
+
+def vender_se_caro(caixa, item, minimo):
+    # vende o item só se o preço estiver bom
+    if caixa.preco(item) >= minimo:
+        return caixa.vender(item)
+    return 0
+
+def minerar_varios(nomes):
+    # minera uma vez em cada minerador da lista
+    for n in nomes:
+        maquina(n).minerar()
+`;
 import { game } from './state.js';
 
 export class Economy {
@@ -21,6 +36,126 @@ export class Economy {
       this.history[k] = [];
     }
     this.histTimer = 0;
+    // progresso novo
+    this.techs = [];
+    this.phase = 0;
+    this.phaseProgress = {};
+    this.launched = false;
+    this.regions = [];
+    this.achievements = [];
+    this.libs = { util: DEFAULT_LIB };
+    this.netStore = {};
+    this.series = [];          // amostras a cada 10 s pros gráficos
+    this.sampleT = 10;
+    this.lastEarned = 0;
+    this.lastProducedTotal = 0;
+    this.lastSeen = Date.now();
+    this.offlineReport = null;
+    this.tutorialStep = -1;
+  }
+
+  // ─── pesquisa ───
+  hasTech(id) { return this.techs.includes(id); }
+  techBlocked(id) {
+    const t = TECHS[id];
+    if (!t) return 'Pesquisa desconhecida';
+    if (this.hasTech(id)) return 'Já pesquisado';
+    if (t.fase > this.phase) return `Precisa completar a fase ${t.fase} do Projeto Foguete`;
+    const miss = (t.requer || []).filter((r) => !this.hasTech(r));
+    if (miss.length) return 'Precisa antes: ' + miss.map((r) => TECHS[r].nome).join(', ');
+    return null;
+  }
+  unlockTech(id) {
+    if (this.hasTech(id)) return;
+    this.techs.push(id);
+    this.addXp(60 * (TECHS[id].fase + 1));
+    game.emit('tech', id);
+  }
+
+  // ─── regiões ───
+  hasRegion(id) { return this.regions.includes(id); }
+
+  // ─── conquistas ───
+  achieve(id) {
+    if (this.achievements.includes(id)) return;
+    const a = ACHIEVEMENTS.find((x) => x.id === id);
+    if (!a) return;
+    this.achievements.push(id);
+    game.emit('achievement', a);
+  }
+  checkAchievements() {
+    const s = this.stats, p = s.produced;
+    const has = (id, ok) => { if (ok) this.achieve(id); };
+    const minerios = (p.minerio_ferro || 0) + (p.minerio_cobre || 0) + (p.quartzo || 0) + (p.carvao || 0);
+    has('primeiro_minerio', minerios > 0);
+    has('primeira_venda', s.soldCount > 0);
+    has('primeiro_programa', s.ranCode);
+    has('vendeu_100', s.soldCount >= 100);
+    has('vendeu_1000', s.soldCount >= 1000);
+    has('rico_1k', this.money >= 1000);
+    has('rico_10k', this.money >= 10000);
+    has('rico_100k', this.money >= 100000);
+    has('lingote', (p.lingote_ferro || 0) + (p.lingote_cobre || 0) > 0);
+    has('engrenagem', (p.engrenagem || 0) > 0);
+    has('chip', (p.chip || 0) > 0);
+    has('robozinho', (p.robozinho || 0) > 0);
+    has('cinco_pcs', game.entities.filter((e) => e.type === 'computador' && e.running).length >= 5);
+    has('erros_10', (s.errors || 0) >= 10);
+    has('pesquisa', this.techs.length > 0);
+    has('todas_pesquisas', this.techs.length >= Object.keys(TECHS).length);
+    has('fase1', this.phase >= 1);
+    has('foguete', this.launched);
+    has('regiao', this.regions.length > 0);
+    has('todas_regioes', this.regions.length >= Object.keys(REGIONS).length);
+    has('drone', (s.droneFlights || 0) > 0);
+    has('rede', (s.netMsgs || 0) > 0);
+    has('biblioteca', (s.libsImported || 0) > 0);
+    has('depurador', (s.breakpoints || 0) > 0);
+    has('musico', (s.notes || 0) >= 8);
+    has('esteiras_100', game.entities.filter((e) => e.type === 'esteira').length >= 100);
+    has('noite', !!s.nightSeen);
+    has('chuva', !!s.rainSeen);
+    has('foto', (s.photos || 0) > 0);
+    has('cafe_10', (s.coffees || 0) >= 10);
+    has('pet', (s.pets || 0) > 0);
+    has('mk3', game.entities.some((e) => e.tier >= 2));
+    has('copiar', (s.pasted || 0) > 0);
+    has('ouro', !!s.gold);
+  }
+
+  // ─── histórico pros gráficos ───
+  sample() {
+    const producedTotal = Object.values(this.stats.produced).reduce((a, b) => a + b, 0);
+    let sup = 0, dem = 0;
+    for (const n of game.powerNets || []) { sup += n.supply; dem += n.demand; }
+    this.series.push({
+      t: Math.round(game.time),
+      money: Math.round((this.stats.earned - this.lastEarned) * 10) / 10,
+      items: producedTotal - this.lastProducedTotal,
+      supply: Math.round(sup), demand: Math.round(dem),
+      cash: Math.round(this.money),
+    });
+    if (this.series.length > 360) this.series.shift();
+    this.lastEarned = this.stats.earned;
+    this.lastProducedTotal = producedTotal;
+  }
+  // dinheiro por minuto nos últimos ~5 min
+  moneyPerMinute() {
+    const s = this.series.slice(-30);
+    if (!s.length) return 0;
+    return (s.reduce((a, b) => a + b.money, 0) / (s.length * 10)) * 60;
+  }
+  // progresso offline: a fábrica rende metade do ritmo recente enquanto você está fora (máx 8h)
+  applyOffline(lastSeen) {
+    if (!lastSeen) return;
+    const secs = Math.min(8 * 3600, (Date.now() - lastSeen) / 1000);
+    if (secs < 120) return;
+    const perSec = this.moneyPerMinute() / 60;
+    const gain = Math.round(perSec * secs * 0.5);
+    if (gain <= 0) return;
+    this.addMoney(gain);
+    this.stats.earned += gain;
+    this.offlineReport = { secs, gain };
   }
 
   get cpuHz() { return UPGRADES.cpu.valores[this.upgrades.cpu]; }
@@ -92,6 +227,8 @@ export class Economy {
 
   update(dt) {
     this.marketTime += dt;
+    this.sampleT -= dt;
+    if (this.sampleT <= 0) { this.sampleT = 10; this.sample(); }
     for (const m of Object.values(this.market)) m.sat += (1 - m.sat) * Math.min(1, dt * 0.012);
     this.histTimer -= dt;
     if (this.histTimer <= 0) {
@@ -141,6 +278,9 @@ export class Economy {
     return {
       money: this.money, xp: this.xp, level: this.level, upgrades: this.upgrades, inventory: this.inventory,
       stats: this.stats, objective: this.objective, objVersion: 2, marketTime: this.marketTime,
+      techs: this.techs, phase: this.phase, phaseProgress: this.phaseProgress, launched: this.launched,
+      regions: this.regions, achievements: this.achievements, libs: this.libs, netStore: this.netStore,
+      series: this.series.slice(-120), lastSeen: Date.now(), tutorialStep: this.tutorialStep,
       sat: Object.fromEntries(Object.entries(this.market).map(([k, m]) => [k, m.sat])),
     };
   }
@@ -151,6 +291,19 @@ export class Economy {
     });
     // saves antigos não tinham o objetivo de energia (índice 2)
     if (!d.objVersion && this.objective >= 2) this.objective++;
+    this.techs = (d.techs || []).filter((t) => TECHS[t]);
+    this.phase = d.phase || 0;
+    this.phaseProgress = d.phaseProgress || {};
+    this.launched = !!d.launched;
+    this.regions = (d.regions || []).filter((r) => REGIONS[r]);
+    this.achievements = d.achievements || [];
+    this.libs = d.libs || { util: DEFAULT_LIB };
+    this.netStore = d.netStore || {};
+    this.series = d.series || [];
+    this.tutorialStep = d.tutorialStep ?? -1;
+    this.lastEarned = this.stats.earned;
+    this.lastProducedTotal = Object.values(this.stats.produced || {}).reduce((a, b) => a + b, 0);
+    this.applyOffline(d.lastSeen);
     if (d.sat) for (const [k, v] of Object.entries(d.sat)) if (this.market[k]) this.market[k].sat = v;
   }
 }

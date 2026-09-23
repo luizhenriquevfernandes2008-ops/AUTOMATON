@@ -1,17 +1,27 @@
-// Editor de código dos computadores.
+// Editor de código dos computadores: realce, autocompletar, depurador e bibliotecas.
 import { game } from './state.js';
-import { EXAMPLES, MACHINES } from './data.js';
+import { EXAMPLES, MACHINES, ITEMS, TECHS } from './data.js';
 import { manualHTML } from './docs.js';
 import { guideHTML } from './guide.js';
-import { audio } from './audio.js';
 import { parse, JiboiaError } from './lang/jiboia.js';
+import { settings, saveSettings } from './settings.js';
 
-const KW = new Set(['if', 'elif', 'else', 'while', 'for', 'in', 'def', 'return', 'break', 'continue', 'pass', 'and', 'or', 'not', 'is', 'global',
-  'se', 'senaose', 'senao', 'enquanto', 'para', 'em', 'funcao', 'retorne', 'pare', 'continuar', 'passe', 'nao']);
+const PY_KW = ['if', 'elif', 'else', 'while', 'for', 'in', 'def', 'return', 'break', 'continue', 'pass', 'and', 'or', 'not', 'is', 'global', 'True', 'False', 'None'];
+const PT_KW = ['se', 'senaose', 'senao', 'enquanto', 'para', 'em', 'funcao', 'retorne', 'pare', 'continuar', 'passe', 'nao', 'Verdadeiro', 'Falso', 'Nada'];
+const KW = new Set(PY_KW.concat(PT_KW).filter((w) => !['True', 'False', 'None', 'Verdadeiro', 'Falso', 'Nada'].includes(w)));
 const CONSTS = new Set(['True', 'False', 'None', 'Verdadeiro', 'Falso', 'Nada']);
-const BUILTINS = new Set(['print', 'escrever', 'mostrar', 'len', 'tamanho', 'range', 'intervalo', 'str', 'texto', 'int', 'inteiro', 'float', 'decimal', 'bool',
-  'abs', 'round', 'arredondar', 'min', 'max', 'sum', 'soma', 'list', 'lista', 'dict', 'sorted', 'ordenado', 'aleatorio', 'randint', 'random', 'tipo', 'type',
-  'maquina', 'maquinas', 'esperar', 'tempo', 'dinheiro', 'nivel', 'preco', 'itens', 'apitar', 'eu']);
+const GAME_FUNCS = ['maquina', 'maquinas', 'esperar', 'tempo', 'dinheiro', 'nivel', 'preco', 'itens', 'apitar', 'eu', 'energia',
+  'enviar', 'receber', 'tem_mensagem', 'compartilhar', 'ler', 'ouvir', 'esperar_evento', 'esperar_ate', 'importar'];
+const STD_FUNCS = ['print', 'escrever', 'mostrar', 'len', 'tamanho', 'range', 'intervalo', 'str', 'texto', 'int', 'inteiro', 'float', 'decimal', 'bool',
+  'abs', 'round', 'arredondar', 'min', 'max', 'sum', 'soma', 'list', 'lista', 'dict', 'sorted', 'ordenado', 'aleatorio', 'randint', 'random', 'tipo', 'type'];
+const BUILTINS = new Set(GAME_FUNCS.concat(STD_FUNCS));
+// métodos que aparecem depois do "."
+const METHODS = ['minerar', 'minerio', 'fundir', 'receitas', 'fabricar', 'pode_fabricar', 'vender', 'preco', 'esperar_item', 'enviar', 'item', 'retirar',
+  'quantidade', 'estoque', 'saida', 'ocupada', 'status', 'energia', 'producao', 'consumo', 'pesquisa', 'progresso', 'faltando', 'pesquisar', 'drone',
+  'ir', 'ir_para', 'voltar', 'pegar', 'soltar', 'carga', 'posicao', 'ocupado', 'embaixo', 'ligar', 'desligar', 'cor', 'piscar', 'ligada', 'escrever',
+  'mostrar', 'limpar', 'titulo', 'grafico', 'tocar', 'som', 'contagem', 'ultimo', 'zerar', 'combustivel', 'ligado', 'destruidos', 'nome', 'tipo',
+  'append', 'pop', 'insert', 'remove', 'index', 'count', 'sort', 'reverse', 'copy', 'keys', 'values', 'items', 'get', 'upper', 'lower', 'split', 'strip',
+  'replace', 'startswith', 'endswith', 'join', 'find'];
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -51,17 +61,38 @@ export class Editor {
     this.status = this.el.querySelector('#ed-status');
     this.title = this.el.querySelector('#ed-title');
     this.lint = this.el.querySelector('#ed-lint');
+    this.ac = this.el.querySelector('#ac');
+    this.acItems = [];
+    this.acSel = 0;
     this.pc = null;
     this.lineH = 21;
     this.tab = 'console';
+    this.lib = 'util';
+    this.charW = 8.4;
 
-    this.ta.addEventListener('input', () => this.onInput());
-    this.ta.addEventListener('scroll', () => this.syncScroll());
+    this.ta.addEventListener('input', () => { this.onInput(); this.autocomplete(); });
+    this.ta.addEventListener('scroll', () => { this.syncScroll(); this.hideAc(); });
     this.ta.addEventListener('keydown', (e) => this.onKey(e));
-    this.el.querySelector('#ed-run').onclick = () => this.run();
-    this.el.querySelector('#ed-stop').onclick = () => { this.pc && this.pc.stop(); this.refresh(); };
-    this.el.querySelector('#ed-close').onclick = () => game.ui.closeOverlay();
-    const sel = this.el.querySelector('#ed-examples');
+    this.ta.addEventListener('blur', () => setTimeout(() => this.hideAc(), 150));
+    this.ta.addEventListener('click', () => this.hideAc());
+    this.gutter.addEventListener('mousedown', (e) => {
+      const l = e.target.closest('.gl');
+      if (!l || !this.pc) return;
+      e.preventDefault();
+      this.pc.toggleBreak(+l.dataset.l);
+      this.renderGutter();
+    });
+    const $ = (s) => this.el.querySelector(s);
+    $('#ed-run').onclick = () => this.run();
+    $('#ed-stop').onclick = () => { this.pc && this.pc.stop(); this.refresh(); };
+    $('#ed-close').onclick = () => game.ui.closeOverlay();
+    $('#ed-pause').onclick = () => { this.pc?.pause(); this.showTab('depurar'); };
+    $('#ed-step').onclick = () => { this.pc?.step(); this.showTab('depurar'); };
+    $('#ed-resume').onclick = () => { this.pc?.resume(); };
+    const acBox = $('#ed-ac-toggle');
+    acBox.checked = settings.autocomplete !== false;
+    acBox.onchange = () => { settings.autocomplete = acBox.checked; saveSettings(); if (!acBox.checked) this.hideAc(); };
+    const sel = $('#ed-examples');
     EXAMPLES.forEach((ex, i) => { const o = document.createElement('option'); o.value = i; o.textContent = ex.nome; sel.appendChild(o); });
     sel.onchange = () => {
       const ex = EXAMPLES[+sel.value];
@@ -73,7 +104,11 @@ export class Editor {
     };
     this.el.querySelectorAll('.ed-tab').forEach((b) => { b.onclick = () => this.showTab(b.dataset.tab); });
     game.on('console', (pc) => { if (pc === this.pc && this.tab === 'console') this.renderConsole(); });
-    game.on('computer', (pc) => { if (pc === this.pc) this.refresh(); });
+    game.on('computer', (pc) => { if (pc === this.pc) { this.refresh(); if (pc.paused && this.tab !== 'depurar') this.showTab('depurar'); } });
+    // mede a largura de um caractere da fonte do código
+    const c = document.createElement('canvas').getContext('2d');
+    c.font = '14px "JetBrains Mono", monospace';
+    document.fonts.ready.then(() => { this.charW = c.measureText('MMMMMMMMMM').width / 10 || 8.4; });
   }
 
   open(pc) {
@@ -83,12 +118,14 @@ export class Editor {
     this.onInput();
     this.showTab(this.tab);
     this.refresh();
+    game.emit('editorOpen', pc);
     setTimeout(() => this.ta.focus(), 50);
   }
 
   close() {
     if (this.pc) this.pc.code = this.ta.value;
     this.pc = null;
+    this.hideAc();
   }
 
   showTab(t) {
@@ -99,15 +136,77 @@ export class Editor {
     else if (t === 'manual') { side.innerHTML = manualHTML(game.economy.level); }
     else if (t === 'guia') { side.innerHTML = guideHTML(); }
     else if (t === 'maquinas') this.renderMachines(side);
+    else if (t === 'depurar') this.renderDebug(side);
+    else if (t === 'libs') this.renderLibs(side);
   }
 
   renderMachines(side) {
-    const list = game.entities.filter((e) => e.isMachine && e.name);
+    const list = game.entities.filter((e) => e.isMachine && e.name).concat(game.drones || []);
     side.innerHTML = `<div class="doc"><h3>Suas máquinas</h3><p>Clique pra inserir <code>maquina("nome")</code> no código.</p>
-      <div class="mlist">${list.map((e) => `<button class="mitem" data-n="${e.name}"><b>${e.name}</b><span>${MACHINES[e.type].nome}</span></button>`).join('') || '<i>Nenhuma máquina ainda.</i>'}</div></div>`;
-    side.querySelectorAll('.mitem').forEach((b) => {
-      b.onclick = () => this.insert(`maquina("${b.dataset.n}")`);
-    });
+      <div class="mlist">${list.map((e) => `<button class="mitem" data-n="${e.name}"><b>${e.name}</b><span>${MACHINES[e.type]?.nome || 'Drone'}</span></button>`).join('') || '<i>Nenhuma máquina ainda.</i>'}</div></div>`;
+    side.querySelectorAll('.mitem').forEach((b) => { b.onclick = () => this.insert(`maquina("${b.dataset.n}")`); });
+  }
+
+  // ─── depurador ───
+  renderDebug(side) {
+    side = side || this.el.querySelector('#ed-side');
+    const pc = this.pc;
+    if (!pc) return;
+    const v = pc.vars();
+    const rows = (l) => l.map(([k, x]) => `<tr><td><code>${esc(k)}</code></td><td class="dbg-v">${esc(String(x)).slice(0, 160)}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">—</td></tr>';
+    side.innerHTML = `<div class="doc dbg">
+      <h3>Depurador</h3>
+      <p class="muted">Clique no número de uma linha pra marcar um <b style="color:var(--bad)">● breakpoint</b>: o programa pausa antes de rodar ela. Use <b>⏭ Passo</b> pra rodar uma instrução por vez.</p>
+      <div class="dbg-state">${pc.running ? (pc.paused ? `⏸ pausado na linha <b>${pc.curLine}</b>` : `▶ rodando (linha ${pc.curLine})`) : '■ parado'} · breakpoints: ${[...pc.breakpoints].sort((a, b) => a - b).join(', ') || 'nenhum'}</div>
+      <h3>Variáveis globais</h3><table>${rows(v.globais)}</table>
+      <h3>Variáveis da função atual</h3><table>${rows(v.locais)}</table>
+      ${pc.breakpoints.size ? '<button id="dbg-clear" class="danger">Limpar breakpoints</button>' : ''}
+    </div>`;
+    const b = side.querySelector('#dbg-clear');
+    if (b) b.onclick = () => { pc.breakpoints.clear(); this.renderGutter(); this.renderDebug(); };
+  }
+
+  // ─── bibliotecas ───
+  renderLibs(side) {
+    const libs = game.economy.libs;
+    if (!libs[this.lib]) this.lib = Object.keys(libs)[0] || null;
+    side.innerHTML = `<div class="doc libs">
+      <h3>Bibliotecas de funções</h3>
+      <p class="muted">Escreva funções aqui uma vez e use em qualquer computador com <code>importar("nome")</code>.</p>
+      <div class="lib-list">${Object.keys(libs).map((n) => `<button class="lib-b ${n === this.lib ? 'active' : ''}" data-n="${n}">${n}</button>`).join('')}
+        <button id="lib-new">+ nova</button></div>
+      ${this.lib ? `<textarea id="lib-code" spellcheck="false" wrap="off">${esc(libs[this.lib])}</textarea>
+      <div class="lib-foot"><span id="lib-lint" class="muted"></span><span class="grow"></span>
+        <button id="lib-insert">Inserir importar("${this.lib}")</button><button id="lib-del" class="danger">Apagar</button></div>` : ''}
+    </div>`;
+    side.querySelectorAll('.lib-b').forEach((b) => { b.onclick = () => { this.lib = b.dataset.n; this.renderLibs(side); }; });
+    side.querySelector('#lib-new').onclick = () => {
+      const n = (prompt('Nome da biblioteca (letras, números e _):') || '').trim();
+      if (!/^[A-Za-z_][\w]*$/.test(n)) return;
+      if (!libs[n]) libs[n] = `# Biblioteca "${n}"\n\ndef minha_funcao():\n    print("olá da biblioteca ${n}")\n`;
+      this.lib = n;
+      this.renderLibs(side);
+    };
+    const ta = side.querySelector('#lib-code');
+    if (ta) {
+      const lint = () => {
+        try { parse(ta.value); side.querySelector('#lib-lint').textContent = '✓ sintaxe ok'; }
+        catch (e) { side.querySelector('#lib-lint').textContent = `⚠ linha ${e.line}: ${e.message}`; }
+      };
+      ta.addEventListener('input', () => { libs[this.lib] = ta.value; lint(); });
+      ta.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Tab') { e.preventDefault(); ta.setRangeText('    ', ta.selectionStart, ta.selectionEnd, 'end'); libs[this.lib] = ta.value; }
+      });
+      lint();
+      side.querySelector('#lib-insert').onclick = () => this.insert(`importar("${this.lib}")\n`);
+      side.querySelector('#lib-del').onclick = () => {
+        if (!confirm(`Apagar a biblioteca "${this.lib}"?`)) return;
+        delete libs[this.lib];
+        this.lib = null;
+        this.renderLibs(side);
+      };
+    }
   }
 
   insert(text) {
@@ -127,21 +226,23 @@ export class Editor {
     if (atBottom) c.scrollTop = c.scrollHeight;
   }
 
+  renderGutter() {
+    const n = this.ta.value.split('\n').length;
+    const bp = this.pc ? this.pc.breakpoints : new Set();
+    let g = '';
+    for (let i = 1; i <= n; i++) g += `<div class="gl${bp.has(i) ? ' bp' : ''}" data-l="${i}">${i}</div>`;
+    this.gutter.innerHTML = g;
+  }
+
   onInput() {
     const v = this.ta.value;
     this.hl.innerHTML = highlight(v);
-    const n = v.split('\n').length;
-    let g = '';
-    for (let i = 1; i <= n; i++) g += i + '\n';
-    this.gutter.textContent = g;
+    this.renderGutter();
     if (this.pc) this.pc.code = v;
-    // checagem de sintaxe enquanto digita
     clearTimeout(this.lintT);
     this.lintT = setTimeout(() => {
-      try { parse(v); this.lint.textContent = '✓ sintaxe ok'; this.lint.className = 'ok'; this.lintErr = null; }
-      catch (e) {
-        if (e instanceof JiboiaError) { this.lint.textContent = `⚠ linha ${e.line}: ${e.message}`; this.lint.className = 'bad'; this.lintErr = e.line; }
-      }
+      try { parse(v); this.lint.textContent = '✓ sintaxe ok'; this.lint.className = 'ok'; }
+      catch (e) { if (e instanceof JiboiaError) { this.lint.textContent = `⚠ linha ${e.line}: ${e.message}`; this.lint.className = 'bad'; } }
       this.refresh();
     }, 350);
     this.syncScroll();
@@ -163,6 +264,7 @@ export class Editor {
       this.execLine.style.display = 'block';
       this.execLine.style.top = (pad + (pc.curLine - 1) * this.lineH - y) + 'px';
       this.execLine.classList.toggle('waiting', pc.lastYield === 'wait');
+      this.execLine.classList.toggle('paused', !!pc.paused);
     } else this.execLine.style.display = 'none';
     const errL = pc && pc.error ? pc.errorLine : null;
     if (errL) {
@@ -174,10 +276,15 @@ export class Editor {
   refresh() {
     const pc = this.pc;
     if (!pc) return;
+    const $ = (s) => this.el.querySelector(s);
     this.status.textContent = pc.statusText;
-    this.status.className = pc.error ? 'err' : pc.running ? (pc.lastYield === 'wait' ? 'wait' : 'run') : '';
-    this.el.querySelector('#ed-run').textContent = pc.running ? '↻ Reiniciar' : '▶ Executar';
-    this.el.querySelector('#ed-cpu').textContent = `CPU: ${game.economy.cpuHz} instr/s`;
+    this.status.className = pc.error ? 'err' : pc.paused ? 'wait' : pc.running ? (pc.lastYield === 'wait' ? 'wait' : 'run') : '';
+    $('#ed-run').textContent = pc.running ? '↻ Reiniciar' : '▶ Executar';
+    $('#ed-pause').style.display = pc.running && !pc.paused ? '' : 'none';
+    $('#ed-step').style.display = pc.running ? '' : 'none';
+    $('#ed-resume').style.display = pc.running && pc.paused ? '' : 'none';
+    const b = pc.board;
+    $('#ed-cpu').innerHTML = `${pc.medalIcon} ${b.itemsMin} itens/min · CPU ${(game.economy.cpuHz * (1 + pc.decorCpu)).toFixed(1)} instr/s`;
     this.positionMarkers();
   }
 
@@ -189,10 +296,79 @@ export class Editor {
     this.refresh();
   }
 
+  // ─── autocompletar ───
+  hideAc() { this.ac.classList.add('hidden'); this.acItems = []; }
+  autocomplete() {
+    if (settings.autocomplete === false) return this.hideAc();
+    const ta = this.ta;
+    const pos = ta.selectionStart;
+    const before = ta.value.slice(0, pos);
+    const lineStart = before.lastIndexOf('\n') + 1;
+    const line = before.slice(lineStart);
+    if (/#/.test(line.replace(/"[^"]*"|'[^']*'/g, ''))) return this.hideAc();
+    let prefix = '', cands = [], kind = '';
+    let m;
+    if ((m = /maquina\(\s*["']([\wÀ-ɏ]*)$/.exec(line)) || (m = /ir_para\(\s*["']([\wÀ-ɏ]*)$/.exec(line)) || (m = /(?:enviar|ouvir)\(\s*["']([\wÀ-ɏ]*)$/.exec(line))) {
+      prefix = m[1]; kind = 'nome';
+      cands = game.entities.filter((e) => e.name).map((e) => e.name).concat((game.drones || []).map((d) => d.name), ['todos', 'vendas', 'rede', 'tempo']);
+    } else if ((m = /(?:pesquisar)\(\s*["']([\w]*)$/.exec(line))) {
+      prefix = m[1]; kind = 'nome'; cands = Object.keys(TECHS);
+    } else if ((m = /["']([a-z_]*)$/.exec(line)) && (line.split('"').length % 2 === 0 || line.split("'").length % 2 === 0)) {
+      prefix = m[1]; kind = 'item';
+      cands = Object.keys(ITEMS).concat(['esquerda', 'direita', 'frente', 'verde', 'vermelho', 'azul', 'amarelo', 'do', 're', 'mi', 'fa', 'sol', 'la', 'si']);
+      if (!prefix) return this.hideAc();
+    } else if ((m = /\.([\wÀ-ɏ]*)$/.exec(line))) {
+      prefix = m[1]; kind = 'método'; cands = METHODS;
+    } else if ((m = /([A-Za-z_À-ɏ][\wÀ-ɏ]*)$/.exec(line))) {
+      prefix = m[1]; kind = 'palavra';
+      if (prefix.length < 2) return this.hideAc();
+      const vars = new Set();
+      for (const mm of ta.value.matchAll(/(?:^|\n)\s*(?:def|funcao)\s+([\wÀ-ɏ]+)|([\wÀ-ɏ]+)\s*=[^=]/g)) vars.add(mm[1] || mm[2]);
+      cands = [...vars].concat(GAME_FUNCS, STD_FUNCS, PY_KW, PT_KW);
+    } else return this.hideAc();
+    const p = prefix.toLowerCase();
+    const list = [...new Set(cands)].filter((c) => c && c.toLowerCase().startsWith(p) && c !== prefix).sort((a, b) => a.length - b.length).slice(0, 8);
+    if (!list.length) return this.hideAc();
+    this.acItems = list;
+    this.acSel = 0;
+    this.acPrefix = prefix;
+    this.ac.innerHTML = list.map((c, i) => `<div class="ac-i ${i === 0 ? 'sel' : ''}" data-i="${i}"><span class="ac-w"><b>${esc(c.slice(0, prefix.length))}</b>${esc(c.slice(prefix.length))}</span><span class="ac-k">${kind}</span></div>`).join('');
+    this.ac.querySelectorAll('.ac-i').forEach((d) => { d.onmousedown = (e) => { e.preventDefault(); this.acSel = +d.dataset.i; this.acceptAc(); }; });
+    // posição do cursor na tela
+    const row = before.split('\n').length - 1;
+    const col = line.length;
+    this.ac.style.left = Math.max(0, 12 + (col - prefix.length) * this.charW - ta.scrollLeft) + 'px';
+    this.ac.style.top = (10 + (row + 1) * this.lineH - ta.scrollTop) + 'px';
+    this.ac.classList.remove('hidden');
+  }
+  acceptAc() {
+    const w = this.acItems[this.acSel];
+    if (!w) return;
+    const ta = this.ta;
+    const pos = ta.selectionStart;
+    ta.setRangeText(w, pos - this.acPrefix.length, pos, 'end');
+    this.hideAc();
+    this.onInput();
+  }
+
   onKey(e) {
     const ta = this.ta;
+    const acOpen = !this.ac.classList.contains('hidden') && this.acItems.length;
+    if (acOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        this.acSel = (this.acSel + (e.key === 'ArrowDown' ? 1 : -1) + this.acItems.length) % this.acItems.length;
+        this.ac.querySelectorAll('.ac-i').forEach((d, i) => d.classList.toggle('sel', i === this.acSel));
+        e.stopPropagation();
+        return;
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.ctrlKey)) { e.preventDefault(); e.stopPropagation(); this.acceptAc(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.hideAc(); return; }
+    }
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); game.ui.closeOverlay(); return; }
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.stopPropagation(); this.run(); return; }
+    if (e.key === 'F10') { e.preventDefault(); this.pc?.step(); return; }
+    if (e.key === ' ' && e.ctrlKey) { e.preventDefault(); this.autocomplete(); return; }
     if (e.key === 'Tab') {
       e.preventDefault();
       const s = ta.selectionStart, en = ta.selectionEnd;
@@ -229,11 +405,13 @@ export class Editor {
       }
     }
     e.stopPropagation();
-    void audio;
   }
 
   update() {
     if (!this.pc) return;
     this.refresh();
+    if (this.tab === 'depurar' && this.pc.paused !== this.lastPaused) { this.lastPaused = this.pc.paused; this.renderDebug(); }
+    this.dbgT = (this.dbgT || 0) - 1;
+    if (this.tab === 'depurar' && this.dbgT <= 0) { this.dbgT = 20; this.renderDebug(); }
   }
 }

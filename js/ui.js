@@ -1,16 +1,21 @@
-// Interface: HUD, barra de itens, loja, painel de máquina, menus e avisos.
+// Interface: HUD, barra de itens, loja, painel de máquina, janelas, confirmações e avisos.
 import { game } from './state.js';
-import { MACHINES, DECOR, UPGRADES, ITEMS, OBJECTIVES, unlocksAt, RECIPES } from './data.js';
+import { MACHINES, DECOR, UPGRADES, ITEMS, OBJECTIVES, unlocksAt, RECIPES, SMELT, TECHS, PHASES, TIERS, TIERABLE, REGIONS } from './data.js';
 import { thumbs } from './thumbs.js';
 import { audio } from './audio.js';
 import { Editor } from './editor.js';
-import { itemName } from './machines.js';
+import { itemName, refreshBeltsAround } from './machines.js';
 import { defOf } from './build.js';
 import { powerText, usesPower, totals } from './power.js';
 import { guideHTML } from './guide.js';
+import { renderResearch, renderPlatform, renderStats, renderMap } from './panels.js';
+import { clockText } from './sky.js';
 
 const $ = (s) => document.querySelector(s);
 const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+// máquinas sem painel de detalhes
+export const NO_PANEL = new Set(['esteira', 'poste', 'divisor', 'juntador', 'esteira_alta', 'rampa_sobe', 'rampa_desce']);
+const XWIN = { research: '🔬 Laboratório · Pesquisas', platform: '🚀 Projeto Foguete', stats: '📊 Estatísticas', map: '🗺️ Mapa' };
 
 export class UI {
   constructor() {
@@ -18,32 +23,63 @@ export class UI {
     this.editor = new Editor();
     this.shopTab = 'maquinas';
     this.panelEntity = null;
+    this.xT = 0;
     game.on('money', () => this.updateStats());
     game.on('xp', () => this.updateStats());
     game.on('inventory', () => this.renderHotbar());
     game.on('hotbar', () => this.renderHotbar());
     game.on('levelup', (l) => this.levelUp(l));
+    game.on('power', () => this.updateStats());
+    game.on('phase', () => this.renderObjective());
     game.on('objective', (o) => {
       audio.play('quest', { volume: 0.6 });
       this.toast(`✔ Objetivo concluído!${o.premio ? ` +$ ${o.premio}` : ''}`, 'good');
       this.renderObjective();
     });
-    audio.onTrackChange = (t) => { $('#track').textContent = t.nome; };
+    game.on('achievement', (a) => {
+      audio.play('achievement', { volume: 0.7 });
+      this.toast(`<span class="ach-toast"><span>${a.icone}</span><span><small>conquista desbloqueada</small><b>${a.nome}</b></span></span>`, 'ach');
+    });
+    game.on('tech', (id) => {
+      const t = TECHS[id];
+      const machines = Object.values(MACHINES).filter((m) => m.tech === id).map((m) => m.nome);
+      const recs = Object.entries(RECIPES).filter(([, r]) => r.tech === id).map(([k]) => ITEMS[k].nome);
+      this.banner(`${t.icone} ${t.nome}`, 'Pesquisa concluída!', [...machines.map((m) => 'Máquina: ' + m), ...recs.map((r) => 'Receita: ' + r), t.desc]);
+      this.renderObjective();
+    });
+    game.on('phaseDone', (n) => {
+      const p = PHASES[n - 1];
+      this.banner(`🚀 Fase ${n}: ${p.nome}`, `Concluída! +$ ${fmt(p.premio)}`, ['Novas pesquisas liberadas no Laboratório', PHASES[n] ? `Próxima: ${PHASES[n].nome}` : '']);
+      this.renderObjective();
+    });
+    game.on('launched', () => {
+      this.banner('🚀 FOGUETE LANÇADO!', 'Você terminou o Projeto Foguete 🎉', ['Obrigado por jogar AUTOMATON!', 'A fábrica continua sua: siga crescendo com calma.']);
+      this.renderObjective();
+    });
+    game.on('research', () => { if (this.overlay === 'research') this.renderX(); });
+    audio.onTrackChange = (t) => { $('#track').textContent = `${audio.stationObj.icone} ${t.nome}`; };
 
     $('#shop-close').onclick = () => this.closeOverlay();
-    document.querySelectorAll('.shop-tab').forEach((b) => { b.onclick = () => { this.shopTab = b.dataset.tab; audio.play('click', { volume: 0.4 }); this.renderShop(); }; });
+    document.querySelectorAll('#shop .shop-tab').forEach((b) => { b.onclick = () => { this.shopTab = b.dataset.tab; audio.play('click', { volume: 0.4 }); this.renderShop(); }; });
     $('#panel-close').onclick = () => this.closeOverlay();
     $('#guide-close').onclick = () => this.closeOverlay();
-    game.on('power', () => this.updateStats());
+    $('#xwin-close').onclick = () => this.closeOverlay();
     $('#music-next').onclick = () => audio.nextTrack();
     $('#music-toggle').onclick = () => { const on = audio.toggleMusic(); $('#music-toggle').textContent = on ? '⏸' : '▶'; };
+    $('#confirm-yes').onclick = () => this.confirmDone(true);
+    $('#confirm-no').onclick = () => this.confirmDone(false);
     addEventListener('keydown', (e) => {
+      if (this.confirmCb && e.key === 'Escape') { e.preventDefault(); this.confirmDone(false); return; }
+      if (this.confirmCb && e.key === 'Enter') { e.preventDefault(); this.confirmDone(true); return; }
       if (performance.now() - this.openTime < 200 || e.repeat) return; // a mesma tecla que abriu não fecha
-      if (e.target && e.target.tagName === 'INPUT') return;
-      if (e.key === 'Escape' && ['shop', 'panel', 'guide'].includes(this.overlay)) { e.preventDefault(); this.closeOverlay(); }
-      if (e.code === 'KeyB' && this.overlay === 'shop') this.closeOverlay();
-      if (e.code === 'KeyH' && this.overlay === 'guide') this.closeOverlay();
-      if (e.code === 'KeyE' && (this.overlay === 'shop' || this.overlay === 'panel')) this.closeOverlay();
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
+      const o = this.overlay;
+      if (e.key === 'Escape' && ['shop', 'panel', 'guide', 'research', 'platform', 'stats', 'map'].includes(o)) { e.preventDefault(); this.closeOverlay(); }
+      if (e.code === 'KeyB' && o === 'shop') this.closeOverlay();
+      if (e.code === 'KeyH' && o === 'guide') this.closeOverlay();
+      if (e.code === 'KeyK' && o === 'stats') this.closeOverlay();
+      if (e.code === 'Tab' && o === 'map') { e.preventDefault(); this.closeOverlay(); }
+      if (e.code === 'KeyE' && ['shop', 'panel', 'research', 'platform'].includes(o)) this.closeOverlay();
     });
   }
 
@@ -55,13 +91,26 @@ export class UI {
     $('#xpbar').style.width = Math.min(100, (eco.xp / eco.xpNeeded) * 100) + '%';
     $('#xptext').textContent = `${fmt(Math.floor(eco.xp))} / ${fmt(eco.xpNeeded)} XP`;
     const t = totals();
-    $('#cpu').innerHTML = `🖥️ ${eco.cpuHz} instr/s · <span class="${t.demand > t.supply ? 'bad' : ''}">⚡ ${t.demand}/${t.supply}</span>`;
+    $('#cpu').innerHTML = `🖥️ ${eco.cpuHz} instr/s · <span class="${t.demand > t.supply ? 'bad' : ''}">⚡ ${fmt(t.demand)}/${fmt(t.supply)}</span>`;
     if (this.overlay === 'shop') $('#shop-money').textContent = '$ ' + fmt(eco.money);
   }
 
   renderObjective() {
-    const o = OBJECTIVES[game.economy.objective];
-    $('#objective').innerHTML = o ? `<div class="obj-title">🎯 Objetivo ${game.economy.objective + 1}/${OBJECTIVES.length}</div><div>${o.texto}</div>${o.premio ? `<div class="obj-prize">Prêmio: $ ${o.premio}</div>` : ''}` : '<div class="obj-title">🌟 Todos os objetivos completos!</div><div>Continue construindo com calma.</div>';
+    const eco = game.economy;
+    const o = OBJECTIVES[eco.objective];
+    let html = o ? `<div class="obj-title">🎯 Objetivo ${eco.objective + 1}/${OBJECTIVES.length}</div><div>${o.texto}</div>${o.premio ? `<div class="obj-prize">Prêmio: $ ${o.premio}</div>` : ''}` : '';
+    // Projeto Foguete (aparece depois do objetivo 6 ou quando já começou)
+    const p = PHASES[eco.phase];
+    if (eco.launched) html += `<div class="obj-rocket"><div class="obj-title">🚀 Projeto Foguete</div><div>Concluído! O satélite está em órbita ✨</div></div>`;
+    else if (p && (eco.objective >= 6 || eco.phase > 0 || Object.keys(eco.phaseProgress).length)) {
+      const rows = Object.entries(p.itens).map(([k, n]) => {
+        const h = Math.min(n, eco.phaseProgress[k] || 0);
+        return `<div class="obj-need"><img src="${thumbs['item:' + k] || ''}"><span>${ITEMS[k].nome}</span><i><b style="width:${(h / n) * 100}%"></b></i><em>${h}/${n}</em></div>`;
+      }).join('');
+      html += `<div class="obj-rocket"><div class="obj-title">🚀 Projeto Foguete · fase ${eco.phase + 1}/${PHASES.length}</div><div class="muted" style="font-size:12.5px">${p.nome}: leve os itens até a plataforma (ao norte)</div>${rows}</div>`;
+    }
+    if (!html) html = '<div class="obj-title">🌟 Todos os objetivos completos!</div><div>Continue construindo com calma.</div>';
+    $('#objective').innerHTML = html;
   }
 
   renderHotbar() {
@@ -73,25 +122,32 @@ export class UI {
       return `<div class="slot ${b.selected === t ? 'sel' : ''} ${t === 'cabo' ? 'tool' : ''}" data-t="${t}"><span class="key">${i < 9 ? i + 1 : ''}</span><img src="${thumbs[t] || ''}"><span class="cnt">${t === 'cabo' ? '∞' : inv[t]}</span><span class="nm">${def.nome}</span></div>`;
     }).join('');
     const sel = b.selected ? defOf(b.selected) : null;
-    const keys = b.selected === 'cabo'
-      ? '<kbd>Clique</kbd> prender/ligar · <kbd>Botão direito</kbd> soltar o cabo · <kbd>X</kbd> tirar cabos da peça'
-      : '<kbd>Clique</kbd> colocar · <kbd>R</kbd> girar (a seta amarela mostra pra onde os itens vão) · <kbd>Q</kbd> guardar na mão';
-    $('#buildhint').innerHTML = sel ? `<b>${sel.nome}</b>: ${sel.desc || 'Decoração'}<br>${keys}` : '';
-    $('#buildhint').style.display = sel ? 'block' : 'none';
+    let text = '';
+    if (b.copyMode) text = '<b>📋 Copiar</b>: clique no 1º canto e depois no 2º · <kbd>Botão direito</kbd> cancela';
+    else if (b.pasteMode) text = '<b>📋 Colar</b>: <kbd>Clique</kbd> cola · <kbd>R</kbd> gira o grupo · <kbd>Botão direito</kbd> cancela · peças que faltarem são compradas';
+    else if (sel) {
+      const keys = b.selected === 'cabo'
+        ? '<kbd>Clique</kbd> prender/ligar · <kbd>Botão direito</kbd> soltar o cabo · <kbd>X</kbd> tirar cabos da peça'
+        : '<kbd>Clique</kbd> colocar · <kbd>R</kbd> girar (a seta amarela mostra pra onde os itens vão) · <kbd>Q</kbd> guardar na mão';
+      text = `<b>${sel.nome}</b>: ${sel.desc || sel.bonus || 'Decoração'}<br>${keys}`;
+    }
+    $('#buildhint').innerHTML = text;
+    $('#buildhint').style.display = text ? 'block' : 'none';
   }
 
   updatePrompt() {
     const b = game.builder;
     const p = $('#prompt');
     let html = '';
-    if (game.mode === 'play' && b.hover) {
-      if (b.hover.entity) {
+    if (game.mode === 'play' && b.hover && !b.copyMode && !b.pasteMode) {
+      if (b.hover.pet) html = '<b>Oopi</b> 💜<br><kbd>E</kbd> fazer carinho';
+      else if (b.hover.entity) {
         const e = b.hover.entity;
         const def = defOf(e.type);
-        const nm = e.name ? `<b>${e.name}</b> · ${def.nome}` : `<b>${def.nome}</b>`;
-        const act = e.type === 'computador' ? '<kbd>E</kbd> programar' : e.isMachine && !['esteira', 'poste'].includes(e.type) ? '<kbd>E</kbd> detalhes' : '';
+        const nm = e.name ? `<b>${e.name}</b> · ${def.nome}${e.tier ? ' ' + TIERS[e.tier].nome : ''}` : `<b>${def.nome}</b>`;
+        const act = e.type === 'computador' ? '<kbd>E</kbd> programar' : e.type === 'laboratorio' ? '<kbd>E</kbd> pesquisas' : e.isMachine && !NO_PANEL.has(e.type) ? '<kbd>E</kbd> detalhes' : '';
         html = b.selected === 'cabo' ? `${nm}<br><kbd>Clique</kbd> ligar cabo` : `${nm}<br>${act} ${act ? '·' : ''} <kbd>X</kbd> guardar`;
-        if (e.isMachine && e.type !== 'esteira' && e.status) html += `<div class="pstatus">${e.type === 'computador' ? e.statusText : e.status}</div>`;
+        if (e.isMachine && !NO_PANEL.has(e.type) && e.status) html += `<div class="pstatus">${e.type === 'computador' ? e.statusText : e.status}</div>`;
         const pt = powerText(e);
         if (pt) html += `<div class="ppower ${e.noPower && usesPower(e) ? 'bad' : ''}">${pt}</div>`;
       } else if (b.hover.interact) html = `<kbd>E</kbd> ${b.hover.interact.label}`;
@@ -105,31 +161,58 @@ export class UI {
     d.className = 'toast ' + kind;
     d.innerHTML = text;
     $('#toasts').appendChild(d);
-    setTimeout(() => d.classList.add('out'), 3800);
-    setTimeout(() => d.remove(), 4400);
+    const life = kind === 'ach' ? 5500 : 3800;
+    setTimeout(() => d.classList.add('out'), life);
+    setTimeout(() => d.remove(), life + 600);
     while ($('#toasts').children.length > 5) $('#toasts').firstChild.remove();
+  }
+
+  banner(title, sub, lines) {
+    const el = $('#levelup');
+    el.innerHTML = `<div class="lv-title">${title}</div><div class="lv-sub">${sub}</div>${lines.filter(Boolean).length ? '<ul>' + lines.filter(Boolean).map((u) => `<li>${u}</li>`).join('') + '</ul>' : ''}`;
+    el.classList.remove('hidden', 'show');
+    void el.offsetWidth;
+    el.classList.add('show');
+    clearTimeout(this.lvT);
+    this.lvT = setTimeout(() => el.classList.add('hidden'), 7000);
   }
 
   levelUp(l) {
     audio.play('levelup', { volume: 0.8 });
     const un = unlocksAt(l);
-    const el = $('#levelup');
-    el.innerHTML = `<div class="lv-title">✨ Nível ${l}! ✨</div>${un.length ? '<div class="lv-sub">Liberado:</div><ul>' + un.map((u) => `<li>${u}</li>`).join('') + '</ul>' : '<div class="lv-sub">Continue assim!</div>'}`;
-    el.classList.remove('hidden');
-    el.classList.remove('show');
-    void el.offsetWidth;
-    el.classList.add('show');
-    clearTimeout(this.lvT);
-    this.lvT = setTimeout(() => el.classList.add('hidden'), 6500);
+    this.banner(`✨ Nível ${l}! ✨`, un.length ? 'Liberado:' : 'Continue assim!', un);
     this.updateStats();
   }
 
-  // ─── overlays ───
+  // ─── confirmação ───
+  confirm(title, html, onYes, opts = {}) {
+    this.confirmCb = onYes;
+    this.confirmNo = opts.onNo || null;
+    $('#confirm-title').textContent = title;
+    $('#confirm-body').innerHTML = html;
+    $('#confirm-yes').textContent = opts.yes || 'Sim';
+    $('#confirm-no').textContent = opts.no || 'Não';
+    $('#confirm-no').style.display = opts.noButton === false ? 'none' : '';
+    $('#confirm').classList.remove('hidden');
+    this.confirmPrev = game.mode;
+    if (game.mode === 'play') game.setMode('ui');
+    audio.play('question', { volume: 0.5 });
+  }
+  confirmDone(yes) {
+    const cb = this.confirmCb, no = this.confirmNo;
+    this.confirmCb = null;
+    $('#confirm').classList.add('hidden');
+    if (this.confirmPrev === 'play' && !this.overlay) game.setMode('play');
+    if (yes && cb) cb();
+    if (!yes && no) no();
+  }
+
+  // ─── janelas ───
   openOverlay(name, arg) {
     if (this.overlay) this.closeOverlay(true);
     this.overlay = name;
     this.openTime = performance.now();
-    this.prevMode = game.mode;
+    this.prevMode = game.mode === 'ui' ? 'play' : game.mode;
     if (game.mode !== 'menu') game.setMode('ui'); // no menu, a janela abre por cima dele
     audio.play('open', { volume: 0.5 });
     if (name === 'editor') { $('#editor').classList.remove('hidden'); this.editor.open(arg); }
@@ -140,6 +223,22 @@ export class UI {
       $('#guide-body').innerHTML = guideHTML();
       if (arg) setTimeout(() => { const h = [...document.querySelectorAll('#guide-body h3')].find((x) => x.textContent.includes(arg)); h?.scrollIntoView(); }, 30);
     }
+    if (XWIN[name]) {
+      this.xArg = arg;
+      $('#xwin').classList.remove('hidden');
+      $('#xwin').dataset.kind = name;
+      $('#xwin-title').textContent = XWIN[name];
+      $('#xwin-hint').textContent = name === 'map' ? 'Tab ou Esc fecha' : name === 'stats' ? 'K ou Esc fecha' : 'Esc fecha';
+      $('#xwin-body').innerHTML = '';
+      this.renderX(arg);
+    }
+  }
+  renderX(arg) {
+    const body = $('#xwin-body');
+    if (this.overlay === 'research') renderResearch(body, this.xArg);
+    if (this.overlay === 'platform') renderPlatform(body);
+    if (this.overlay === 'stats') renderStats(body, arg);
+    if (this.overlay === 'map') renderMap(body);
   }
 
   closeOverlay(silent) {
@@ -148,6 +247,7 @@ export class UI {
     if (this.overlay === 'shop') $('#shop').classList.add('hidden');
     if (this.overlay === 'panel') { $('#panel').classList.add('hidden'); this.panelEntity = null; }
     if (this.overlay === 'guide') $('#guide').classList.add('hidden');
+    if (XWIN[this.overlay]) $('#xwin').classList.add('hidden');
     this.overlay = null;
     if (!silent) {
       audio.play('close', { volume: 0.5 });
@@ -157,48 +257,58 @@ export class UI {
   }
 
   // ─── loja ───
+  lockReason(d) {
+    const eco = game.economy;
+    if (d.nivel > eco.level) return `🔒 Nível ${d.nivel}`;
+    if (d.tech && !eco.hasTech(d.tech)) return `🔬 Pesquise “${TECHS[d.tech].nome}”`;
+    return null;
+  }
   renderShop() {
     const eco = game.economy;
     $('#shop-money').textContent = '$ ' + fmt(eco.money);
     $('#shop-level').textContent = 'Nível ' + eco.level;
-    document.querySelectorAll('.shop-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === this.shopTab));
+    document.querySelectorAll('#shop .shop-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === this.shopTab));
     const body = $('#shop-body');
     const card = (o) => `<div class="card ${o.locked ? 'locked' : ''}">
       <img src="${o.img || ''}" class="${o.img ? '' : 'noimg'}">
       <div class="c-name">${o.name}</div>
       <div class="c-desc">${o.desc || ''}</div>
-      <div class="c-foot">${o.locked ? `<span class="lock">🔒 Nível ${o.lvl}</span>` : o.foot}</div></div>`;
+      <div class="c-foot">${o.locked ? `<span class="lock">${o.locked}</span>` : o.foot}</div></div>`;
     if (this.shopTab === 'maquinas' || this.shopTab === 'decoracao') {
       const src = this.shopTab === 'maquinas' ? MACHINES : DECOR;
-      body.innerHTML = `<div class="cards">${Object.entries(src).map(([k, d]) => card({
-        img: thumbs[k], name: d.nome, desc: d.desc || '', locked: d.nivel > eco.level, lvl: d.nivel,
+      const entries = Object.entries(src).sort((a, b) => (!!this.lockReason(a[1]) - !!this.lockReason(b[1])));
+      body.innerHTML = `<div class="cards">${entries.map(([k, d]) => card({
+        img: thumbs[k], name: d.nome, desc: (d.desc || '') + (d.bonus ? `<br><span class="bonus">✦ ${d.bonus}</span>` : ''), locked: this.lockReason(d),
         foot: `<span class="price">$ ${d.preco}</span><span class="own">tem ${eco.inventory[k] || 0}</span>
                <button class="buy" data-k="${k}" data-n="1" ${eco.money < d.preco ? 'disabled' : ''}>Comprar</button>
-               ${k === 'esteira' ? `<button class="buy" data-k="${k}" data-n="10" ${eco.money < d.preco * 10 ? 'disabled' : ''}>×10</button>` : ''}`,
+               ${['esteira', 'esteira_alta', 'poste'].includes(k) ? `<button class="buy" data-k="${k}" data-n="10" ${eco.money < d.preco * 10 ? 'disabled' : ''}>×10</button>` : ''}`,
       })).join('')}</div>`;
       body.querySelectorAll('.buy').forEach((b) => { b.onclick = () => this.buy(b.dataset.k, +b.dataset.n); });
     } else if (this.shopTab === 'melhorias') {
       body.innerHTML = `<div class="cards">${Object.entries(UPGRADES).map(([k, u]) => {
         const lvl = eco.upgrades[k];
         const maxed = lvl >= u.precos.length;
-        const locked = !maxed && u.niveis[lvl] > eco.level;
+        const locked = !maxed && u.niveis[lvl] > eco.level ? `🔒 Nível ${u.niveis[lvl]}` : null;
         const pips = u.valores.map((_, i) => `<i class="${i <= lvl ? 'on' : ''}"></i>`).join('');
         return card({
           name: u.nome, desc: `${u.desc}<br><b>${u.valores[lvl]}${u.unidade}</b>${maxed ? '' : ` → ${u.valores[lvl + 1]}${u.unidade}`}<div class="pips">${pips}</div>`,
-          locked, lvl: maxed ? 0 : u.niveis[lvl],
+          locked,
           foot: maxed ? '<span class="own">Máximo! ✨</span>' : `<span class="price">$ ${u.precos[lvl]}</span><button class="up" data-k="${k}" ${eco.money < u.precos[lvl] ? 'disabled' : ''}>Melhorar</button>`,
         });
-      }).join('')}</div>`;
+      }).join('')}</div>
+      <p class="muted" style="margin-top:14px">Dica: depois das pesquisas <b>Máquinas Mk2/Mk3</b>, cada máquina pode ser melhorada sozinha no painel dela (aperte <kbd>E</kbd> nela).</p>`;
       body.querySelectorAll('.up').forEach((b) => { b.onclick = () => this.upgrade(b.dataset.k); });
     } else if (this.shopTab === 'mercado') {
-      body.innerHTML = `<p class="muted">Preços por unidade agora. Eles sobem e descem com o tempo — programe suas vendas pra aproveitar os picos! Vender muito de uma vez também abaixa o preço um pouco.</p>
+      body.innerHTML = `<p class="muted">Preços por unidade agora. Eles sobem e descem com o tempo: programe suas vendas pra aproveitar os picos! Vender muito de uma vez também abaixa o preço um pouco.</p>
       <table class="market">${Object.keys(ITEMS).map((k) => {
         const p = eco.price(k), tr = eco.trend(k);
         return `<tr><td><img src="${thumbs['item:' + k]}"></td><td><b>${ITEMS[k].nome}</b><br><code>"${k}"</code></td><td><canvas data-k="${k}" width="200" height="40"></canvas></td><td class="${tr > 0.05 ? 'up' : tr < -0.05 ? 'down' : ''}">${tr > 0.05 ? '▲' : tr < -0.05 ? '▼' : '•'} $ ${p.toFixed(1)}</td><td class="muted">vendidos: ${eco.stats.sold[k] || 0}</td></tr>`;
       }).join('')}</table>`;
       body.querySelectorAll('canvas').forEach((c) => this.sparkline(c, eco.history[c.dataset.k]));
     } else if (this.shopTab === 'receitas') {
-      body.innerHTML = `<table class="market">${Object.entries(RECIPES).map(([k, r]) => `<tr class="${r.nivel > eco.level ? 'locked' : ''}"><td><img src="${thumbs['item:' + k]}"></td><td><b>${ITEMS[k].nome}</b><br><code>fabricar("${k}")</code></td><td>${Object.entries(r.in).map(([i, n]) => `${n}× ${ITEMS[i].nome}`).join(' + ')}</td><td>${r.tempo}s</td><td>${r.nivel > eco.level ? '🔒 nível ' + r.nivel : '✔'}</td></tr>`).join('')}</table>`;
+      const st = (r) => (r.nivel > eco.level ? '🔒 nível ' + r.nivel : r.tech && !eco.hasTech(r.tech) ? '🔬 ' + TECHS[r.tech].nome : '✔');
+      body.innerHTML = `<h3 class="rec-h">Fornalha · <code>fundir("...")</code></h3><table class="market">${Object.entries(SMELT).map(([k, r]) => `<tr class="${st(r) !== '✔' ? 'locked' : ''}"><td><img src="${thumbs['item:' + r.out]}"></td><td><b>${ITEMS[r.out].nome}</b><br><code>fundir("${k}")</code></td><td>${Object.entries(r.in).map(([i, n]) => `${n}× ${ITEMS[i].nome}`).join(' + ')}${r.escoria ? ' <span class="muted">(+ escória)</span>' : ''}</td><td>${r.tempo}s</td><td>${st(r)}</td></tr>`).join('')}</table>
+      <h3 class="rec-h">Montadora · <code>fabricar("...")</code></h3><table class="market">${Object.entries(RECIPES).map(([k, r]) => `<tr class="${st(r) !== '✔' ? 'locked' : ''}"><td><img src="${thumbs['item:' + k]}"></td><td><b>${ITEMS[k].nome}</b><br><code>fabricar("${k}")</code></td><td>${Object.entries(r.in).map(([i, n]) => `${n}× ${ITEMS[i].nome}`).join(' + ')}${r.qtd > 1 ? ` → ${r.qtd}×` : ''}</td><td>${r.tempo}s</td><td>${st(r)}</td></tr>`).join('')}</table>`;
     }
   }
 
@@ -220,6 +330,7 @@ export class UI {
 
   buy(k, n) {
     const d = MACHINES[k] || DECOR[k];
+    if (this.lockReason(d)) return;
     if (!game.economy.spend(d.preco * n)) { audio.play('deny'); return; }
     game.economy.addItem(k, n);
     audio.play('buy', { volume: 0.6 });
@@ -238,12 +349,32 @@ export class UI {
     this.renderShop();
   }
 
+  buyRegion(id) {
+    const r = REGIONS[id];
+    const eco = game.economy;
+    if (eco.hasRegion(id)) return;
+    if (eco.level < r.nivel) { this.toast(`${r.nome} precisa do nível ${r.nivel}`, 'warn'); audio.play('deny'); return; }
+    this.confirm(`Comprar ${r.nome}?`, `<p>${r.desc}</p><p>Preço: <b class="amber">$ ${fmt(r.preco)}</b> · você tem $ ${fmt(eco.money)}</p><p class="muted">As árvores da região somem e você pode construir lá.</p>`, () => {
+      if (!eco.spend(r.preco)) { this.toast('Dinheiro insuficiente', 'warn'); audio.play('deny'); return; }
+      eco.regions.push(id);
+      game.emit('region', id);
+      audio.play('levelup', { volume: 0.7 });
+      this.banner(`🗺️ ${r.nome}`, 'Região comprada!', [r.desc]);
+    }, { yes: `Comprar ($ ${fmt(r.preco)})`, no: 'Agora não' });
+  }
+
   // ─── painel de máquina ───
+  tierCost(e) {
+    const next = TIERS[(e.tier || 0) + 1];
+    if (!next) return null;
+    return Math.round((MACHINES[e.type].preco || 100) * next.preco * 5);
+  }
   renderPanel(full) {
     const e = this.panelEntity;
     if (!e) return;
     if (e.removed) { this.closeOverlay(); return; }
     const def = MACHINES[e.type];
+    const eco = game.economy;
     if (full) {
       const api = e.api ? e.api() : {};
       $('#panel-img').src = thumbs[e.type] || '';
@@ -252,27 +383,55 @@ export class UI {
       const guideTopic = { fornalha: 'Fornalha', montadora: 'Montadora', separador: 'Separador', gerador: 'Energia', gerador_grande: 'Energia', computador: 'computador', minerador: 'Primeira', venda: 'Primeira' }[e.type];
       $('#panel-guide').style.display = guideTopic ? '' : 'none';
       $('#panel-guide').onclick = () => this.openOverlay('guide', guideTopic);
+      $('#panel-research').style.display = e.type === 'laboratorio' ? '' : 'none';
+      $('#panel-research').onclick = () => this.openOverlay('research', e);
       const inp = $('#panel-name');
       inp.value = e.name;
       inp.onchange = () => {
         const v = inp.value.trim();
         if (!/^[\wÀ-ɏ-]+$/.test(v)) { this.toast('Use só letras, números e _ no nome', 'warn'); inp.value = e.name; return; }
-        if (game.entities.some((o) => o !== e && o.name === v)) { this.toast('Já existe uma máquina com esse nome', 'warn'); inp.value = e.name; return; }
+        if (game.entities.some((o) => o !== e && o.name === v) || (game.drones || []).some((o) => o.name === v)) { this.toast('Já existe uma máquina com esse nome', 'warn'); inp.value = e.name; return; }
         e.rename(v);
         this.toast(`Renomeado para "${v}". Lembre de usar maquina("${v}") no código!`);
       };
       inp.onkeydown = (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); if (ev.key === 'Escape') this.closeOverlay(); };
       const methods = Object.entries(api).map(([k, m]) => `<div class="meth"><code>.${k}(${m.min ? '"..."' : m.max ? '[...]' : ''})</code> <span>${m.doc || ''}</span></div>`).join('');
       $('#panel-api').innerHTML = `<div class="api-ex"><code>m = maquina("${e.name}")</code></div>${methods}`;
-      $('#panel-rotate').onclick = () => { e.dir = (e.dir + 1) % 4; e.obj.rotation.y = -e.dir * Math.PI / 2; audio.play('tick'); import('./machines.js').then((m) => m.refreshBeltsAround(e.x, e.z)); };
+      $('#panel-rotate').onclick = () => { game.builder.rotateEntity(e); audio.play('tick'); refreshBeltsAround(e.x, e.z); };
       $('#panel-pick').onclick = () => { game.builder.hover = { entity: e }; game.builder.removeHovered(); this.closeOverlay(); };
     }
-    $('#panel-info').innerHTML = e.infoLines().map((l) => `<div>${l}</div>`).join('');
+    // melhoria Mk2/Mk3
+    const up = $('#panel-upgrade');
+    const next = TIERS[(e.tier || 0) + 1];
+    if (TIERABLE.includes(e.type) && next) {
+      const cost = this.tierCost(e);
+      const ok = eco.hasTech(next.tech);
+      up.style.display = '';
+      up.disabled = !ok || eco.money < cost;
+      up.textContent = ok ? `⬆ ${next.nome} ($ ${fmt(cost)}): ${next.vel}× mais rápida` : `🔬 ${next.nome}: pesquise “${TECHS[next.tech].nome}”`;
+      up.onclick = () => {
+        if (!eco.spend(cost)) return;
+        e.setTier((e.tier || 0) + 1);
+        audio.play('levelup', { volume: 0.6 });
+        this.toast(`${e.name} agora é ${TIERS[e.tier].nome}! ⚡ Gasta um pouco mais de energia.`, 'good');
+        game.emit('power');
+      };
+    } else up.style.display = 'none';
+    $('#panel-info').innerHTML = e.infoLines().filter(Boolean).map((l) => `<div>${l}</div>`).join('');
   }
 
-  update() {
+  update(dt) {
     if (this.overlay === 'panel') this.renderPanel(false);
     if (this.overlay === 'editor') this.editor.update();
+    if (XWIN[this.overlay]) {
+      this.xT -= dt;
+      if (this.xT <= 0) {
+        this.xT = this.overlay === 'map' ? 0.2 : this.overlay === 'stats' ? 3 : 0.6;
+        if (this.overlay !== 'research' || !document.querySelector('.rs-node:hover')) this.renderX();
+      }
+    }
+    this.clockT = (this.clockT || 0) - dt;
+    if (this.clockT <= 0) { this.clockT = 1; $('#clock').textContent = clockText(); }
     this.updatePrompt();
   }
 }

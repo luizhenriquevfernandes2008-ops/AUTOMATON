@@ -1,9 +1,9 @@
 // Configurações do jogador (salvas à parte do save da fábrica).
 import { game } from './state.js';
-import { audio } from './audio.js';
+import { audio, STATIONS } from './audio.js';
 
 const KEY = 'automaton_settings';
-export const settings = { music: 0.45, sfx: 0.7, ambience: 0.35, sens: 0.8, fov: 72, quality: 'alta', musicOn: true };
+export const settings = { music: 0.45, sfx: 0.7, ambience: 0.35, sens: 0.8, fov: 72, quality: 'alta', musicOn: true, station: 0, pet: true, autocomplete: true };
 
 export function loadSettings() {
   try {
@@ -22,6 +22,8 @@ export function applySettings() {
   audio.setVolume('sfx', settings.sfx);
   audio.setVolume('ambience', settings.ambience);
   audio.musicOn = settings.musicOn;
+  if (audio.station !== settings.station) { audio.station = settings.station; if (audio.started) audio.setStation(settings.station); }
+  if (game.pet) game.pet.setVisible(settings.pet !== false);
   if (game.player) game.player.controls.pointerSpeed = settings.sens;
   if (game.camera) { game.camera.fov = settings.fov; game.camera.updateProjectionMatrix(); }
   applyQuality();
@@ -78,4 +80,20 @@ export function bindSettingInputs() {
     b.onclick = () => { settings.quality = b.dataset.q; paintQ(); applyQuality(); saveSettings(); audio.play('click', { volume: 0.5 }); };
   });
   paintQ();
+  // rádio
+  const st = document.getElementById('set-station');
+  st.innerHTML = STATIONS.map((s, i) => `<option value="${i}">${s.icone} ${s.nome}</option>`).join('');
+  st.value = settings.station;
+  st.onchange = () => { settings.station = +st.value; audio.setStation(settings.station); saveSettings(); };
+  // liga/desliga
+  const toggle = (id, keyName, after) => {
+    const el = document.getElementById(id);
+    const paint = () => el.querySelectorAll('button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === (settings[keyName] !== false)));
+    el.querySelectorAll('button').forEach((b) => { b.onclick = (e) => { e.preventDefault(); settings[keyName] = b.dataset.v === '1'; paint(); after && after(); saveSettings(); audio.play('click', { volume: 0.5 }); }; });
+    paint();
+  };
+  toggle('set-pet', 'pet', () => game.pet && game.pet.setVisible(settings.pet));
+  toggle('set-ac', 'autocomplete', () => { const cb = document.getElementById('ed-ac-toggle'); if (cb) cb.checked = settings.autocomplete; });
 }
+
+export function syncStation() { const st = document.getElementById('set-station'); if (st) st.value = audio.station; settings.station = audio.station; saveSettings(); }

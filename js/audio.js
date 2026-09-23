@@ -1,18 +1,33 @@
 // Som: efeitos (Kenney, CC0), ambiente da floresta (OpenGameArt, CC0) e músicas (Kevin MacLeod, CC-BY).
 
-export const TRACKS = [
-  { file: 'lobby_time.mp3', nome: 'Lobby Time' },
-  { file: 'airport_lounge.mp3', nome: 'Airport Lounge' },
-  { file: 'wallpaper.mp3', nome: 'Wallpaper' },
-  { file: 'local_forecast_elevator.mp3', nome: 'Local Forecast - Elevator' },
-  { file: 'bossa_antigua.mp3', nome: 'Bossa Antigua' },
-  { file: 'deliberate_thought.mp3', nome: 'Deliberate Thought' },
-  { file: 'dreamer.mp3', nome: 'Dreamer' },
-  { file: 'easy_lemon.mp3', nome: 'Easy Lemon' },
-  { file: 'carefree.mp3', nome: 'Carefree' },
-  { file: 'laid_back_guitars.mp3', nome: 'Laid Back Guitars' },
+const T = (file, nome, autor = 'Kevin MacLeod') => ({ file, nome, autor });
+// Estações do rádio. Bossa é a padrão :)
+export const STATIONS = [
+  {
+    id: 'bossa', nome: 'Bossa FM', icone: '🌴', tracks: [
+      T('bossa_antigua.mp3', 'Bossa Antigua'), T('casa_bossa_nova.mp3', 'Casa Bossa Nova'), T('bossabossa.mp3', 'BossaBossa'),
+      T('samba_isobel.mp3', 'Samba Isobel'), T('cool_vibes.mp3', 'Cool Vibes'), T('sidewalk_shade.mp3', 'Sidewalk Shade'),
+      T('latin_industries.mp3', 'Latin Industries'), T('bossa_town.mp3', 'Bossa Town', 'KarateStudios'),
+      T('bossa_shop.mp3', 'Bossa Shop Theme', 'SpringySpringo'), T('bossa_nova_8bit.mp3', 'Bossa Nova (8-bit)', 'Joth'),
+      T('airport_lounge.mp3', 'Airport Lounge'),
+    ],
+  },
+  {
+    id: 'lofi', nome: 'Lo-fi Chill', icone: '☁️', tracks: [
+      T('lobby_time.mp3', 'Lobby Time'), T('wallpaper.mp3', 'Wallpaper'), T('dreamer.mp3', 'Dreamer'),
+      T('deliberate_thought.mp3', 'Deliberate Thought'), T('carefree.mp3', 'Carefree'), T('easy_lemon.mp3', 'Easy Lemon'),
+    ],
+  },
+  {
+    id: 'jazz', nome: 'Jazz Lounge', icone: '🎷', tracks: [
+      T('jazz_brunch.mp3', 'Jazz Brunch'), T('smooth_lovin.mp3', 'Smooth Lovin'), T('hep_cats.mp3', 'Hep Cats'),
+      T('bass_walker.mp3', 'Bass Walker'), T('george_street_shuffle.mp3', 'George Street Shuffle'),
+      T('local_forecast_elevator.mp3', 'Local Forecast - Elevator'), T('laid_back_guitars.mp3', 'Laid Back Guitars'),
+    ],
+  },
+  { id: 'natureza', nome: 'Só Natureza', icone: '🌿', tracks: [] },
 ];
-
+export const TRACKS = STATIONS.flatMap((s) => s.tracks);
 const SFX = {
   stepConcrete: ['footstep_concrete_000', 'footstep_concrete_001', 'footstep_concrete_002', 'footstep_concrete_003', 'footstep_concrete_004'],
   stepGrass: ['footstep_grass_000', 'footstep_grass_001', 'footstep_grass_002', 'footstep_grass_003', 'footstep_grass_004'],
@@ -41,6 +56,12 @@ const SFX = {
   computer: ['computerNoise_000', 'computerNoise_001'],
   jump: ['impactSoft_medium_000'],
   coffee: ['question_001'],
+  question: ['question_001'],
+  back: ['back_001'],
+  launch: ['spaceEngineLarge_000'],
+  thruster: ['thrusterFire_000'],
+  achievement: ['maximize_008'],
+  photo: ['laserRetro_000'],
 };
 
 class AudioManager {
@@ -48,7 +69,8 @@ class AudioManager {
     this.ctx = null;
     this.buffers = {};
     this.settings = { music: 0.45, sfx: 0.7, ambience: 0.35 };
-    this.trackIndex = Math.floor(Math.random() * TRACKS.length);
+    this.station = 0;
+    this.trackIndex = Math.floor(Math.random() * STATIONS[0].tracks.length);
     this.music = new Audio();
     this.music.preload = 'auto';
     this.music.addEventListener('ended', () => this.nextTrack());
@@ -83,15 +105,32 @@ class AudioManager {
     if (this.musicOn) this.playTrack(this.trackIndex);
   }
 
+  get stationObj() { return STATIONS[this.station]; }
   playTrack(i) {
-    this.trackIndex = (i + TRACKS.length) % TRACKS.length;
-    const t = TRACKS[this.trackIndex];
+    const list = this.stationObj.tracks;
+    if (!list.length) { // estação só de natureza
+      this.music.pause();
+      this.music.removeAttribute('src');
+      const t = { nome: 'sons da natureza', file: null };
+      this.onTrackChange && this.onTrackChange(t);
+      this.onTrackChangeMenu && this.onTrackChangeMenu(t);
+      return;
+    }
+    this.trackIndex = (i + list.length) % list.length;
+    const t = list[this.trackIndex];
     this.music.src = 'assets/music/' + t.file;
     this.music.volume = this.settings.music;
     if (this.musicOn) this.music.play().catch(() => { });
     this.onTrackChange && this.onTrackChange(t);
     this.onTrackChangeMenu && this.onTrackChangeMenu(t);
   }
+  setStation(i) {
+    this.station = (i + STATIONS.length) % STATIONS.length;
+    this.trackIndex = Math.floor(Math.random() * Math.max(1, this.stationObj.tracks.length));
+    if (this.started) this.playTrack(this.trackIndex);
+    return this.stationObj;
+  }
+  nextStation() { return this.setStation(this.station + 1); }
   nextTrack() { this.playTrack(this.trackIndex + 1); }
   prevTrack() { this.playTrack(this.trackIndex - 1); }
   toggleMusic() {
@@ -100,8 +139,39 @@ class AudioManager {
     else this.music.pause();
     return this.musicOn;
   }
-  currentTrack() { return TRACKS[this.trackIndex]; }
+  currentTrack() { return this.stationObj.tracks[this.trackIndex] || { nome: 'sons da natureza' }; }
 
+  // nota musical sintetizada (alto-falante programável)
+  note(freq, dur, pos) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    let vol = 0.35 * this.settings.sfx, pan = 0;
+    if (pos) {
+      const dx = pos.x - this.listener.pos.x, dz = pos.z - this.listener.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 35) return;
+      vol *= Math.pow(1 - d / 35, 1.4);
+      if (d > 0.5) pan = Math.max(-1, Math.min(1, (dx * this.listener.right.x + dz * this.listener.right.z) / d)) * 0.7;
+    }
+    const t0 = this.ctx.currentTime;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur + 0.35);
+    const p = this.ctx.createStereoPanner();
+    p.pan.value = pan;
+    g.connect(p).connect(this.master);
+    // timbre de marimba: fundamental + harmônico suave
+    for (const [mul, type, amp] of [[1, 'triangle', 1], [4, 'sine', 0.18], [2, 'sine', 0.25]]) {
+      const o = this.ctx.createOscillator();
+      o.type = type;
+      o.frequency.value = freq * mul;
+      const og = this.ctx.createGain();
+      og.gain.value = amp;
+      o.connect(og).connect(g);
+      o.start(t0);
+      o.stop(t0 + dur + 0.4);
+    }
+  }
   setVolume(kind, v) {
     this.settings[kind] = v;
     if (kind === 'music') this.music.volume = v;
