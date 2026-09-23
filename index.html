@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AUTOMATON</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "./lib/three.module.js", "three/addons/": "./lib/addons/" } }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- engrenagem reaproveitada -->
+  <svg width="0" height="0" style="position:absolute">
+    <symbol id="gear" viewBox="0 0 64 64">
+      <circle cx="32" cy="32" r="23" fill="none" stroke="currentColor" stroke-width="9" stroke-dasharray="7.2 7.25" />
+      <circle cx="32" cy="32" r="17" fill="none" stroke="currentColor" stroke-width="6" />
+      <circle cx="32" cy="32" r="5" fill="currentColor" />
+    </symbol>
+  </svg>
+
+  <!-- carregando -->
+  <div id="loading" class="screen">
+    <div class="boot-box">
+      <div class="brand"><svg><use href="#gear" /></svg>AUTOMATON</div>
+      <div class="boot-log" id="boot-log"></div>
+      <div class="load-track"><div id="load-bar"></div></div>
+      <div id="load-text">inicializando…</div>
+    </div>
+  </div>
+
+  <!-- menu principal -->
+  <div id="menu" class="hidden">
+    <div class="menu-bg"></div>
+    <aside class="menu-left">
+      <div class="sys-tag"><span class="led"></span>sistema de automação · v1.1</div>
+      <div class="title-row">
+        <svg><use href="#gear" /></svg>
+        <h1 class="title">AUTO<span class="t-accent">MATON</span></h1>
+      </div>
+      <div class="title-bar"></div>
+      <div class="typeline"><span id="typed"></span><span class="caret">▌</span></div>
+      <nav class="menu-nav" id="menu-nav">
+        <button class="mi primary-mi" id="btn-play" data-panel="home"><span class="mi-n">01</span><span class="mi-t" id="play-label">Jogar</span><span class="mi-d" id="play-sub"></span></button>
+        <button class="mi" id="btn-new" data-panel="newgame"><span class="mi-n">02</span><span class="mi-t">Novo jogo</span><span class="mi-d"></span></button>
+        <button class="mi" data-panel="howto"><span class="mi-n">03</span><span class="mi-t">Como jogar</span><span class="mi-d">guia</span></button>
+        <button class="mi" data-panel="settings"><span class="mi-n">04</span><span class="mi-t">Configurações</span><span class="mi-d"></span></button>
+        <button class="mi" data-panel="credits"><span class="mi-n">05</span><span class="mi-t">Créditos</span><span class="mi-d">cc0 · cc-by</span></button>
+      </nav>
+      <div class="menu-foot">
+        ↑ ↓ navegar · enter selecionar<br>
+        three.js · linguagem jiboia 🐍 · assets kenney / poly haven
+      </div>
+    </aside>
+
+    <section class="menu-right">
+      <!-- início -->
+      <div class="mpanel show" data-panel="home">
+        <div class="card-x">
+          <div class="card-h"><span>// save_01</span><b id="save-state">—</b></div>
+          <div id="save-card"></div>
+        </div>
+        <div class="card-x">
+          <div class="card-h"><span>// pc1 · executando</span><b id="term-clock">2 instr/s</b></div>
+          <div class="term" id="term"></div>
+          <div class="term-out" id="term-out"></div>
+        </div>
+        <div class="card-x">
+          <div class="card-h"><span>// dica</span><b id="tip-n">01</b></div>
+          <div class="tip" id="tip"></div>
+        </div>
+      </div>
+
+      <!-- novo jogo -->
+      <div class="mpanel" data-panel="newgame">
+        <div class="card-x confirm-box">
+          <div class="card-h"><span>// novo jogo</span><b>atenção</b></div>
+          <p id="new-text">Começar uma fábrica nova do zero.</p>
+          <div class="row">
+            <button id="new-cancel">Cancelar</button>
+            <button id="new-confirm" class="primary">Começar do zero</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- como jogar -->
+      <div class="mpanel" data-panel="howto">
+        <div class="card-x">
+          <div class="card-h"><span>// como jogar</span><b>5 passos</b></div>
+          <ol class="steps">
+            <li><span>Coloque um <b>Minerador</b> em cima de um veio de minério. A <b>seta laranja</b> é por onde o minério sai.</span></li>
+            <li><span>Leve o minério com <b>Esteiras</b> até a <b>Caixa de Venda</b>. As setinhas amarelas mostram a direção.</span></li>
+            <li><span>Coloque o <b>Gerador</b> e ligue tudo com o <b>🔌 Cabo</b> (tecla 1): gerador → máquina.</span></li>
+            <li><span>Aperte <kbd>E</kbd> no <b>Computador</b> e programe em <b>Jiboia</b> (parecida com Python).</span></li>
+            <li><span>Venda, suba de nível, compre máquinas na <b>Loja</b> e automatize tudo.</span></li>
+          </ol>
+        </div>
+        <div class="card-x">
+          <div class="card-h"><span>// controles</span></div>
+          <div class="keys">
+            <kbd>W A S D</kbd><span>andar</span><kbd>Shift</kbd><span>correr</span>
+            <kbd>1</kbd><span>🔌 cabo</span><kbd>2-9</kbd><span>escolher peça</span>
+            <kbd>Clique</kbd><span>colocar / usar</span><kbd>R</kbd><span>girar peça</span>
+            <kbd>E</kbd><span>programar / detalhes</span><kbd>X</kbd><span>guardar peça</span>
+            <kbd>B</kbd><span>loja</span><kbd>H</kbd><span>guia</span>
+            <kbd>M</kbd><span>próxima música</span><kbd>Esc</kbd><span>pausa</span>
+          </div>
+        </div>
+        <div class="row"><button class="primary" id="menu-guide">📖 Abrir o guia completo</button></div>
+      </div>
+
+      <!-- configurações -->
+      <div class="mpanel" data-panel="settings">
+        <div class="card-x">
+          <div class="card-h"><span>// áudio</span></div>
+          <div class="set-list">
+            <label class="set-row">Música<input type="range" data-setting="music" min="0" max="1" step="0.05"><output></output></label>
+            <label class="set-row">Efeitos<input type="range" data-setting="sfx" min="0" max="1" step="0.05"><output></output></label>
+            <label class="set-row">Ambiente<input type="range" data-setting="ambience" min="0" max="1" step="0.05"><output></output></label>
+          </div>
+        </div>
+        <div class="card-x">
+          <div class="card-h"><span>// controles e vídeo</span></div>
+          <div class="set-list">
+            <label class="set-row">Sensibilidade<input type="range" data-setting="sens" min="0.2" max="2" step="0.05"><output></output></label>
+            <label class="set-row">Campo de visão<input type="range" data-setting="fov" min="55" max="95" step="1"><output></output></label>
+            <div class="set-row"><span>Qualidade</span>
+              <div class="seg" id="quality-seg">
+                <button data-q="baixa">Baixa</button><button data-q="media">Média</button><button data-q="alta">Alta</button>
+              </div><output id="quality-out"></output>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- créditos -->
+      <div class="mpanel" data-panel="credits">
+        <div class="card-x">
+          <div class="card-h"><span>// créditos</span><b>obrigado!</b></div>
+          <div class="credit-list">
+            <div><span>modelos 3d e efeitos sonoros</span>Kenney.nl: Factory, Space, Nature e Furniture Kit (CC0)</div>
+            <div><span>céu e texturas</span>Poly Haven (CC0)</div>
+            <div><span>músicas</span>Kevin MacLeod, incompetech.com (CC BY 4.0): Lobby Time, Airport Lounge, Wallpaper, Local Forecast, Bossa Antigua, Deliberate Thought, Dreamer, Easy Lemon, Carefree, Laid Back Guitars</div>
+            <div><span>som ambiente</span>Forest Ambience, OpenGameArt.org (CC0)</div>
+            <div><span>fontes</span>Chakra Petch, Space Grotesk, JetBrains Mono (SIL OFL)</div>
+            <div><span>motor</span>three.js (MIT)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="menu-status"><span class="on">● servidor local</span><span class="amber" id="menu-track">♪ —</span></div>
+  </div>
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="stats">
+      <div class="lvl-badge"><span>nível</span><b id="level">1</b></div>
+      <div class="stat-col">
+        <div id="money">$ 0</div>
+        <div class="xp-track"><div id="xpbar"></div><span id="xptext"></span></div>
+        <div id="cpu">⚡ 2 instr/s</div>
+      </div>
+    </div>
+    <div id="music">
+      <span class="note">♪</span><span id="track">—</span>
+      <button id="music-toggle" title="Pausar música">⏸</button>
+      <button id="music-next" title="Próxima (M)">⏭</button>
+    </div>
+    <div id="objective"></div>
+    <div id="crosshair"></div>
+    <div id="prompt"></div>
+    <div id="buildhint"></div>
+    <div id="hotbar"></div>
+    <div id="toasts"></div>
+  </div>
+
+  <div id="clickToPlay" class="hidden"><div>🖱️ Clique para continuar</div></div>
+
+  <!-- editor -->
+  <div id="editor" class="overlay hidden">
+    <div class="win ed-win">
+      <div class="ed-head">
+        <div id="ed-title">🐍 pc1</div>
+        <div id="ed-status"></div>
+        <div class="grow"></div>
+        <span id="ed-cpu"></span>
+        <select id="ed-examples"><option value="">📚 Exemplos…</option></select>
+        <button id="ed-run" class="primary">▶ Executar</button>
+        <button id="ed-stop">■ Parar</button>
+        <button id="ed-close" class="x">✕</button>
+      </div>
+      <div class="ed-body">
+        <div class="ed-code">
+          <div class="gutter-wrap"><pre id="gutter"></pre></div>
+          <div class="code-wrap">
+            <div id="exec-line"></div>
+            <div id="err-line"></div>
+            <pre id="code-hl" aria-hidden="true"></pre>
+            <textarea id="code" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
+          </div>
+        </div>
+        <div class="ed-right">
+          <div class="ed-tabs">
+            <button class="ed-tab active" data-tab="console">Console</button>
+            <button class="ed-tab" data-tab="manual">Manual</button>
+            <button class="ed-tab" data-tab="guia">Guia</button>
+            <button class="ed-tab" data-tab="maquinas">Máquinas</button>
+          </div>
+          <div id="ed-side"><div id="console"></div></div>
+        </div>
+      </div>
+      <div class="ed-foot"><span id="ed-lint"></span><span class="grow"></span><span><kbd>Ctrl+Enter</kbd> executar · <kbd>Tab</kbd> indentar · <kbd>Esc</kbd> fechar (o programa continua rodando)</span></div>
+    </div>
+  </div>
+
+  <!-- loja -->
+  <div id="shop" class="overlay hidden">
+    <div class="win shop-win">
+      <div class="shop-head">
+        <div class="shop-title">🛒 Loja</div>
+        <div class="shop-tabs">
+          <button class="shop-tab" data-tab="maquinas">Máquinas</button>
+          <button class="shop-tab" data-tab="melhorias">Melhorias</button>
+          <button class="shop-tab" data-tab="decoracao">Decoração</button>
+          <button class="shop-tab" data-tab="mercado">Mercado</button>
+          <button class="shop-tab" data-tab="receitas">Receitas</button>
+        </div>
+        <div class="grow"></div>
+        <span id="shop-level"></span>
+        <span id="shop-money"></span>
+        <button id="shop-close" class="x">✕</button>
+      </div>
+      <div id="shop-body"></div>
+    </div>
+  </div>
+
+  <!-- painel de máquina -->
+  <div id="panel" class="overlay hidden">
+    <div class="win panel-win">
+      <div class="panel-head">
+        <img id="panel-img">
+        <div>
+          <div id="panel-type"></div>
+          <label>Nome: <input id="panel-name" maxlength="20"></label>
+        </div>
+        <div class="grow"></div>
+        <button id="panel-close" class="x">✕</button>
+      </div>
+      <div id="panel-desc"></div>
+      <div id="panel-info"></div>
+      <div class="panel-sub">Use no código:</div>
+      <div id="panel-api"></div>
+      <div class="panel-actions">
+        <button id="panel-rotate">↻ Girar</button>
+        <button id="panel-pick">📦 Guardar</button>
+        <button id="panel-guide">📖 Como funciona?</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- pausa -->
+  <div id="pause" class="overlay hidden">
+    <div class="win pause-win">
+      <div class="win-head"><svg width="22" height="22" style="color:var(--accent)"><use href="#gear" /></svg><span class="pause-title">Pausa</span></div>
+      <div class="pause-body">
+        <button id="btn-resume" class="big">▶ Continuar</button>
+        <div class="set-list">
+          <label class="set-row">Música<input type="range" data-setting="music" min="0" max="1" step="0.05"><output></output></label>
+          <label class="set-row">Efeitos<input type="range" data-setting="sfx" min="0" max="1" step="0.05"><output></output></label>
+          <label class="set-row">Ambiente<input type="range" data-setting="ambience" min="0" max="1" step="0.05"><output></output></label>
+          <label class="set-row">Sensibilidade<input type="range" data-setting="sens" min="0.2" max="2" step="0.05"><output></output></label>
+          <label class="set-row">Campo de visão<input type="range" data-setting="fov" min="55" max="95" step="1"><output></output></label>
+        </div>
+        <div class="row">
+          <button id="btn-save">💾 Salvar</button>
+          <button id="btn-guide">📖 Guia</button>
+          <button id="btn-menu">⌂ Menu</button>
+          <button id="btn-reset" class="danger">Recomeçar</button>
+        </div>
+        <div class="muted">O jogo salva sozinho a cada 30 segundos.</div>
+      </div>
+    </div>
+  </div>
+  <!-- guia -->
+  <div id="guide" class="overlay hidden">
+    <div class="win guide-win">
+      <div class="shop-head"><div class="shop-title">Guia</div><div class="grow"></div><span class="muted">H ou Esc fecha</span><button id="guide-close" class="x">✕</button></div>
+      <div id="guide-body"></div>
+    </div>
+  </div>
+
+  <div id="levelup" class="hidden"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
