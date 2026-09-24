@@ -52,6 +52,34 @@ export class Economy {
     this.lastSeen = Date.now();
     this.offlineReport = null;
     this.tutorialStep = -1;
+    // construção, feira e recordes
+    this.materials = { madeira: 24, tijolo: 0, concreto: 0, vidro: 0, aco: 0 };
+    this.fair = null;
+    this.records = { moneyMin: 0, itemsMin: 0, sale: 0 };
+    this.recentSale = 0;
+    game.on('sold', (v) => { this.recentSale = Math.max(this.recentSale, v); });
+  }
+
+  // ─── recordes (o Oopi comemora) ───
+  checkRecords() {
+    if (game.time < 90) return;
+    const r = this.records;
+    const s = this.series.slice(-6);
+    const itemsMin = s.length >= 3 ? Math.round((s.reduce((a, b) => a + b.items, 0) / (s.length * 10)) * 60) : 0;
+    const tests = [
+      ['moneyMin', Math.round(this.moneyPerMinute()), 30, (v) => `$ ${v.toLocaleString('pt-BR')} por minuto`],
+      ['itemsMin', itemsMin, 20, (v) => `${v} itens por minuto`],
+      ['sale', Math.round(this.recentSale), 100, (v) => `venda de $ ${v.toLocaleString('pt-BR')} de uma vez`],
+    ];
+    this.recentSale = 0;
+    for (const [k, v, min, fmt] of tests) {
+      if (v >= min && v > (r[k] || 0) * 1.1 + 1) {
+        r[k] = v;
+        this.stats.records = (this.stats.records || 0) + 1;
+        game.emit('record', { k, v, texto: fmt(v) });
+        break;
+      }
+    }
   }
 
   // ─── pesquisa ───
@@ -121,6 +149,18 @@ export class Economy {
     has('mk3', game.entities.some((e) => e.tier >= 2));
     has('copiar', (s.pasted || 0) > 0);
     has('ouro', !!s.gold);
+    has('horta', (s.harvested || 0) > 0);
+    has('colheita_100', (s.harvested || 0) >= 100);
+    has('estufa', !!s.greenhouse);
+    has('arquiteto', (s.built || 0) >= 30);
+    has('pintor', (s.painted || 0) > 0);
+    has('galeria', (s.paintingsHung || 0) >= 3);
+    has('meteoro', (s.fragments || 0) > 0);
+    has('aurora', !!s.auroraSeen);
+    has('feira', (s.fairSales || 0) > 0);
+    has('overclock', (s.hwUpgrades || 0) > 0);
+    has('recorde', (s.records || 0) > 0);
+    has('oopi_tarefa', (s.oopiTasks || 0) > 0);
   }
 
   // ─── histórico pros gráficos ───
@@ -169,8 +209,10 @@ export class Economy {
     if (!m || base == null) return 0;
     const t = this.marketTime;
     const wave = 1 + 0.22 * Math.sin((t * Math.PI * 2) / m.period + m.phase) + 0.08 * Math.sin((t * Math.PI * 2) / (m.period * 0.37) + m.phase * 2.3);
-    return Math.max(0.5, Math.round(base * wave * m.sat * 10) / 10);
+    const fair = this.fair && this.fair.items.includes(item) ? this.fair.mult : 1;
+    return Math.max(0.5, Math.round(base * wave * m.sat * fair * 10) / 10);
   }
+  onFair(item) { return !!(this.fair && this.fair.items.includes(item)); }
 
   trend(item) {
     const h = this.history[item];
@@ -186,6 +228,7 @@ export class Economy {
     }
     total = Math.round(total * 10) / 10;
     this.money = Math.round((this.money + total) * 10) / 10;
+    if (this.onFair(item)) this.stats.fairSales = (this.stats.fairSales || 0) + count;
     this.stats.sold[item] = (this.stats.sold[item] || 0) + count;
     this.stats.soldCount += count;
     this.stats.earned += total;
@@ -281,6 +324,7 @@ export class Economy {
       techs: this.techs, phase: this.phase, phaseProgress: this.phaseProgress, launched: this.launched,
       regions: this.regions, achievements: this.achievements, libs: this.libs, netStore: this.netStore,
       series: this.series.slice(-120), lastSeen: Date.now(), tutorialStep: this.tutorialStep,
+      materials: this.materials, records: this.records,
       sat: Object.fromEntries(Object.entries(this.market).map(([k, m]) => [k, m.sat])),
     };
   }
@@ -301,6 +345,8 @@ export class Economy {
     this.netStore = d.netStore || {};
     this.series = d.series || [];
     this.tutorialStep = d.tutorialStep ?? -1;
+    this.materials = { ...this.materials, ...(d.materials || {}) };
+    this.records = { ...this.records, ...(d.records || {}) };
     this.lastEarned = this.stats.earned;
     this.lastProducedTotal = Object.values(this.stats.produced || {}).reduce((a, b) => a + b, 0);
     this.applyOffline(d.lastSeen);

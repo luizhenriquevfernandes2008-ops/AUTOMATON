@@ -1,6 +1,7 @@
 // Visual dos itens que andam nas esteiras.
 import * as THREE from 'three';
 import { cloneModel } from './assets.js';
+import { game } from './state.js';
 
 const cache = {};
 const pools = {};
@@ -117,27 +118,132 @@ function build(type) {
       add(new THREE.CylinderGeometry(0.01, 0.01, 0.12, 6), mat(0xdddddd), 0, 0.25, 0);
       break;
     }
+    // ── horta ──
+    case 'grao_cafe': {
+      const m = mat(0x5a3220, { r: 0.5 });
+      const geo = new THREE.SphereGeometry(0.07, 10, 8);
+      [[0, 0.07, 0], [0.09, 0.07, 0.04], [-0.08, 0.07, 0.05], [0.02, 0.07, -0.09], [0.01, 0.15, 0.01]].forEach(([x, y, z]) => add(geo, m, x, y, z).scale.set(1, 0.7, 1.35));
+      break;
+    }
+    case 'melancia': {
+      add(new THREE.SphereGeometry(0.17, 16, 12), mat(0x2f8a3c, { r: 0.45 }), 0, 0.16, 0).scale.set(1.25, 0.95, 1);
+      add(new THREE.CylinderGeometry(0.012, 0.012, 0.06, 5), mat(0x6a8a3a), 0.2, 0.2, 0).rotation.z = 1;
+      break;
+    }
+    case 'abobora': {
+      add(new THREE.SphereGeometry(0.17, 14, 10), mat(0xf08a2a, { r: 0.6 }), 0, 0.14, 0).scale.set(1.15, 0.75, 1.15);
+      add(new THREE.CylinderGeometry(0.025, 0.03, 0.08, 6), mat(0x5a7a2a), 0, 0.3, 0);
+      break;
+    }
+    case 'milho': {
+      add(new THREE.CapsuleGeometry(0.06, 0.2, 4, 10), mat(0xf2d04a, { r: 0.6 }), 0, 0.08, 0).rotation.z = Math.PI / 2;
+      const l = add(new THREE.ConeGeometry(0.06, 0.26, 6), mat(0x6aa84a, { r: 0.8 }), -0.08, 0.1, 0.03);
+      l.rotation.z = Math.PI / 2 + 0.2;
+      break;
+    }
+    case 'cenoura': {
+      add(new THREE.ConeGeometry(0.06, 0.3, 10), mat(0xf0782a, { r: 0.7 }), 0, 0.07, 0).rotation.z = -Math.PI / 2;
+      add(new THREE.ConeGeometry(0.05, 0.12, 6), mat(0x5aa83a, { r: 0.8 }), -0.2, 0.07, 0).rotation.z = Math.PI / 2;
+      break;
+    }
+    // ── materiais de construção ──
+    case 'madeira': {
+      const m = mat(0xb98352, { r: 0.85 });
+      add(new THREE.BoxGeometry(0.42, 0.06, 0.12), m, 0, 0.04, -0.05);
+      add(new THREE.BoxGeometry(0.42, 0.06, 0.12), m, 0.02, 0.1, 0.05).rotation.y = 0.12;
+      break;
+    }
+    case 'concreto':
+      add(new THREE.BoxGeometry(0.3, 0.18, 0.2), mat(0xa3a7ae, { r: 1 }), 0, 0.09, 0);
+      break;
+    case 'vidro':
+      add(new THREE.BoxGeometry(0.36, 0.26, 0.03), mat(0xbfe6ff, { r: 0.05, m: 0.1, t: 0.45, e: 0x3a6a8a, ei: 0.2 }), 0, 0.14, 0);
+      break;
+    case 'fragmento_estelar':
+      add(new THREE.OctahedronGeometry(0.14, 0), mat(0xb18cff, { flat: true, r: 0.2, e: 0x8a5aff, ei: 0.9 }), 0, 0.17, 0).scale.set(0.8, 1.3, 0.8);
+      add(new THREE.OctahedronGeometry(0.07, 0), mat(0xffd6ff, { flat: true, e: 0xff9aff, ei: 1 }), 0.1, 0.08, 0.04);
+      break;
     default:
       add(new THREE.BoxGeometry(0.25, 0.25, 0.25), mat(0xff00ff), 0, 0.13, 0);
   }
   return g;
 }
 
+// ─── desenho instanciado ───
+// Cada item é só uma "alça" (posição + giro). Todos os itens do mesmo tipo viram UM InstancedMesh
+// por peça do modelo: fábricas enormes com milhares de itens nas esteiras continuam leves.
+class ItemHandle {
+  constructor(type) {
+    this.type = type;
+    this.position = new THREE.Vector3(0, -50, 0);
+    this.rotation = { y: 0 };
+    this.visible = true;
+    this.userData = { itemType: type };
+    this.active = false;
+  }
+  get parent() { return this.active ? game.scene : null; }
+}
+const batches = {}; // tipo -> { parts, meshes, cap, live:Set }
+function batchOf(type) {
+  let b = batches[type];
+  if (b) return b;
+  if (!cache[type]) cache[type] = build(type);
+  const tpl = cache[type];
+  tpl.updateMatrixWorld(true);
+  const parts = [];
+  tpl.traverse((o) => { if (o.isMesh) parts.push({ geo: o.geometry, mat: o.material, local: o.matrixWorld.clone(), cast: o.castShadow }); });
+  b = batches[type] = { parts, meshes: [], cap: 0, live: new Set() };
+  grow(b, 32);
+  return b;
+}
+function grow(b, cap) {
+  for (const m of b.meshes) { game.scene?.remove(m); m.dispose(); }
+  b.meshes = b.parts.map((p) => {
+    const m = new THREE.InstancedMesh(p.geo, p.mat, cap);
+    m.castShadow = p.cast;
+    m.receiveShadow = true;
+    m.frustumCulled = false;
+    m.count = 0;
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    game.scene?.add(m);
+    return m;
+  });
+  b.cap = cap;
+}
 export function takeItemMesh(type) {
   const pool = pools[type] || (pools[type] = []);
-  if (pool.length) { const m = pool.pop(); m.visible = true; return m; }
-  if (!cache[type]) cache[type] = build(type);
-  const m = cache[type].clone(true);
-  m.userData.itemType = type;
-  return m;
+  const h = pool.pop() || new ItemHandle(type);
+  h.active = true;
+  h.visible = true;
+  h.position.set(0, -50, 0);
+  batchOf(type).live.add(h);
+  return h;
 }
-
-export function releaseItemMesh(mesh) {
-  if (!mesh) return;
-  if (mesh.parent) mesh.parent.remove(mesh);
-  const type = mesh.userData.itemType;
-  (pools[type] || (pools[type] = [])).push(mesh);
+export function releaseItemMesh(h) {
+  if (!h || !h.active) return;
+  h.active = false;
+  batches[h.type]?.live.delete(h);
+  (pools[h.type] || (pools[h.type] = [])).push(h);
 }
+const _m = new THREE.Matrix4(), _p = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(1, 1, 1), _up = new THREE.Vector3(0, 1, 0);
+// chamado uma vez por quadro, antes de desenhar
+export function flushItems() {
+  for (const b of Object.values(batches)) {
+    let n = 0;
+    for (const h of b.live) if (h.visible) n++;
+    if (n > b.cap) grow(b, Math.max(n, b.cap * 2));
+    let i = 0;
+    for (const h of b.live) {
+      if (!h.visible) continue;
+      _q.setFromAxisAngle(_up, h.rotation.y);
+      _m.compose(h.position, _q, _s);
+      for (let k = 0; k < b.parts.length; k++) b.meshes[k].setMatrixAt(i, _p.multiplyMatrices(_m, b.parts[k].local));
+      i++;
+    }
+    for (const m of b.meshes) { m.count = n; m.instanceMatrix.needsUpdate = true; }
+  }
+}
+export function liveItemCount() { let n = 0; for (const b of Object.values(batches)) n += b.live.size; return n; }
 
 export function itemPreviewObject(type) {
   if (!cache[type]) cache[type] = build(type);

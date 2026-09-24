@@ -86,6 +86,49 @@ export const MODEL_DEFS = {
   sign: [N + 'sign.glb', { h: 1.2 }],
   fence: [N + 'fence_simple.glb', { scale: 3.2 }],
   stump: [N + 'stump_round.glb', { h: 0.5 }],
+  // horta
+  plot: [N + 'crops_dirtRow.glb', { fit: CELL * 0.98 }],
+  c_leafsA: [N + 'crops_leafsStageA.glb', { scale: 1.5 }],
+  c_leafsB: [N + 'crops_leafsStageB.glb', { scale: 1.5 }],
+  c_bush: [N + 'plant_bushDetailed.glb', { h: 0.95 }],
+  c_cornA: [N + 'crops_cornStageA.glb', { scale: 1.5 }],
+  c_cornB: [N + 'crops_cornStageB.glb', { scale: 1.5 }],
+  c_cornC: [N + 'crops_cornStageC.glb', { scale: 1.5 }],
+  c_cornD: [N + 'crops_cornStageD.glb', { scale: 1.5 }],
+  c_carrot: [N + 'crop_carrot.glb', { scale: 1.5 }],
+  c_pumpkin: [N + 'crop_pumpkin.glb', { scale: 1.6 }],
+  c_melon: [N + 'crop_melon.glb', { scale: 1.6 }],
+  c_bambooA: [N + 'crops_bambooStageA.glb', { scale: 1.6 }],
+  c_bambooB: [N + 'crops_bambooStageB.glb', { scale: 1.8 }],
+  sprinkler: [F + 'pipe-large-valve.glb', { h: 0.85 }],
+  depotBase: [S + 'machine_barrel.glb', { fit: CELL * 0.9 }],
+  // construção (Furniture Kit, esticadas pro tamanho da célula)
+  s_wall: [U + 'wall.glb', { scale3: [CELL, 2, 1.6] }],
+  s_window: [U + 'wallWindow.glb', { scale3: [CELL, 2, 1.6] }],
+  s_door: [U + 'wallDoorway.glb', { scale3: [CELL, 2, 1.6] }],
+  s_floor: [U + 'floorFull.glb', { scale3: [CELL, 1, CELL] }],
+  s_fence: [N + 'fence_planks.glb', { scale3: [CELL, 2.4, 1.6] }],
+  // móveis do escritório
+  o_bookcase: [U + 'bookcaseClosedWide.glb', { fit: CELL * 0.95 }],
+  o_armchair: [U + 'loungeChairRelax.glb', { fit: CELL * 0.8 }],
+  o_sofaLong: [U + 'loungeSofaLong.glb', { fit: CELL * 0.98 }],
+  o_tvRack: [U + 'cabinetTelevision.glb', { fit: CELL * 0.9 }],
+  o_tvSet: [U + 'televisionModern.glb', { fit: CELL * 0.8 }],
+  o_rug: [U + 'rugRectangle.glb', { fit: CELL * 0.98 }],
+  o_floorLamp: [U + 'lampSquareFloor.glb', { h: 1.7 }],
+  o_tableRound: [U + 'tableRound.glb', { fit: CELL * 0.8 }],
+  o_chair: [U + 'chairCushion.glb', { h: 1.0 }],
+  o_sideTableBase: [U + 'sideTable.glb', { fit: CELL * 0.55 }],
+  o_tableLamp: [U + 'lampRoundTable.glb', { h: 0.55 }],
+  o_fridge: [U + 'kitchenFridgeSmall.glb', { h: 0.95 }],
+  o_coatRack: [U + 'coatRackStanding.glb', { h: 1.8 }],
+  o_bear: [U + 'bear.glb', { h: 0.55 }],
+  o_plant: [U + 'plantSmall2.glb', { h: 0.5 }],
+  o_fan: [U + 'ceilingFan.glb', { fit: 1.3 }],
+  // eventos
+  meteorRock: [S + 'meteor.glb', { fit: 0.9 }],
+  meteorSmall: [S + 'meteor_half.glb', { fit: 0.4, center: true }],
+  crater: [S + 'craterLarge.glb', { fit: CELL * 1.5 }],
 };
 
 const TREES = ['tree_default', 'tree_oak', 'tree_detailed', 'tree_fat', 'tree_pineRoundA', 'tree_pineRoundB', 'tree_pineRoundC',
@@ -111,6 +154,18 @@ function normalize(root, opt) {
   const box = new THREE.Box3().setFromObject(root);
   const size = box.getSize(new THREE.Vector3());
   let s = 1;
+  if (opt.scale3) { // escala diferente em cada eixo (paredes e pisos esticados pra célula)
+    const center3 = box.getCenter(new THREE.Vector3());
+    const inner3 = new THREE.Group();
+    inner3.add(root);
+    root.position.set(-center3.x, -box.min.y, -center3.z);
+    inner3.scale.set(...opt.scale3);
+    const outer3 = new THREE.Group();
+    outer3.add(inner3);
+    outer3.userData.size = size.multiply(new THREE.Vector3(...opt.scale3));
+    root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    return outer3;
+  }
   if (opt.scale) s = opt.scale;
   else if (opt.fit) s = opt.fit / Math.max(size.x, size.z);
   else if (opt.h) s = opt.h / size.y;
@@ -245,6 +300,27 @@ function buildProcedural() {
     panel.rotation.x = 0.45;
     g.add(panel);
     M.solar = wrap(g, new THREE.Vector3(CELL, 1.3, CELL));
+  }
+  // TV em cima do rack
+  {
+    const g = new THREE.Group();
+    const rack = M.o_tvRack.clone(true); g.add(rack);
+    const tv = M.o_tvSet.clone(true); tv.position.y = M.o_tvRack.userData.size.y; g.add(tv);
+    M.o_tv = wrap(g, new THREE.Vector3(CELL, M.o_tvRack.userData.size.y + M.o_tvSet.userData.size.y, CELL * 0.5));
+  }
+  // mesinha com abajur
+  {
+    const g = new THREE.Group();
+    const t = M.o_sideTableBase.clone(true); g.add(t);
+    const l = M.o_tableLamp.clone(true); l.position.y = M.o_sideTableBase.userData.size.y; g.add(l);
+    M.o_sideTable = wrap(g, new THREE.Vector3(CELL * 0.55, M.o_sideTableBase.userData.size.y + 0.55, CELL * 0.55));
+  }
+  // depósito de materiais: barril grande com pilha de tábuas por cima
+  {
+    const g = new THREE.Group();
+    g.add(M.depotBase.clone(true));
+    const logs = M.logStack.clone(true); logs.scale.multiplyScalar(0.5); logs.position.y = M.depotBase.userData.size.y; g.add(logs);
+    M.depot = wrap(g, new THREE.Vector3(CELL, M.depotBase.userData.size.y + 0.5, CELL));
   }
 }
 

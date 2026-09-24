@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { Machine, ENTITY_CLASSES, MachineRef, findByName } from './machines.js';
 import { parse, Interpreter, Builtin, Blocking, JiboiaError, JDict, JRange, STEP, WAIT, suggest, str, repr, truthy } from './lang/jiboia.js';
 import { powerText } from './power.js';
-import { ITEMS, STARTER_CODE, MACHINES } from './data.js';
+import { ITEMS, STARTER_CODE, MACHINES, PC_UPGRADES } from './data.js';
+import { PAL } from './palette.js';
 import { game } from './state.js';
 import { audio } from './audio.js';
 
@@ -66,6 +67,37 @@ export class Computer extends Machine {
     this.scT = 10;
     this.lastInstr = 0;
     this.board = { itemsMin: 0, moneyMin: 0, instrPerItem: 0, medal: null };
+    // hardware (overclock e memória)
+    this.hw = { clock: 0, memoria: 0 };
+  }
+
+  // ─── hardware ───
+  get clockMul() { return PC_UPGRADES.clock.valores[this.hw.clock]; }
+  get limits() { return { vars: PC_UPGRADES.memoria.valores[this.hw.memoria], lista: PC_UPGRADES.memoria.lista[this.hw.memoria] }; }
+  get hwEnergy() { return PC_UPGRADES.clock.energia[this.hw.clock] + PC_UPGRADES.memoria.energia[this.hw.memoria]; }
+  get hz() { return game.economy.cpuHz * this.clockMul * (1 + this.decorCpu); }
+  hwUpgrade(k) {
+    const u = PC_UPGRADES[k];
+    const lvl = this.hw[k];
+    if (lvl >= u.precos.length) return 'Já está no máximo';
+    if (game.economy.level < u.niveis[lvl]) return `Precisa do nível ${u.niveis[lvl]}`;
+    if (!game.economy.spend(u.precos[lvl])) return `Custa $ ${u.precos[lvl]}`;
+    this.hw[k]++;
+    game.economy.stats.hwUpgrades = (game.economy.stats.hwUpgrades || 0) + 1;
+    audio.play('levelup', { pos: this.pos, volume: 0.5 });
+    game.emit('power');
+    game.emit('computer', this);
+    return null;
+  }
+  // uso da memória agora (pro painel ⚙ Hardware)
+  memUsage() {
+    const I = this.interp;
+    if (!I || !this.running) return { vars: 0, maiorLista: 0 };
+    let big = 0;
+    const scan = (m) => { for (const v of m.values()) if (Array.isArray(v)) big = Math.max(big, v.length); };
+    scan(I.globals);
+    if (I.frame && !I.frame.isGlobal) scan(I.frame.vars);
+    return { vars: I.varCount(I.frame), maiorLista: big };
   }
 
   // chamado pelas máquinas quando um pedido deste computador termina
@@ -160,7 +192,7 @@ export class Computer extends Machine {
       this.fail(e);
       return false;
     }
-    this.interp = new Interpreter(ast, { print: (s) => { this.log(s); audio.play('beep', { pos: this.pos, volume: 0.25 }); }, builtins: this.builtins() });
+    this.interp = new Interpreter(ast, { print: (s) => { this.log(s); audio.play('beep', { pos: this.pos, volume: 0.25 }); }, builtins: this.builtins(), limits: () => this.limits });
     this.gen = this.interp.run();
     this.lastYield = STEP;
     this.acc = 1;
@@ -340,7 +372,7 @@ export class Computer extends Machine {
     const pw = this.power;
     if (this.noPower !== (pw <= 0)) { this.noPower = pw <= 0; this.dirty = true; }
     if (this.running && this.gen && pw > 0 && (!this.paused || this.stepOnce)) {
-      const hz = game.economy.cpuHz * pw * (1 + this.decorCpu);
+      const hz = this.hz * pw;
       this.acc = Math.min(this.acc + dt * hz, Math.max(1.5, hz * 0.25));
       if (this.stepOnce) this.acc = Math.max(this.acc, 1);
       let guard = 0;
@@ -397,12 +429,12 @@ export class Computer extends Machine {
   animate(dt) {
     this.anim += dt;
     if (this.noPower) {
-      this.lamp.material.color.setHex(0xff4455);
-      this.lamp.material.emissive.setHex(0xff2233);
+      this.lamp.material.color.setHex(PAL.bad);
+      this.lamp.material.emissive.setHex(PAL.badGlow);
       this.lamp.material.emissiveIntensity = Math.sin(this.anim * 4) > 0 ? 1.4 : 0.1;
       return;
     }
-    const col = this.error ? 0xff5566 : this.running ? (this.lastYield === WAIT ? 0xffc44d : 0x5dff8a) : 0x666677;
+    const col = this.error ? PAL.bad : this.running ? (this.lastYield === WAIT ? PAL.wait : PAL.work) : PAL.idle;
     this.lamp.material.color.setHex(col);
     this.lamp.material.emissive.setHex(col);
     this.lamp.material.emissiveIntensity = this.running ? 1 + Math.sin(this.anim * 8) * 0.4 : 0.4;
@@ -488,12 +520,14 @@ export class Computer extends Machine {
     const b = this.board;
     return [this.statusText, powerText(this),
       `Placar: ${this.medalIcon} ${b.itemsMin} itens/min · $ ${b.moneyMin}/min · ${b.instrPerItem || '—'} instr/item`,
-      `CPU: ${(game.economy.cpuHz * (1 + this.decorCpu)).toFixed(1)} instr/s${this.decorCpu ? ` (decoração +${Math.round(this.decorCpu * 100)}%)` : ''}`];
+      `CPU: ${this.hz.toFixed(1)} instr/s${this.hw.clock ? ` (overclock ${this.clockMul}×)` : ''}${this.decorCpu ? ` (decoração +${Math.round(this.decorCpu * 100)}%)` : ''}`,
+      `Memória: ${this.limits.vars === Infinity ? '∞' : this.limits.vars} variáveis · listas até ${this.limits.lista === Infinity ? '∞' : this.limits.lista} itens`];
   }
-  serialize() { return { ...super.serialize(), code: this.code, running: this.running, breakpoints: [...this.breakpoints] }; }
+  serialize() { return { ...super.serialize(), code: this.code, running: this.running, breakpoints: [...this.breakpoints], hw: this.hw }; }
   load(d) {
     super.load(d);
     if (typeof d.code === 'string') this.code = d.code;
+    if (d.hw) this.hw = { clock: Math.min(3, d.hw.clock || 0), memoria: Math.min(3, d.hw.memoria || 0) };
     this.breakpoints = new Set(d.breakpoints || []);
     this.dirty = true;
     if (d.running) setTimeout(() => { if (!this.removed) this.run(); }, 500);

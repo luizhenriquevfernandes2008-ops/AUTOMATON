@@ -1,7 +1,7 @@
 // Menu principal: painéis, navegação por teclado, terminal animado e câmera orbitando a fábrica.
 import { game } from './state.js';
 import { audio } from './audio.js';
-import { saveInfo, deleteSave } from './save.js';
+import { saveInfo, deleteSave, SLOTS, currentSlot, setSlot } from './save.js';
 import { OBJECTIVES } from './data.js';
 import { CELL } from './data.js';
 
@@ -23,7 +23,15 @@ const TIPS = [
   'Um computador faz uma coisa por vez. Use <b>vários computadores</b> pra máquinas trabalharem juntas.',
   'Aperte <kbd>H</kbd> a qualquer momento pra abrir o <b>guia</b>.',
   'A Jiboia entende português: <code>enquanto Verdadeiro:</code> funciona igual a <code>while True:</code>.',
-  'Tome um <b>cafezinho</b> na cafeteira do escritório pra andar mais rápido ☕',
+  'Tome um <b>cafezinho</b> na cafeteira do escritório (<b>E</b>): +30% de velocidade ☕',
+  'Ganhe embalo com <b>Shift</b>, deslize com <b>Ctrl</b> e pule com <b>Espaço</b> para conservar o impulso.',
+  'Plante <b>café</b> e <b>bambu</b> na horta. Bambu vira <b>madeira</b> pra construir paredes 🎋',
+  'Um <b>teto de vidro</b> em cima dos canteiros vira <b>estufa</b>: cresce mais rápido e até de noite 🪴',
+  'Aperte <kbd>F</kbd> olhando pro <b>Oopi</b> pra pedir tarefas: colher a horta, buscar meteoritos, levar itens.',
+  'À noite, fique de olho no céu: <b>chuva de meteoros</b> deixa um veio raro pra minerar ☄️',
+  'No editor, a aba <b>⚙ Hardware</b> faz overclock e aumenta a memória de cada computador.',
+  'Tem <b>3 fábricas</b> (saves) no menu. Dá pra começar outra sem perder a sua.',
+  'Joga com <b>controle</b> 🎮? Só conectar e mexer a alavanca.',
 ];
 
 const DEMO = [
@@ -126,6 +134,7 @@ export function refreshMenu() {
     if (b.style.display !== 'none') b.querySelector('.mi-n').textContent = String(n++).padStart(2, '0');
   });
   $('#save-state').textContent = info ? 'online' : 'vazio';
+  renderSlots();
   if (info) {
     const pct = Math.min(100, (info.objective / OBJECTIVES.length) * 100);
     $('#save-card').innerHTML = `
@@ -142,6 +151,24 @@ export function refreshMenu() {
   } else {
     $('#save-card').innerHTML = `<div class="save-empty">Nenhuma fábrica ainda.<br>Aperte <b>01 · Jogar</b> pra começar com um minerador, um gerador, um computador e 10 esteiras.</div>`;
   }
+}
+
+// as 3 fábricas (saves)
+function renderSlots() {
+  const cur = currentSlot();
+  $('#save-title').textContent = `// fábrica ${cur}`;
+  $('#slots').innerHTML = SLOTS.map((n) => {
+    const i = saveInfo(n);
+    const desc = i ? `nível ${i.level} · $ ${fmtMoney(i.money)}<br>${i.machines} máquinas · ${fmtTime(i.time)}` : '<span class="muted">vazia</span>';
+    const btns = n === cur ? '<button disabled>▶ esta</button>' : `<button data-open="${n}">${i ? 'Abrir' : 'Começar'}</button>${i ? `<button data-del="${n}" class="danger">Apagar</button>` : ''}`;
+    return `<div class="slot-card ${n === cur ? 'cur' : ''}"><b>Fábrica ${n}</b><div>${desc}</div><div class="row">${btns}</div></div>`;
+  }).join('');
+  $('#slots').querySelectorAll('[data-open]').forEach((b) => {
+    b.onclick = () => { game.skipSave = false; import('./save.js').then((m) => { m.saveGame(); setSlot(+b.dataset.open); game.skipSave = true; location.reload(); }); };
+  });
+  $('#slots').querySelectorAll('[data-del]').forEach((b) => {
+    b.onclick = () => { if (confirm(`Apagar a Fábrica ${b.dataset.del}? Não dá pra desfazer.`)) { deleteSave(+b.dataset.del); renderSlots(); audio.play('remove', { volume: 0.5 }); } };
+  });
 }
 
 // digitação do subtítulo

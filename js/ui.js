@@ -1,21 +1,23 @@
 // Interface: HUD, barra de itens, loja, painel de máquina, janelas, confirmações e avisos.
 import { game } from './state.js';
-import { MACHINES, DECOR, UPGRADES, ITEMS, OBJECTIVES, unlocksAt, RECIPES, SMELT, TECHS, PHASES, TIERS, TIERABLE, REGIONS } from './data.js';
+import { MACHINES, DECOR, UPGRADES, ITEMS, OBJECTIVES, unlocksAt, RECIPES, SMELT, TECHS, PHASES, TIERS, TIERABLE, REGIONS, PIECES, MATERIALS, PAINTS, PAINT_PRICE, PAINTINGS, MATERIAL_SHOP, CROPS } from './data.js';
 import { thumbs } from './thumbs.js';
 import { audio } from './audio.js';
 import { Editor } from './editor.js';
 import { itemName, refreshBeltsAround } from './machines.js';
-import { defOf } from './build.js';
+import { defOf, PIECE_ORDER, MAT_ORDER } from './build.js';
+import { pieceCost, costText, paintName } from './structures.js';
+import { keyOf, kbd } from './input.js';
 import { powerText, usesPower, totals } from './power.js';
 import { guideHTML } from './guide.js';
-import { renderResearch, renderPlatform, renderStats, renderMap } from './panels.js';
+import { renderResearch, renderPlatform, renderStats, renderMap, renderPet } from './panels.js';
 import { clockText } from './sky.js';
 
 const $ = (s) => document.querySelector(s);
 const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
 // máquinas sem painel de detalhes
 export const NO_PANEL = new Set(['esteira', 'poste', 'divisor', 'juntador', 'esteira_alta', 'rampa_sobe', 'rampa_desce']);
-const XWIN = { research: '🔬 Laboratório · Pesquisas', platform: '🚀 Projeto Foguete', stats: '📊 Estatísticas', map: '🗺️ Mapa' };
+const XWIN = { research: '🔬 Laboratório · Pesquisas', platform: '🚀 Projeto Foguete', stats: '📊 Estatísticas', map: '🗺️ Mapa', pet: '🤖 Oopi' };
 
 export class UI {
   constructor() {
@@ -57,6 +59,8 @@ export class UI {
       this.renderObjective();
     });
     game.on('research', () => { if (this.overlay === 'research') this.renderX(); });
+    game.on('materials', () => { if (game.builder?.selected === 'construir') this.renderHotbar(); if (this.overlay === 'shop') this.renderShop(); });
+    game.on('record', (r) => this.toast(`🏆 <b>Recorde da fábrica!</b> ${r.texto}`, 'ach'));
     audio.onTrackChange = (t) => { $('#track').textContent = `${audio.stationObj.icone} ${t.nome}`; };
 
     $('#shop-close').onclick = () => this.closeOverlay();
@@ -74,12 +78,13 @@ export class UI {
       if (performance.now() - this.openTime < 200 || e.repeat) return; // a mesma tecla que abriu não fecha
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
       const o = this.overlay;
-      if (e.key === 'Escape' && ['shop', 'panel', 'guide', 'research', 'platform', 'stats', 'map'].includes(o)) { e.preventDefault(); this.closeOverlay(); }
-      if (e.code === 'KeyB' && o === 'shop') this.closeOverlay();
-      if (e.code === 'KeyH' && o === 'guide') this.closeOverlay();
-      if (e.code === 'KeyK' && o === 'stats') this.closeOverlay();
-      if (e.code === 'Tab' && o === 'map') { e.preventDefault(); this.closeOverlay(); }
-      if (e.code === 'KeyE' && ['shop', 'panel', 'research', 'platform'].includes(o)) this.closeOverlay();
+      if (e.key === 'Escape' && ['shop', 'panel', 'guide', 'research', 'platform', 'stats', 'map', 'pet'].includes(o)) { e.preventDefault(); this.closeOverlay(); }
+      if (e.code === keyOf('loja') && o === 'shop') this.closeOverlay();
+      if (e.code === keyOf('guia') && o === 'guide') this.closeOverlay();
+      if (e.code === keyOf('stats') && o === 'stats') this.closeOverlay();
+      if (e.code === keyOf('mapa') && o === 'map') { e.preventDefault(); this.closeOverlay(); }
+      if (e.code === keyOf('usar') && ['shop', 'panel', 'research', 'platform', 'pet'].includes(o)) this.closeOverlay();
+      if (e.code === keyOf('peca') && o === 'pet') this.closeOverlay();
     });
   }
 
@@ -119,20 +124,41 @@ export class UI {
     const inv = game.economy.inventory;
     $('#hotbar').innerHTML = hb.map((t, i) => {
       const def = defOf(t);
-      return `<div class="slot ${b.selected === t ? 'sel' : ''} ${t === 'cabo' ? 'tool' : ''}" data-t="${t}"><span class="key">${i < 9 ? i + 1 : ''}</span><img src="${thumbs[t] || ''}"><span class="cnt">${t === 'cabo' ? '∞' : inv[t]}</span><span class="nm">${def.nome}</span></div>`;
+      const tool = t === 'cabo' || t === 'construir';
+      const cnt = tool ? (t === 'cabo' ? '∞' : PIECES[b.piece]?.icone || '🖌️') : inv[t];
+      return `<div class="slot ${b.selected === t ? 'sel' : ''} ${tool ? 'tool' : ''}" data-t="${t}"><span class="key">${i < 9 ? i + 1 : ''}</span><img src="${thumbs[t] || ''}"><span class="cnt">${cnt}</span><span class="nm">${def.nome}</span></div>`;
     }).join('');
     const sel = b.selected ? defOf(b.selected) : null;
     let text = '';
     if (b.copyMode) text = '<b>📋 Copiar</b>: clique no 1º canto e depois no 2º · <kbd>Botão direito</kbd> cancela';
-    else if (b.pasteMode) text = '<b>📋 Colar</b>: <kbd>Clique</kbd> cola · <kbd>R</kbd> gira o grupo · <kbd>Botão direito</kbd> cancela · peças que faltarem são compradas';
+    else if (b.pasteMode) text = `<b>📋 Colar</b>: <kbd>Clique</kbd> cola · ${kbd('girar')} gira o grupo · <kbd>Botão direito</kbd> cancela · peças que faltarem são compradas`;
+    else if (b.selected === 'construir') text = this.buildPalette();
+    else if (PAINTINGS[b.selected]) text = `<b>🖼️ ${sel.nome}</b> · ${sel.autor}<br><kbd>Clique</kbd> numa parede pra pendurar (do lado em que você está) · ${kbd('guardar')} tira o quadro`;
     else if (sel) {
       const keys = b.selected === 'cabo'
-        ? '<kbd>Clique</kbd> prender/ligar · <kbd>Botão direito</kbd> soltar o cabo · <kbd>X</kbd> tirar cabos da peça'
-        : '<kbd>Clique</kbd> colocar · <kbd>R</kbd> girar (a seta amarela mostra pra onde os itens vão) · <kbd>Q</kbd> guardar na mão';
+        ? `<kbd>Clique</kbd> prender/ligar · <kbd>Botão direito</kbd> soltar o cabo · ${kbd('guardar')} tirar cabos da peça`
+        : `<kbd>Clique</kbd> colocar · ${kbd('girar')} girar (a seta amarela mostra pra onde os itens vão) · ${kbd('soltar')} guardar na mão`;
       text = `<b>${sel.nome}</b>: ${sel.desc || sel.bonus || 'Decoração'}<br>${keys}`;
     }
     $('#buildhint').innerHTML = text;
     $('#buildhint').style.display = text ? 'block' : 'none';
+  }
+
+  // barra da construção: peças, materiais (com estoque) e custo
+  buildPalette() {
+    const b = game.builder;
+    const st = game.economy.materials;
+    const pieces = PIECE_ORDER.map((k) => `<span class="bp ${b.piece === k ? 'on' : ''}">${k === 'pintar' ? '🖌️ Pintar' : `${PIECES[k].icone} ${PIECES[k].nome}`}</span>`).join('');
+    let second, info;
+    if (b.piece === 'pintar') {
+      second = PAINTS.map((p, i) => `<span class="bp sw ${b.paintIdx === i ? 'on' : ''}" title="${p.nome}"><i style="background:${p.cor == null ? 'transparent' : '#' + p.cor.toString(16).padStart(6, '0')}"></i>${b.paintIdx === i ? p.nome : ''}</span>`).join('');
+      info = `<kbd>Clique</kbd> numa parede/piso/teto pinta (${PAINTS[b.paintIdx].cor == null ? 'tira a tinta, grátis' : `$ ${PAINT_PRICE}`})`;
+    } else {
+      const fixo = PIECES[b.piece].fixo;
+      second = MAT_ORDER.map((m) => `<span class="bp ${(fixo || b.mat) === m ? 'on' : ''} ${fixo && fixo !== m ? 'off' : ''}">${MATERIALS[m].nome} <b>${st[MATERIALS[m].item] || 0}</b></span>`).join('');
+      info = `Custa ${costText(pieceCost(b.piece, b.mat))} · <kbd>Clique</kbd> constrói · ${kbd('guardar')} desmonta (devolve o material)`;
+    }
+    return `<div class="bp-row"><em>${kbd('peca')}</em>${pieces}</div><div class="bp-row"><em>${kbd('material')}</em>${second}</div><div class="bp-info">${info}${b.structTarget?.reason && b.piece !== 'pintar' ? ` · <span class="bad">${b.structTarget.reason}</span>` : ''}</div>`;
   }
 
   updatePrompt() {
@@ -140,17 +166,24 @@ export class UI {
     const p = $('#prompt');
     let html = '';
     if (game.mode === 'play' && b.hover && !b.copyMode && !b.pasteMode) {
-      if (b.hover.pet) html = '<b>Oopi</b> 💜<br><kbd>E</kbd> fazer carinho';
+      if (b.hover.pet) html = `<b>Oopi</b> 💜 ${game.pet.moodText}<br>${kbd('usar')} carinho · ${kbd('peca')} tarefas`;
+      else if (b.hover.pickup) html = `<b>☄️ Fragmento estelar</b><br>${kbd('usar')} pegar`;
+      else if (b.hover.struct) {
+        const s = b.hover.struct;
+        if (s.kind === 'quadro') html = `<b>🖼️ ${PAINTINGS[s.painting].nome}</b><br>${PAINTINGS[s.painting].autor} · ${kbd('guardar')} tirar da parede`;
+        else html = `<b>${PIECES[s.piece].nome}</b> de ${MATERIALS[s.mat].nome.toLowerCase()}${s.paint != null ? ` · ${paintName(s.paint)}` : ''}<br>${kbd('guardar')} desmontar${b.selected === 'construir' && b.piece === 'pintar' ? ' · <kbd>Clique</kbd> pintar' : ''}`;
+      }
       else if (b.hover.entity) {
         const e = b.hover.entity;
         const def = defOf(e.type);
         const nm = e.name ? `<b>${e.name}</b> · ${def.nome}${e.tier ? ' ' + TIERS[e.tier].nome : ''}` : `<b>${def.nome}</b>`;
-        const act = e.type === 'computador' ? '<kbd>E</kbd> programar' : e.type === 'laboratorio' ? '<kbd>E</kbd> pesquisas' : e.isMachine && !NO_PANEL.has(e.type) ? '<kbd>E</kbd> detalhes' : '';
-        html = b.selected === 'cabo' ? `${nm}<br><kbd>Clique</kbd> ligar cabo` : `${nm}<br>${act} ${act ? '·' : ''} <kbd>X</kbd> guardar`;
+        const E = kbd('usar');
+        const act = e.type === 'computador' ? `${E} programar` : e.type === 'laboratorio' ? `${E} pesquisas` : e.type === 'canteiro' ? `${E} plantar / regar / colher` : e.isMachine && !NO_PANEL.has(e.type) ? `${E} detalhes` : '';
+        html = b.selected === 'cabo' ? `${nm}<br><kbd>Clique</kbd> ligar cabo` : `${nm}<br>${act} ${act ? '·' : ''} ${kbd('guardar')} guardar`;
         if (e.isMachine && !NO_PANEL.has(e.type) && e.status) html += `<div class="pstatus">${e.type === 'computador' ? e.statusText : e.status}</div>`;
         const pt = powerText(e);
         if (pt) html += `<div class="ppower ${e.noPower && usesPower(e) ? 'bad' : ''}">${pt}</div>`;
-      } else if (b.hover.interact) html = `<kbd>E</kbd> ${b.hover.interact.label}`;
+      } else if (b.hover.interact) html = `${kbd('usar')} ${b.hover.interact.label}`;
     }
     if (p.innerHTML !== html) p.innerHTML = html;
     p.style.display = html ? 'block' : 'none';
@@ -217,7 +250,7 @@ export class UI {
     audio.play('open', { volume: 0.5 });
     if (name === 'editor') { $('#editor').classList.remove('hidden'); this.editor.open(arg); }
     if (name === 'shop') { $('#shop').classList.remove('hidden'); if (arg) this.shopTab = arg; this.renderShop(); }
-    if (name === 'panel') { this.panelEntity = arg; $('#panel').classList.remove('hidden'); this.renderPanel(true); }
+    if (name === 'panel') { this.panelEntity = arg; this.panelActsHtml = ''; $('#panel').classList.remove('hidden'); this.renderPanel(true); }
     if (name === 'guide') {
       $('#guide').classList.remove('hidden');
       $('#guide-body').innerHTML = guideHTML();
@@ -228,7 +261,7 @@ export class UI {
       $('#xwin').classList.remove('hidden');
       $('#xwin').dataset.kind = name;
       $('#xwin-title').textContent = XWIN[name];
-      $('#xwin-hint').textContent = name === 'map' ? 'Tab ou Esc fecha' : name === 'stats' ? 'K ou Esc fecha' : 'Esc fecha';
+      $('#xwin-hint').textContent = name === 'map' ? 'Tab ou Esc fecha' : name === 'stats' ? 'K ou Esc fecha' : name === 'pet' ? 'E ou Esc fecha' : 'Esc fecha';
       $('#xwin-body').innerHTML = '';
       this.renderX(arg);
     }
@@ -239,6 +272,7 @@ export class UI {
     if (this.overlay === 'platform') renderPlatform(body);
     if (this.overlay === 'stats') renderStats(body, arg);
     if (this.overlay === 'map') renderMap(body);
+    if (this.overlay === 'pet') renderPet(body);
   }
 
   closeOverlay(silent) {
@@ -274,14 +308,44 @@ export class UI {
       <div class="c-name">${o.name}</div>
       <div class="c-desc">${o.desc || ''}</div>
       <div class="c-foot">${o.locked ? `<span class="lock">${o.locked}</span>` : o.foot}</div></div>`;
-    if (this.shopTab === 'maquinas' || this.shopTab === 'decoracao') {
-      const src = this.shopTab === 'maquinas' ? MACHINES : DECOR;
+    if (this.shopTab === 'maquinas' || this.shopTab === 'decoracao' || this.shopTab === 'escritorio') {
+      const src = this.shopTab === 'maquinas' ? MACHINES : Object.fromEntries(Object.entries(DECOR).filter(([, d]) => !!d.casa === (this.shopTab === 'escritorio')));
       const entries = Object.entries(src).sort((a, b) => (!!this.lockReason(a[1]) - !!this.lockReason(b[1])));
-      body.innerHTML = `<div class="cards">${entries.map(([k, d]) => card({
+      if (this.shopTab === 'escritorio') body.innerHTML = '<p class="muted">Móveis podem ficar <b>dentro do escritório</b>. Pra paredes, pisos e tetos use a ferramenta 🧱 Construção (tecla 2). Os quadros ficam na aba Quadros.</p>';
+      else body.innerHTML = '';
+      body.innerHTML += `<div class="cards">${entries.map(([k, d]) => card({
         img: thumbs[k], name: d.nome, desc: (d.desc || '') + (d.bonus ? `<br><span class="bonus">✦ ${d.bonus}</span>` : ''), locked: this.lockReason(d),
         foot: `<span class="price">$ ${d.preco}</span><span class="own">tem ${eco.inventory[k] || 0}</span>
                <button class="buy" data-k="${k}" data-n="1" ${eco.money < d.preco ? 'disabled' : ''}>Comprar</button>
                ${['esteira', 'esteira_alta', 'poste'].includes(k) ? `<button class="buy" data-k="${k}" data-n="10" ${eco.money < d.preco * 10 ? 'disabled' : ''}>×10</button>` : ''}`,
+      })).join('')}</div>`;
+      body.querySelectorAll('.buy').forEach((b) => { b.onclick = () => this.buy(b.dataset.k, +b.dataset.n); });
+    } else if (this.shopTab === 'materiais') {
+      const st = eco.materials;
+      body.innerHTML = `<p class="muted">Materiais de construção ficam no seu <b>estoque 🧱</b> (não ocupam a barra). Dá pra comprar aqui, mas sai bem mais barato fabricar e mandar por esteira pro <b>Depósito de Materiais</b>:
+        madeira vem do <b>bambu</b> na horta, tijolo da escória, vidro da fornalha (<code>fundir("vidro")</code>), concreto da montadora e aço da metalurgia.</p>
+      <div class="cards">${Object.entries(MATERIALS).map(([k, m]) => {
+        const price = MATERIAL_SHOP[k];
+        return card({
+          img: thumbs['item:' + m.item], name: m.nome, desc: `No estoque: <b>${st[m.item] || 0}</b><br>Uma parede gasta ${PIECES.parede.custo}, um piso ${PIECES.piso.custo}.`,
+          foot: `<span class="price">$ ${price}</span><button class="buy-m" data-k="${m.item}" data-n="1" ${eco.money < price ? 'disabled' : ''}>+1</button><button class="buy-m" data-k="${m.item}" data-n="10" ${eco.money < price * 10 ? 'disabled' : ''}>+10</button><button class="buy-m" data-k="${m.item}" data-n="50" ${eco.money < price * 50 ? 'disabled' : ''}>+50</button>`,
+        });
+      }).join('')}</div>`;
+      body.querySelectorAll('.buy-m').forEach((b) => {
+        b.onclick = () => {
+          const it = b.dataset.k, n = +b.dataset.n;
+          const mk = Object.keys(MATERIALS).find((m) => MATERIALS[m].item === it);
+          if (!eco.spend(MATERIAL_SHOP[mk] * n)) { audio.play('deny'); return; }
+          eco.materials[it] = (eco.materials[it] || 0) + n;
+          audio.play('buy', { volume: 0.5 });
+          game.emit('materials');
+        };
+      });
+    } else if (this.shopTab === 'quadros') {
+      body.innerHTML = `<p class="muted">Obras em <b>domínio público</b> (Wikimedia Commons). Compre, escolha na barra e clique numa parede pra pendurar.</p>
+      <div class="cards">${Object.entries(PAINTINGS).map(([k, p]) => card({
+        img: `assets/paintings/${p.img}.jpg`, name: p.nome, desc: p.autor,
+        foot: `<span class="price">$ ${p.preco}</span><span class="own">tem ${eco.inventory[k] || 0}</span><button class="buy" data-k="${k}" data-n="1" ${eco.money < p.preco ? 'disabled' : ''}>Comprar</button>`,
       })).join('')}</div>`;
       body.querySelectorAll('.buy').forEach((b) => { b.onclick = () => this.buy(b.dataset.k, +b.dataset.n); });
     } else if (this.shopTab === 'melhorias') {
@@ -329,8 +393,8 @@ export class UI {
   }
 
   buy(k, n) {
-    const d = MACHINES[k] || DECOR[k];
-    if (this.lockReason(d)) return;
+    const d = MACHINES[k] || DECOR[k] || PAINTINGS[k];
+    if (d.nivel && this.lockReason(d)) return;
     if (!game.economy.spend(d.preco * n)) { audio.play('deny'); return; }
     game.economy.addItem(k, n);
     audio.play('buy', { volume: 0.6 });
@@ -398,6 +462,12 @@ export class UI {
       const methods = Object.entries(api).map(([k, m]) => `<div class="meth"><code>.${k}(${m.min ? '"..."' : m.max ? '[...]' : ''})</code> <span>${m.doc || ''}</span></div>`).join('');
       $('#panel-api').innerHTML = `<div class="api-ex"><code>m = maquina("${e.name}")</code></div>${methods}`;
       $('#panel-rotate').onclick = () => { game.builder.rotateEntity(e); audio.play('tick'); refreshBeltsAround(e.x, e.z); };
+      $('#panel-extra').onclick = (ev) => {
+        const b = ev.target.closest('button[data-i]');
+        if (!b || b.disabled || !this.panelActs) return;
+        const a = this.panelActs[+b.dataset.i];
+        if (a) { a.fn(); audio.play('click', { volume: 0.5 }); this.panelActsHtml = ''; this.renderPanel(false); }
+      };
       $('#panel-pick').onclick = () => { game.builder.hover = { entity: e }; game.builder.removeHovered(); this.closeOverlay(); };
     }
     // melhoria Mk2/Mk3
@@ -418,21 +488,41 @@ export class UI {
       };
     } else up.style.display = 'none';
     $('#panel-info').innerHTML = e.infoLines().filter(Boolean).map((l) => `<div>${l}</div>`).join('');
+    // botões próprios da máquina (plantar, regar, colher...)
+    const acts = e.panelActions ? e.panelActions() : [];
+    this.panelActs = acts;
+    const html = acts.map((a, i) => `<button data-i="${i}" class="${a.primary ? 'primary' : ''}" ${a.disabled ? 'disabled' : ''}>${a.label}</button>`).join('');
+    const ex = $('#panel-extra');
+    ex.style.display = acts.length ? '' : 'none';
+    if (html !== this.panelActsHtml) { this.panelActsHtml = html; ex.innerHTML = html; }
   }
 
   update(dt) {
     if (this.overlay === 'panel') this.renderPanel(false);
     if (this.overlay === 'editor') this.editor.update();
-    if (XWIN[this.overlay]) {
+    if (XWIN[this.overlay] && this.overlay !== 'pet') {
       this.xT -= dt;
       if (this.xT <= 0) {
         this.xT = this.overlay === 'map' ? 0.2 : this.overlay === 'stats' ? 3 : 0.6;
         if (this.overlay !== 'research' || !document.querySelector('.rs-node:hover')) this.renderX();
       }
     }
+    // barra da construção acompanha a mira (motivo de não poder construir)
+    if (game.builder?.selected === 'construir') {
+      this.bhT = (this.bhT || 0) - dt;
+      if (this.bhT <= 0) { this.bhT = 0.2; const h = this.buildPalette(); if (h !== this.lastBh) { this.lastBh = h; $('#buildhint').innerHTML = h; } }
+    }
     this.clockT = (this.clockT || 0) - dt;
     if (this.clockT <= 0) { this.clockT = 1; $('#clock').textContent = clockText(); }
     this.updatePrompt();
+    const p = game.player;
+    $('#move-speed').textContent = p.speed.toFixed(1).replace('.', ',');
+    $('#move-state').textContent = p.sliding ? 'DESLIZANDO' : !p.onGround ? 'NO AR' : p.momentum > 0.85 ? 'EMBALO MÁXIMO' : p.speed > 5 ? 'CORRENDO' : 'PASSO';
+    $('#momentum-bar').style.width = `${Math.round(p.momentum * 100)}%`;
+    $('#movement').classList.toggle('hidden', game.mode !== 'play');
+    $('#movement').classList.toggle('boosted', p.coffee > 0);
+    $('#coffee-status').classList.toggle('hidden', !(p.coffee > 0));
+    if (p.coffee > 0) $('#coffee-status').textContent = `☕ cafezinho: +30% por ${Math.ceil(p.coffee)}s`;
   }
 }
 

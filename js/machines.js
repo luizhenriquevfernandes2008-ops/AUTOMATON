@@ -1,7 +1,8 @@
 // Grid, entidades e máquinas da fábrica.
 import * as THREE from 'three';
 import { CELL, ITEMS, ORES, SMELT, RECIPES, MACHINES, DECOR, TIERS, TIERABLE, DECOR_BONUS, DECOR_BONUS_MAX } from './data.js';
-import { cloneModel } from './assets.js';
+import { cloneModel, assets } from './assets.js';
+import { PAL } from './palette.js';
 import { game } from './state.js';
 import { takeItemMesh, releaseItemMesh } from './itemMeshes.js';
 import { Blocking, Builtin, JDict, JiboiaError, suggest } from './lang/jiboia.js';
@@ -57,6 +58,61 @@ export function animateBelts(dt) {
   const v = (game.economy?.beltSpeed || 1) * dt;
   chevTex.offset.y -= v * 2;
   chevTexShort.offset.y -= v * 2;
+}
+
+// ─── esteiras desenhadas de uma vez (instancing) ───
+// Cada esteira continua tendo seu modelo (invisível, só pra mira), mas o que aparece na tela
+// é um InstancedMesh por peça do modelo: centenas de esteiras custam poucas chamadas de desenho.
+const beltBatch = { dirty: true, groups: {} };
+export function markBeltsDirty() { beltBatch.dirty = true; }
+function batchGroup(name, parts) {
+  let g = beltBatch.groups[name];
+  if (!g) g = beltBatch.groups[name] = { parts, meshes: [], cap: 0 };
+  return g;
+}
+function modelParts(key) {
+  const tpl = assets.models[key];
+  tpl.updateMatrixWorld(true);
+  const inv = tpl.matrixWorld.clone().invert();
+  const parts = [];
+  tpl.traverse((o) => { if (o.isMesh) parts.push({ geo: o.geometry, mat: o.material, local: inv.clone().multiply(o.matrixWorld), cast: o.castShadow }); });
+  return parts;
+}
+function fillGroup(g, mats) {
+  if (mats.length > g.cap) {
+    for (const m of g.meshes) { game.scene.remove(m); m.dispose(); }
+    g.cap = Math.max(64, mats.length * 2);
+    g.meshes = g.parts.map((p) => {
+      const m = new THREE.InstancedMesh(p.geo, p.mat, g.cap);
+      m.castShadow = p.cast; m.receiveShadow = true;
+      if (p.order) m.renderOrder = p.order;
+      game.scene.add(m);
+      return m;
+    });
+  }
+  const tmp = new THREE.Matrix4();
+  g.meshes.forEach((m, k) => {
+    for (let i = 0; i < mats.length; i++) m.setMatrixAt(i, tmp.multiplyMatrices(mats[i], g.parts[k].local));
+    m.count = mats.length;
+    m.instanceMatrix.needsUpdate = true;
+    m.computeBoundingSphere();
+  });
+}
+export function flushBelts() {
+  if (!beltBatch.dirty || !assets.models.belt) return;
+  beltBatch.dirty = false;
+  const lists = { belt: [], beltCorner: [], chev: [], chevShort: [] };
+  for (const e of game.entities) {
+    if (!e.instanced || e.removed) continue;
+    e.obj.updateMatrixWorld(true);
+    lists[e.shape === 'straight' ? 'belt' : 'beltCorner'].push(e.model.matrixWorld.clone());
+    lists[e.shape === 'straight' ? 'chev' : 'chevShort'].push(e.chev.matrixWorld.clone());
+  }
+  fillGroup(batchGroup('belt', modelParts('belt')), lists.belt);
+  fillGroup(batchGroup('beltCorner', modelParts('beltCorner')), lists.beltCorner);
+  const I = new THREE.Matrix4();
+  fillGroup(batchGroup('chev', [{ geo: chevGeo, mat: chevronMat, local: I, cast: false, order: 2 }]), lists.chev);
+  fillGroup(batchGroup('chevShort', [{ geo: chevGeoShort, mat: chevronMatShort, local: I, cast: false, order: 2 }]), lists.chevShort);
 }
 
 // setinha no chão (laranja = saída, azul = entrada)
@@ -144,6 +200,9 @@ export class Belt extends Entity {
     this.chev.position.y = BELT_Y + 0.006;
     this.chev.renderOrder = 2;
     this.obj.add(this.chev);
+    // esteira comum: desenhada em lote (ver flushBelts)
+    this.instanced = type === 'esteira';
+    if (this.instanced) { this.model.visible = false; this.chev.visible = false; }
   }
   get outputDirs() { return [this.dir]; }
   canAccept(type, travelDir) {
@@ -218,6 +277,7 @@ export class Belt extends Entity {
       this.chev.material = chevronMatShort;
       this.chev.position.z = -CELL * 0.25;
     }
+    if (this.instanced) { this.model.visible = false; markBeltsDirty(); }
   }
   onRemove() {
     for (const it of this.items) releaseItemMesh(it.mesh);
@@ -228,7 +288,6 @@ export class Belt extends Entity {
     for (const [type, p, entry] of d.items || []) {
       if (!isItem(type)) continue;
       const it = { type, p, entry, mesh: takeItemMesh(type) };
-      game.scene.add(it.mesh);
       this.items.push(it);
       this.placeItem(it);
     }
@@ -364,14 +423,14 @@ export class Machine extends Entity {
     this.anim += dt;
     if (usesPower(this) && this.noPower) {
       // sem energia: luz vermelha piscando devagar
-      this.lamp.material.color.setHex(0xff4455);
-      this.lamp.material.emissive.setHex(0xff2233);
+      this.lamp.material.color.setHex(PAL.bad);
+      this.lamp.material.emissive.setHex(PAL.badGlow);
       this.lamp.material.emissiveIntensity = Math.sin(this.anim * 4) > 0 ? 1.4 : 0.1;
       if (this.model) this.model.scale.set(1, 1, 1);
       return;
     }
     const working = !!this.job;
-    const target = working ? 0x5dff8a : this.waiting ? 0xffc44d : (this.out.length ? 0x7fb2ff : 0x666677);
+    const target = working ? PAL.work : this.waiting ? PAL.wait : (this.out.length ? PAL.out : PAL.idle);
     this.lamp.material.color.setHex(target);
     this.lamp.material.emissive.setHex(target);
     this.lamp.material.emissiveIntensity = working ? 1.2 + Math.sin(this.anim * 10) * 0.4 : 0.5;
@@ -450,6 +509,7 @@ export class Miner extends Machine {
             finish: () => {
               this.out.push(ore.item);
               game.economy.produced(ore.item);
+              if (ore.raro && game.mineVein) game.mineVein(this.x, this.z); // veio de meteorito acaba
               audio.play('mine', { pos: this.pos, volume: 0.6 });
               puff(new THREE.Vector3(this.pos.x, 0.3, this.pos.z), { color: 0xc9b89a, count: 5, size: 0.35, spread: 1, up: 0.6 });
               return ore.item;
@@ -460,7 +520,10 @@ export class Miner extends Machine {
       minerio: { fn: () => this.oreType ? ORES[this.oreType].item : null, doc: 'Qual minério está embaixo' },
     };
   }
-  infoLines() { return [`Veio: ${this.oreType ? ORES[this.oreType].nome : 'nenhum!'}`, ...super.infoLines()]; }
+  infoLines() {
+    const raro = this.oreType && ORES[this.oreType].raro ? ` (restam ${game.veinLeft ? game.veinLeft(this.x, this.z) : '?'})` : '';
+    return [`Veio: ${this.oreType ? ORES[this.oreType].nome + raro : 'nenhum!'}`, ...super.infoLines()];
+  }
 }
 
 // nome bonitinho de uma pesquisa (preenchido pelo research.js pra não ter import circular)
@@ -771,14 +834,17 @@ export class Chest extends Machine {
 export class Decor extends Entity {
   constructor(type, x, z, dir) {
     super(type, x, z, dir);
-    this.solid = true;
+    // tapete e ventilador de teto não atrapalham a passagem
+    this.solid = !this.def.baixo && !this.def.noTeto;
     this.addModel(this.def.model);
+    if (this.def.noTeto) this.model.position.y = 2.2; // pendurado perto do teto
     if (this.def.luz) {
       const l = new THREE.PointLight(0xffc98a, 6, 7, 1.5);
-      l.position.y = 1.6;
+      l.position.y = this.def.casa ? 1.1 : 1.6;
       this.obj.add(l);
     }
   }
+  update(dt) { if (this.def.noTeto) this.model.rotation.y += dt * 4; }
 }
 
 // ───────────────────────── Gerador ─────────────────────────
@@ -853,6 +919,7 @@ export function addEntity(e) {
   else grid.set(key(e.x, e.z), e);
   if (e.alsoUp) gridUp.set(key(e.x, e.z), e); // rampas ocupam os dois andares
   game.scene.add(e.obj);
+  if (e.instanced) markBeltsDirty();
   refreshBeltsAround(e.x, e.z);
   if (canWire(e)) recomputePower();
   game.emit('entities');
@@ -869,6 +936,7 @@ export function removeEntity(e) {
   if (gridUp.get(k) === e) gridUp.delete(k);
   const i = game.entities.indexOf(e);
   if (i >= 0) game.entities.splice(i, 1);
+  if (e.instanced) markBeltsDirty();
   refreshBeltsAround(e.x, e.z);
   recomputePower();
   game.emit('entities');

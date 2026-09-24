@@ -1,9 +1,13 @@
 // Configurações do jogador (salvas à parte do save da fábrica).
 import { game } from './state.js';
 import { audio, STATIONS } from './audio.js';
+import { setPalette, MODES } from './palette.js';
 
 const KEY = 'automaton_settings';
-export const settings = { music: 0.45, sfx: 0.7, ambience: 0.35, sens: 0.8, fov: 72, quality: 'alta', musicOn: true, station: 0, pet: true, autocomplete: true };
+export const settings = {
+  music: 0.45, sfx: 0.7, ambience: 0.35, sens: 0.8, fov: 72, quality: 'alta', musicOn: true, station: 0, pet: true, autocomplete: true,
+  colorblind: 'normal', edFont: 14, padSens: 1, keys: {},
+};
 
 export function loadSettings() {
   try {
@@ -27,6 +31,8 @@ export function applySettings() {
   if (game.player) game.player.controls.pointerSpeed = settings.sens;
   if (game.camera) { game.camera.fov = settings.fov; game.camera.updateProjectionMatrix(); }
   applyQuality();
+  setPalette(settings.colorblind);
+  game.ui?.editor?.setFont(settings.edFont);
 }
 
 export function applyQuality() {
@@ -47,7 +53,7 @@ export function applyQuality() {
 
 const fmt = {
   music: (v) => Math.round(v * 100) + '%', sfx: (v) => Math.round(v * 100) + '%', ambience: (v) => Math.round(v * 100) + '%',
-  sens: (v) => (+v).toFixed(2), fov: (v) => v + '°',
+  sens: (v) => (+v).toFixed(2), fov: (v) => v + '°', edFont: (v) => v + 'px', padSens: (v) => (+v).toFixed(1) + '×',
 };
 
 function paint(input) {
@@ -93,6 +99,11 @@ export function bindSettingInputs() {
     paint();
   };
   toggle('set-pet', 'pet', () => game.pet && game.pet.setVisible(settings.pet));
+  // daltonismo
+  const cb = document.getElementById('set-cb');
+  cb.innerHTML = Object.entries(MODES).map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
+  cb.value = settings.colorblind || 'normal';
+  cb.onchange = () => { settings.colorblind = cb.value; setPalette(cb.value); saveSettings(); };
   toggle('set-ac', 'autocomplete', () => { const cb = document.getElementById('ed-ac-toggle'); if (cb) cb.checked = settings.autocomplete; });
 }
 

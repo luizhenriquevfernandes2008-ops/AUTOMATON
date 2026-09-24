@@ -329,7 +329,107 @@ while True:
 
 ---
 
-## 14. 🧰 Ferramentas
+## 14. 🌱 Horta
+
+1. Compre um **Canteiro** na loja e coloque no chão. A **seta laranja** é por onde a colheita sai.
+2. Aperte **`E`** nele e escolha a semente (custa poucos $):
+
+| Planta | Colheita | Tempo (com água, de dia) |
+|---|---|---|
+| ☕ Café | 3 grãos de café | ~2,5 min |
+| 🌽 Milho | 3 milhos | ~2 min |
+| 🥕 Cenoura | 3 cenouras | ~1,5 min |
+| 🎃 Abóbora | 1 abóbora | ~3 min |
+| 🍉 Melancia | 1 melancia | ~3,5 min |
+| 🎋 Bambu | 3 **madeiras** | ~2 min |
+
+3. **Água:** a terra seca em uns 4 minutos. Seca, a planta quase para. A **chuva** rega de graça, o botão **💧 Regar** do painel também, e o **Irrigador** (1 ⚡) rega sozinho tudo num raio de 2 células.
+4. **Luz:** de noite cresce pela metade. Um **teto de vidro** em cima vira **estufa**: +50% e cresce igual de noite (mas aí a chuva não molha, use o irrigador). Teto de outro material faz sombra e quase para a planta.
+5. Pronta, ela brilha. Colha no painel (**🧺 Colher**), peça pro Oopi, ou por código. Por padrão ela **replanta sozinha**.
+
+```python
+horta = maquina("canteiro1")
+horta.plantar("cafe")
+while True:
+    horta.colher()        # espera ficar pronta e colhe (sai pela seta laranja)
+```
+
+Outros métodos: `.pronta()`, `.crescimento()` (0 a 1), `.umidade()` (0 a 1), `.planta()`, `.replantar(False)`. No irrigador: `.regar()`, `.ligar()`, `.desligar()`.
+
+---
+
+## 15. 🧱 Construção, materiais e escritório
+
+Aperte **`2`** (a ferramenta **🧱 Construção**, sempre a segunda da barra):
+
+- **`F`** troca a peça: **Parede, Janela, Porta, Piso, Teto, Cerca** e **🖌️ Pintar**.
+- **`T`** troca o material: **madeira, tijolo, concreto, vidro, aço** (ou a cor, no modo Pintar).
+- **Clique** constrói. Paredes, janelas, portas e cercas vão na **borda da célula mais perto da mira**. Pisos e tetos ocupam a célula inteira (e máquinas podem ficar em cima do piso).
+- **`X`** desmonta e **devolve todo o material**. `Ctrl+Z` desfaz.
+- Portas deixam passar; paredes e janelas seguram o jogador.
+
+**Materiais** ficam num **estoque 🧱** separado (aparece na barra da construção):
+
+| Material | Como conseguir |
+|---|---|
+| Madeira | plante **bambu** na horta |
+| Tijolo | montadora: 3 escórias |
+| Vidro | fornalha: `fundir("vidro")` (2 quartzos) |
+| Concreto | montadora: 2 escórias + 1 quartzo → 2 concretos |
+| Aço | fornalha, pesquisa Metalurgia |
+
+Mande os materiais por esteira pro **Depósito de Materiais**: tudo que entra vai pro estoque. Também dá pra comprar na loja (aba **Materiais**), só que mais caro. Você começa com 24 madeiras.
+
+| Peça | Custo |
+|---|---|
+| Parede | 4 do material |
+| Janela | 3 do material + 2 vidros |
+| Porta | 3 do material |
+| Piso / Teto | 2 do material |
+| Cerca | 1 madeira |
+
+**Escritório:** a área do escritório não aceita máquinas, mas aceita **móveis** (loja → aba **Escritório**: estante, poltrona, sofá, TV, tapete, luminária, mesa, frigobar, ursinho, ventilador de teto…) e **construção**. Vários móveis dão um bônus pequeno de CPU ou de velocidade, como a decoração.
+
+**Pintura:** no modo 🖌️ Pintar, `T` escolhe a cor e o clique pinta ($ 2). "Sem tinta" volta ao material original. Vidro não pega tinta.
+
+**Quadros:** loja → aba **Quadros** (obras de domínio público: Van Gogh, Hokusai, Monet, Vermeer, Almeida Júnior). Escolha na barra e clique numa **parede** (sem janela). Ele fica do lado da parede em que você está. `X` tira.
+
+---
+
+## 16. 🤖 O Oopi
+
+O Oopi te segue e para a uns 2 metros, **do lado em que ele já está**: girar a câmera não faz ele rodar em volta de você.
+
+- **`E`** nele: carinho 💜. O **humor** sobe com carinho e com tarefas, e cai devagar com o tempo.
+- **`F`** olhando pra ele: abre a janela de **tarefas**:
+  - **🧺 Colher a horta**: vai em todos os canteiros prontos e colhe.
+  - **☄️ Buscar meteoritos**: pega as pedrinhas brilhantes da chuva de meteoros.
+  - **📦 Levar itens**: escolha de onde (baú, caixa de venda, canteiro ou saída de máquina), qual item, pra onde e quantos.
+  - **🐾 Me seguir / 🧍 Ficar aqui.**
+- Quando a fábrica bate um **recorde** ($/min, itens/min ou maior venda), ele comemora 🏆.
+
+---
+
+## 17. ☄️ Eventos tranquilos
+
+- **Chuva de meteoros** (à noite): alguns caem perto da fábrica e deixam um **veio de meteorito** (40 fragmentos estelares, valem bem). Coloque um **minerador** em cima! E pegue as **pedrinhas** em volta com `E` (ou peça pro Oopi).
+- **Dia de feira** (de dia): 3 itens ficam **+60% mais caros** por 4 minutos. O painel do mercado mostra 🎪.
+- **Aurora** (à noite) e **arco-íris** (depois da chuva): só pra olhar 🌌🌈.
+
+---
+
+## 18. ⚙️ Hardware do computador
+
+No editor, aba **⚙ Hardware**:
+
+- **Overclock:** ×1,5, ×2 e ×3 nas instruções por segundo **deste** computador (o Clock da CPU da loja vale pra todos). Gasta mais energia.
+- **Memória:** quantas **variáveis** (24 → 48 → 96 → ∞) e quantos **itens por lista** (256 → 1024 → 4096 → ∞) o programa pode ter. Funções (`def`) não contam.
+
+Se passar do limite, o programa para com um aviso. Dica: `lista.pop(0)` tira o item mais velho.
+
+---
+
+## 19. 🧰 Ferramentas
 
 - **Copiar e colar** (`C` / `V`): clique em dois cantos pra copiar uma área (máquinas, código e cabos). Aparece um fantasma: `R` gira, clique cola. Peças que faltarem são compradas.
 - **Desfazer** (`Ctrl+Z`): colocar, guardar, cabos, colar e girar.
@@ -340,11 +440,14 @@ while True:
 - **Autocompletar** (no editor): sugere funções, métodos, máquinas e itens. Desliga no rodapé do editor ou nas configurações.
 - **Bibliotecas** (no editor): funções que você escreve uma vez e usa com `importar("nome")`.
 - **Rádio**: `G` troca de estação (**Bossa FM**, Lo-fi, Jazz, Só Natureza). O rádio do escritório também.
-- **Oopi**: o pet robozinho. Mire nele e aperte `E` pra fazer carinho 💜.
+- **Oopi**: o pet robozinho. Mire nele e aperte `E` pra fazer carinho 💜, ou `F` pras tarefas.
+- **3 fábricas**: no menu, cada fábrica é um save separado. **Abrir** troca de fábrica, **Apagar** apaga só aquela.
+- **Configurações**: **teclas** (clique e aperte a nova), **modo daltônico** (deuteranopia, protanopia, tritanopia: muda as luzes das máquinas e as cores de aviso), **fonte do editor** e sensibilidade do **controle**.
+- **Controle (gamepad)**: alavanca esquerda anda, direita olha, `A` pula, `B` desliza/cancela, `X` usa, `Y` loja, `LB`/`RB` trocam a peça, `LT` guarda, `RT` coloca, `L3` corre, `R3` gira, ↑/↓ peça e material da construção, ← rádio, → guia, `Select` mapa, `Start` pausa.
 
 ---
 
-## 15. Problemas comuns
+## 20. Problemas comuns
 
 | Problema | Solução |
 |---|---|
@@ -354,19 +457,36 @@ while True:
 | Erro "Não achei a máquina" | O nome no código tem que ser igual à plaquinha em cima da máquina. |
 | Tudo lento | Energia fraca (HUD ⚡ vermelho): coloque mais geradores. Ou compre "Clock da CPU" na loja. |
 | Programa parado na linha amarela | Ele está **esperando** a máquina. Veja o status dela (mire e leia, ou `E` → detalhes). |
+| "Memória cheia" / "Lista cheia" | Reaproveite variáveis, tire itens velhos com `.pop(0)`, ou melhore a memória no ⚙ Hardware. |
+| A planta não cresce | Terra seca (💧), teto que não é de vidro em cima, ou é de noite. |
+| "Falta material" na construção | Mande material pro Depósito de Materiais ou compre na loja (aba Materiais). |
+| Não consigo colocar máquina no escritório | Lá só vão móveis e construção. |
 
 ---
 
 ## Atalhos
 
+### Movimento e café
+
+Segure **Shift + WASD** para correr: a velocidade aumenta enquanto você mantém o movimento. A barra de **embalo** mostra esse ganho. Parar, inverter a direção ou bater numa máquina reduz o embalo.
+
+Durante a corrida, pressione e segure **Ctrl** para deslizar. A câmera abaixa e você ganha um impulso curto. Solte Ctrl para levantar ou aperte **Espaço** para pular conservando a velocidade. O deslize dura até 1,1 segundo e tem um intervalo de 1,5 segundo entre impulsos; solte e aperte Ctrl de novo para repetir.
+
+Aperte **E na cafeteira do escritório** pra tomar um cafezinho: **+30% de velocidade por 90 segundos**. O HUD mostra o tempo restante.
+
 | Tecla | Ação |
 |---|---|
+| `WASD` · `Shift` · `Espaço` | andar · correr e ganhar embalo · pular |
+| `Ctrl` durante a corrida | deslizar |
+| `Q` | guardar a peça da mão |
 | `1` | 🔌 Cabo de energia |
-| `2`–`9` / roda do mouse | escolher peça |
+| `2` | 🧱 Construção |
+| `F` / `T` | construção: peça / material ou cor · `F` no Oopi: tarefas |
+| `3`–`9` / roda do mouse | escolher peça |
 | `R` | girar a peça |
 | `Clique` | colocar / ligar cabo / usar |
 | `X` / botão direito | guardar a peça (ou soltar o cabo) |
-| `E` | programar computador / ver máquina / loja / rádio / café |
+| `E` | programar computador / ver máquina / loja / rádio / café / carinho no Oopi / pegar meteorito |
 | `C` / `V` | copiar área / colar |
 | `Ctrl+Z` | desfazer |
 | `B` | loja |

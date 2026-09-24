@@ -441,12 +441,12 @@ export class Drone {
     if (d.name) this.rename(d.name);
     if (d.p) this.p.set(d.p[0], d.p[1], d.p[2]);
     this.flights = d.flights || 0;
-    if (d.cargo && isItem(d.cargo)) { const m = takeItemMesh(d.cargo); game.scene.add(m); this.cargo = { type: d.cargo, mesh: m }; }
+    if (d.cargo && isItem(d.cargo)) { const m = takeItemMesh(d.cargo); this.cargo = { type: d.cargo, mesh: m }; }
   }
 }
 
 // tira 1 item de uma máquina/esteira (pro drone)
-function takeFrom(e, want) {
+export function takeFrom(e, want) {
   if (e.items && e.items.length) { // esteira
     const i = e.items.findIndex((it) => !want || it.type === want);
     if (i >= 0) { const it = e.items.splice(i, 1)[0]; return { type: it.type, mesh: it.mesh }; }

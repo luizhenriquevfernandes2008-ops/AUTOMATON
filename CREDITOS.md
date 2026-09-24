@@ -1,15 +1,24 @@
 # Créditos e licenças
 
 ## Modelos 3D, Kenney (CC0 1.0, domínio público)
-- **Factory Kit**: esteiras, divisor, juntador, máquinas, scanner, funil, computador, piso, engrenagem, Oopi. https://kenney.nl/assets/factory-kit
-- **Space Kit**: cristais dos veios, antena, barris, geradores, laboratório (cúpula), doca de drones (hangar), torres, plataforma e peças do foguete. https://kenney.nl/assets/space-kit
-- **Nature Kit**: árvores, pedras, flores, placas, barraca, fogueira. https://kenney.nl/assets/nature-kit
-- **Furniture Kit**: mesa, cadeira, sofá, luminárias, rádio, cafeteira, plantas, alto-falante, lixeira. https://kenney.nl/assets/furniture-kit
+- **Factory Kit**: esteiras, divisor, juntador, máquinas, scanner, funil, computador, piso, engrenagem, Oopi, válvula do irrigador. https://kenney.nl/assets/factory-kit
+- **Space Kit**: cristais dos veios, antena, barris, geradores, laboratório (cúpula), doca de drones (hangar), torres, plataforma, peças do foguete, meteoritos, cratera e o barril do depósito. https://kenney.nl/assets/space-kit
+- **Nature Kit**: árvores, pedras, flores, placas, barraca, fogueira, canteiros e plantações (milho, cenoura, abóbora, melancia, bambu, folhas), arbusto do café e cerca. https://kenney.nl/assets/nature-kit
+- **Furniture Kit**: mesa, cadeira, sofá, luminárias, rádio, cafeteira, plantas, alto-falante, lixeira, **paredes, janela, porta e piso** da construção, e os móveis do escritório (estante, poltrona, sofá grande, TV e rack, tapete, mesa redonda, mesinha e abajur, frigobar, cabideiro, ursinho, ventilador de teto). https://kenney.nl/assets/furniture-kit
+
+## Quadros (domínio público), Wikimedia Commons
+- **A Noite Estrelada**, Vincent van Gogh (1889): https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg
+- **Girassóis**, Vincent van Gogh (1889): https://commons.wikimedia.org/wiki/File:Vincent_van_Gogh_-_Sunflowers_-_VGM_F458.jpg
+- **A Grande Onda de Kanagawa**, Katsushika Hokusai (c. 1831): https://commons.wikimedia.org/wiki/File:Tsunami_by_hokusai_19th_century.jpg
+- **Fuji Vermelho**, Katsushika Hokusai (c. 1831): https://commons.wikimedia.org/wiki/File:Red_Fuji_southern_wind_clear_morning.jpg
+- **Impressão, Nascer do Sol**, Claude Monet (1872): https://commons.wikimedia.org/wiki/File:Claude_Monet,_Impression,_soleil_levant.jpg
+- **Moça com Brinco de Pérola**, Johannes Vermeer (c. 1665): https://commons.wikimedia.org/wiki/File:1665_Girl_with_a_Pearl_Earring.jpg
+- **Caipira Picando Fumo**, Almeida Júnior (1893): https://commons.wikimedia.org/wiki/File:Almeida_J%C3%BAnior_-_Caipira_Cutting_Tobacco_-_Google_Art_Project.jpg
 
 ## Efeitos sonoros, Kenney (CC0 1.0)
 - **Interface Sounds**: https://kenney.nl/assets/interface-sounds
-- **Impact Sounds** (passos, mineração, metal): https://kenney.nl/assets/impact-sounds
-- **Sci-fi Sounds** (fornalha, foguete, foto): https://kenney.nl/assets/sci-fi-sounds
+- **Impact Sounds** (passos, passos na madeira, mineração, metal, tábuas, vidro): https://kenney.nl/assets/impact-sounds
+- **Sci-fi Sounds** (fornalha, foguete, foto, água do irrigador, meteoro): https://kenney.nl/assets/sci-fi-sounds
 
 ## Sons ambiente, OpenGameArt.org (CC0)
 - **Forest Ambience**: https://opengameart.org/content/forest-ambience

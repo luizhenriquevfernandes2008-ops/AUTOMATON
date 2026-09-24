@@ -398,9 +398,16 @@ export function updateMarketBoard(dt) {
   g.fillStyle = '#ffd35a'; g.font = '600 34px "Chakra Petch", sans-serif'; g.textBaseline = 'middle';
   g.fillText('📈 Mercado', 20, 32);
   g.font = '400 18px "Chakra Petch", sans-serif'; g.fillStyle = '#9d98c8';
-  g.textAlign = 'right'; g.fillText('preço por unidade', W - 20, 34); g.textAlign = 'left';
   const eco = game.economy;
-  const items = Object.keys(ITEMS);
+  const all = Object.keys(ITEMS);
+  // itens da feira primeiro; o painel vai passando as páginas sozinho
+  const fair = eco.fair ? all.filter((k) => eco.onFair(k)) : [];
+  const ordered = [...fair, ...all.filter((k) => !fair.includes(k))];
+  const per = 11, pages = Math.ceil(ordered.length / per);
+  mb.n = (mb.n || 0) + 1;
+  const page = Math.floor(mb.n / 3) % pages;
+  const items = ordered.slice(page * per, page * per + per);
+  g.textAlign = 'right'; g.fillText(`${eco.fair ? '🎪 FEIRA! · ' : ''}pág. ${page + 1}/${pages}`, W - 20, 34); g.textAlign = 'left';
   items.forEach((k, i) => {
     const y = 78 + i * 29;
     const p = eco.price(k), tr = eco.trend(k);
@@ -409,7 +416,7 @@ export function updateMarketBoard(dt) {
     g.fillRect(12, y - 14, W - 24, 28);
     g.fillStyle = locked ? '#666' : '#efeaff';
     g.font = '500 20px "Chakra Petch", sans-serif';
-    g.fillText(ITEMS[k].nome, 24, y);
+    g.fillText((eco.onFair(k) ? '🎪 ' : '') + ITEMS[k].nome, 24, y);
     g.fillStyle = tr > 0.05 ? '#6dff9a' : tr < -0.05 ? '#ff7a8a' : '#cfcfe8';
     g.textAlign = 'right';
     g.fillText(`${tr > 0.05 ? '▲' : tr < -0.05 ? '▼' : '•'} $ ${p.toFixed(1)}`, W - 24, y);

@@ -1,6 +1,6 @@
 // Editor de código dos computadores: realce, autocompletar, depurador e bibliotecas.
 import { game } from './state.js';
-import { EXAMPLES, MACHINES, ITEMS, TECHS } from './data.js';
+import { EXAMPLES, MACHINES, ITEMS, TECHS, PC_UPGRADES } from './data.js';
 import { manualHTML } from './docs.js';
 import { guideHTML } from './guide.js';
 import { parse, JiboiaError } from './lang/jiboia.js';
@@ -138,6 +138,7 @@ export class Editor {
     else if (t === 'maquinas') this.renderMachines(side);
     else if (t === 'depurar') this.renderDebug(side);
     else if (t === 'libs') this.renderLibs(side);
+    else if (t === 'hardware') this.renderHardware(side);
   }
 
   renderMachines(side) {
@@ -284,8 +285,62 @@ export class Editor {
     $('#ed-step').style.display = pc.running ? '' : 'none';
     $('#ed-resume').style.display = pc.running && pc.paused ? '' : 'none';
     const b = pc.board;
-    $('#ed-cpu').innerHTML = `${pc.medalIcon} ${b.itemsMin} itens/min · CPU ${(game.economy.cpuHz * (1 + pc.decorCpu)).toFixed(1)} instr/s`;
+    $('#ed-cpu').innerHTML = `${pc.medalIcon} ${b.itemsMin} itens/min · CPU ${pc.hz.toFixed(1)} instr/s${pc.hw.clock ? ' ⏩' : ''}`;
     this.positionMarkers();
+  }
+
+  // tamanho da fonte do código (Configurações)
+  setFont(px) {
+    px = Math.max(11, Math.min(22, +px || 14));
+    this.lineH = Math.round(px * 1.5);
+    this.el.style.setProperty('--ed-fs', px + 'px');
+    this.el.style.setProperty('--ed-lh', this.lineH + 'px');
+    const c = document.createElement('canvas').getContext('2d');
+    c.font = `${px}px "JetBrains Mono", monospace`;
+    this.charW = c.measureText('MMMMMMMMMM').width / 10 || px * 0.6;
+    document.fonts.ready.then(() => { c.font = `${px}px "JetBrains Mono", monospace`; this.charW = c.measureText('MMMMMMMMMM').width / 10 || this.charW; });
+    if (this.pc) { this.onInput(); this.positionMarkers(); }
+  }
+
+  // ─── ⚙ hardware deste computador ───
+  renderHardware(side = this.el.querySelector('#ed-side')) {
+    const pc = this.pc;
+    if (!pc) return;
+    const eco = game.economy;
+    const inf = (v) => (v === Infinity ? '∞' : v);
+    const card = (k) => {
+      const u = PC_UPGRADES[k];
+      const l = pc.hw[k];
+      const max = l >= u.precos.length;
+      const lock = !max && eco.level < u.niveis[l];
+      const val = (i) => (k === 'clock' ? `${u.valores[i]}×` : `${inf(u.valores[i])} variáveis · listas até ${inf(u.lista[i])}`);
+      const pips = u.valores.map((_, i) => `<i class="${i <= l ? 'on' : ''}"></i>`).join('');
+      return `<div class="hw-card"><div class="hw-h">${u.icone} <b>${u.nome}</b><span class="pips">${pips}</span></div>
+        <div class="muted">${u.desc}</div>
+        <div>Agora: <b>${val(l)}</b>${k === 'clock' ? ` · ${pc.hz.toFixed(1)} instr/s` : ''}</div>
+        ${max ? '<div class="amber">No máximo ✨</div>' : `<div>Próximo: ${val(l + 1)} · gasta +${u.energia[l + 1] - u.energia[l]} ⚡</div>
+        <button class="primary hw-up" data-k="${k}" ${lock || eco.money < u.precos[l] ? 'disabled' : ''}>${lock ? `🔒 Nível ${u.niveis[l]}` : `Melhorar · $ ${u.precos[l].toLocaleString('pt-BR')}`}</button>`}
+      </div>`;
+    };
+    const mem = pc.memUsage(), lim = pc.limits;
+    side.innerHTML = `<div class="hw">
+      <p class="muted">Cada computador tem o próprio hardware. O <b>Clock da CPU</b> da loja vale pra todos; o <b>Overclock</b> aqui multiplica só este.</p>
+      ${card('clock')}${card('memoria')}
+      <div class="hw-card"><div class="hw-h">📊 <b>Uso agora</b></div>
+        <div>Variáveis: <b>${mem.vars}</b> / ${inf(lim.vars)}</div>
+        <div>Maior lista: <b>${mem.maiorLista}</b> / ${inf(lim.lista)} itens</div>
+        <div>Energia extra do hardware: <b>${pc.hwEnergy}</b> ⚡</div>
+        <div class="muted">Funções (<code>def</code>) não contam como variáveis. Se encher, o programa para com um aviso.</div>
+      </div></div>`;
+    side.querySelectorAll('.hw-up').forEach((b) => {
+      b.onclick = () => {
+        const err = pc.hwUpgrade(b.dataset.k);
+        if (err) game.ui.toast(err, 'warn');
+        else game.ui.toast(`${PC_UPGRADES[b.dataset.k].icone} ${pc.name}: ${PC_UPGRADES[b.dataset.k].nome} melhorado!`, 'good');
+        this.renderHardware();
+        this.refresh();
+      };
+    });
   }
 
   run() {
@@ -413,5 +468,6 @@ export class Editor {
     if (this.tab === 'depurar' && this.pc.paused !== this.lastPaused) { this.lastPaused = this.pc.paused; this.renderDebug(); }
     this.dbgT = (this.dbgT || 0) - 1;
     if (this.tab === 'depurar' && this.dbgT <= 0) { this.dbgT = 20; this.renderDebug(); }
+    if (this.tab === 'hardware') { this.hwT = (this.hwT || 0) - 1; if (this.hwT <= 0) { this.hwT = 30; if (!this.el.querySelector('.hw-up:hover')) this.renderHardware(); } }
   }
 }

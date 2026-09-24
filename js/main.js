@@ -14,7 +14,13 @@ import { loadSettings, applySettings, bindSettingInputs, syncStation, settings }
 import { initMenu, openMenu, updateMenuCamera } from './menu.js';
 import { updateFx, puff } from './fx.js';
 import './computer.js';
-import { animateBelts, updateDecorBonus, setTechNamer } from './machines.js';
+import './farm.js';
+import { animateBelts, updateDecorBonus, setTechNamer, flushBelts, markBeltsDirty } from './machines.js';
+import { flushItems } from './itemMeshes.js';
+import { updateEvents, collectPickup } from './events.js';
+import { countPaintings } from './structures.js';
+import { actionOf, bindKeyUI } from './input.js';
+import { initGamepad, updateGamepad } from './gamepad.js';
 import { updateDrones, updateTimers } from './machines2.js';
 import { updatePower } from './power.js';
 import { initSky, updateSky } from './sky.js';
@@ -23,7 +29,7 @@ import { photo, togglePhoto, photoKey, photoWheel, updatePhoto } from './photo.j
 import { startTutorial, updateTutorial, refreshTutorial, tutorialActive } from './tutorial.js';
 import { NO_PANEL } from './ui.js';
 import { clearRegion } from './world.js';
-import { TECHS } from './data.js';
+import { TECHS, PAINTINGS } from './data.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -43,6 +49,7 @@ camera.rotation.order = 'YXZ';
 Object.assign(game, { scene, camera, renderer });
 window.automaton = game; // útil pra depurar no console (F12)
 addEventListener('resize', () => {
+  if (!innerWidth || !innerHeight) return; // janela minimizada/escondida
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
@@ -52,6 +59,7 @@ addEventListener('resize', () => {
 game.setMode = (m) => {
   if (m !== 'play' && photo.on) togglePhoto(false);
   game.mode = m;
+  if (m !== 'play') game.player?.stop();
   if (m === 'ui' || m === 'menu' || m === 'pause') {
     if (document.pointerLockElement) document.exitPointerLock();
   }
@@ -65,7 +73,7 @@ game.setMode = (m) => {
 // Se o navegador não deixar travar o mouse (mesmo com clique), entra no modo "arrastar pra olhar".
 let lockFromGesture = false;
 function lockPointer(fromGesture) {
-  if (game.noLock) return;
+  if (game.noLock || game.padActive) return;
   lockFromGesture = !!fromGesture;
   try {
     const p = renderer.domElement.requestPointerLock();
@@ -85,7 +93,7 @@ function lockFailed() {
 document.addEventListener('pointerlockerror', () => lockFailed());
 function showClickToPlay() { if (game.mode === 'play' && !game.noLock) $('#clickToPlay').classList.remove('hidden'); }
 $('#clickToPlay').addEventListener('click', () => { $('#clickToPlay').classList.add('hidden'); lockPointer(true); });
-const isActive = () => game.mode === 'play' && (!!document.pointerLockElement || game.noLock);
+const isActive = () => game.mode === 'play' && (!!document.pointerLockElement || game.noLock || game.padActive);
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === renderer.domElement;
   if (locked) $('#clickToPlay').classList.add('hidden');
@@ -101,7 +109,7 @@ function bootLog(text, state = 'ok') {
 }
 async function boot() {
   const bar = $('#load-bar'), txt = $('#load-text');
-  bootLog('AUTOMATON v1.1 · kernel jiboia 🐍');
+  bootLog('AUTOMATON v1.2 · kernel jiboia 🐍');
   const l1 = bootLog('carregando modelos 3D, texturas e céu…', 'run');
   await loadAll(renderer, (p) => { bar.style.width = Math.round(p * 80) + '%'; txt.textContent = `modelos ${Math.round(p * 100)}%`; });
   l1.innerHTML = '<span class="ok">[ ok ]</span> modelos 3D, texturas e céu';
@@ -125,6 +133,8 @@ async function boot() {
   loadSettings();
   applySettings();
   bindSettingInputs();
+  bindKeyUI((msg) => { if (msg) game.ui.toast(msg, 'warn'); game.emit('hotbar'); });
+  initGamepad();
 
   game.player.teleport(game.spawn, 0);
   const had = hasSave() && loadGame();
@@ -216,28 +226,50 @@ addEventListener('keydown', (e) => {
   if (!isActive()) return;
   if (photo.on) { e.preventDefault(); photoKey(e); return; }
   const b = game.builder;
-  if (e.ctrlKey && e.code === 'KeyZ') { e.preventDefault(); b.undo(); return; }
+  if (e.ctrlKey && e.code === 'KeyZ') { e.preventDefault(); game.player.sliding = false; b.undo(); return; }
   if (e.code.startsWith('Digit')) {
     const n = +e.code.slice(5);
     if (n >= 1 && n <= 9) b.selectIndex(n - 1);
     if (n === 0) b.select(null);
   }
-  switch (e.code) {
-    case 'KeyR': b.rotate(); break;
-    case 'KeyQ': if (b.copyMode || b.pasteMode) b.cancelModes(); else if (b.selected) b.select(b.selected); game.emit('hotbar'); break;
-    case 'KeyX': b.removeHovered(); break;
-    case 'KeyE': interact(); break;
-    case 'KeyB': game.ui.openOverlay('shop'); break;
-    case 'KeyM': audio.nextTrack(); break;
-    case 'KeyG': { const s = audio.nextStation(); syncStation(); game.ui.toast(`📻 ${s.icone} ${s.nome}`); break; }
-    case 'KeyH': game.ui.openOverlay('guide'); break;
-    case 'KeyK': game.ui.openOverlay('stats'); break;
-    case 'Tab': e.preventDefault(); game.ui.openOverlay('map'); break;
-    case 'KeyC': b.startCopy(); game.emit('hotbar'); break;
-    case 'KeyV': b.startPaste(); game.emit('hotbar'); break;
-    case 'KeyP': togglePhoto(true); break;
+  if (e.code === 'Tab') e.preventDefault();
+  switch (actionOf(e.code)) {
+    case 'girar': b.rotate(); break;
+    case 'soltar': actions.cancel(); break;
+    case 'guardar': b.removeHovered(); break;
+    case 'usar': interact(); break;
+    case 'loja': game.ui.openOverlay('shop'); break;
+    case 'musica': audio.nextTrack(); break;
+    case 'radio': actions.radio(); break;
+    case 'guia': game.ui.openOverlay('guide'); break;
+    case 'stats': game.ui.openOverlay('stats'); break;
+    case 'mapa': e.preventDefault(); game.ui.openOverlay('map'); break;
+    case 'copiar': b.startCopy(); game.emit('hotbar'); break;
+    case 'colar': b.startPaste(); game.emit('hotbar'); break;
+    case 'foto': togglePhoto(true); break;
+    case 'peca': actions.piece(e.shiftKey ? -1 : 1); break;
+    case 'material': actions.material(e.shiftKey ? -1 : 1); break;
   }
 });
+// ações usadas pelo teclado e pelo controle
+const actions = {
+  cancel() { const b = game.builder; if (b.copyMode || b.pasteMode) b.cancelModes(); else if (b.selected) b.select(b.selected); game.emit('hotbar'); },
+  interact: () => interact(),
+  primary: () => primaryClick(),
+  rotate: () => game.builder.rotate(),
+  shop: () => game.ui.openOverlay('shop'),
+  radio() { const s = audio.nextStation(); syncStation(); game.ui.toast(`📻 ${s.icone} ${s.nome}`); },
+  piece(d = 1) {
+    const b = game.builder;
+    if (b.selected === 'construir') b.cyclePiece(d);
+    else if (b.hover?.pet) game.ui.openOverlay('pet');
+    else if (!b.selected) { b.select('construir'); }
+  },
+  material(d = 1) { const b = game.builder; if (b.selected === 'construir') b.cycleMaterial(d); },
+  pause() { if (photo.on) togglePhoto(false); if (document.pointerLockElement) document.exitPointerLock(); game.setMode('pause'); },
+  resume() { game.gesture = true; game.setMode('play'); },
+  menuPlay() { if (!$('#menu').classList.contains('hidden') && startPlay) startPlay(); },
+};
 function primaryClick() {
   const b = game.builder;
   if (b.selected || b.copyMode || b.pasteMode) b.place();
@@ -278,6 +310,11 @@ function interact() {
   const h = game.builder.hover;
   if (!h) return;
   if (h.pet) { game.pet.pet(); return; }
+  if (h.pickup) { collectPickup(h.pickup); return; }
+  if (h.struct) {
+    if (h.struct.kind === 'quadro') { const P = PAINTINGS[h.struct.painting]; game.ui.toast(`🖼️ <b>${P.nome}</b><br>${P.autor} · domínio público`); }
+    return;
+  }
   if (h.entity) {
     const e = h.entity;
     if (e.type === 'computador') game.ui.openOverlay('editor', e);
@@ -293,12 +330,10 @@ function interact() {
   if (a.startsWith('region:')) game.ui.buyRegion(a.slice(7));
   if (a === 'radio') { const s = audio.nextStation(); syncStation(); game.ui.toast(`📻 ${s.icone} ${s.nome}: ${audio.currentTrack().nome}`); }
   if (a === 'coffee') {
-    audio.play('coffee');
-    game.player.coffee = 90;
-    game.economy.stats.coffees = (game.economy.stats.coffees || 0) + 1;
+    game.player.drinkCoffee();
     const p = h.interact.obj.getWorldPosition(new THREE.Vector3());
     puff(new THREE.Vector3(p.x, p.y + 0.5, p.z), { color: 0xffffff, count: 6, size: 0.25, up: 0.5, life: 2, opacity: 0.5 });
-    game.ui.toast('☕ Cafezinho! Você anda mais rápido por 90 segundos.', 'good');
+    game.ui.toast('☕ Cafezinho! +30% de velocidade por 90 segundos.', 'good');
   }
 }
 
@@ -307,7 +342,8 @@ game.on('region', (id) => clearRegion(id));
 
 // ─── loop ───
 let last = performance.now();
-let objTimer = 0, saveTimer = 30, powerTimer = 0, decorTimer = 0, achTimer = 3;
+let objTimer = 0, saveTimer = 30, powerTimer = 0, decorTimer = 0, achTimer = 3, recordTimer = 30;
+game.on('moved', (e) => { if (e.instanced) markBeltsDirty(); });
 function simStep(dt) {
   game.time += dt;
   game.economy.update(dt);
@@ -323,8 +359,11 @@ function simStep(dt) {
   if (decorTimer <= 0) { decorTimer = 2; updateDecorBonus(); }
   objTimer -= dt;
   if (objTimer <= 0) { objTimer = 1; game.economy.checkObjective(); }
+  updateEvents(dt);
   achTimer -= dt;
-  if (achTimer <= 0) { achTimer = 2; game.economy.checkAchievements(); }
+  if (achTimer <= 0) { achTimer = 2; game.economy.stats.paintingsHung = countPaintings(); game.economy.checkAchievements(); }
+  recordTimer -= dt;
+  if (recordTimer <= 0) { recordTimer = 30; game.economy.checkRecords(); }
   saveTimer -= dt;
   if (saveTimer <= 0) { saveTimer = 30; saveGame(); }
 }
@@ -353,6 +392,9 @@ function loop(now) {
   game.sun.position.set(Math.round(p.x) + d.x * 80, d.y * 80, Math.round(p.z) + d.z * 80);
   game.sun.target.position.set(Math.round(p.x), 0, Math.round(p.z));
   if (game.campfire) game.campfire.intensity = 7 + Math.sin(now * 0.013) * 1.2 + Math.sin(now * 0.031) * 0.8;
+  updateGamepad(dt, actions);
+  flushBelts();
+  flushItems();
   renderer.render(scene, camera);
 }
 addEventListener('beforeunload', () => { if (!game.skipSave && game.economy) saveGame(); });

@@ -11,11 +11,13 @@ export function togglePhoto(force) {
   document.body.classList.toggle('photo-mode', photo.on);
   $('#photo-hint').classList.toggle('hidden', !photo.on);
   if (photo.on) {
+    game.player.stop();
     photo.saved = { p: game.camera.position.clone(), fov: game.camera.fov };
     photo.fov = game.camera.fov;
     game.builder.select(null);
     audio.play('open', { volume: 0.4 });
   } else {
+    game.player.stop();
     if (photo.saved) { game.camera.position.copy(photo.saved.p); game.camera.fov = photo.saved.fov; game.camera.updateProjectionMatrix(); }
     photo.freeze = false;
     audio.play('close', { volume: 0.4 });

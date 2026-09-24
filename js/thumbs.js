@@ -1,7 +1,7 @@
 // Gera ícones (PNG) renderizando os modelos 3D de verdade.
 import * as THREE from 'three';
 import { assets, cloneModel } from './assets.js';
-import { MACHINES, DECOR, ITEMS } from './data.js';
+import { MACHINES, DECOR, ITEMS, PAINTINGS } from './data.js';
 import { MODEL_YAW } from './machines.js';
 import { itemPreviewObject } from './itemMeshes.js';
 
@@ -60,4 +60,13 @@ export function generateThumbs() {
   g.fillStyle = '#ffd35a'; g.font = '56px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText('⚡', 92, 36);
   thumbs.cabo = c.toDataURL('image/png');
+  // ícone da construção
+  g.clearRect(0, 0, 128, 128);
+  g.font = '78px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('🧱', 58, 70);
+  g.font = '44px sans-serif';
+  g.fillText('🔨', 96, 36);
+  thumbs.construir = c.toDataURL('image/png');
+  // quadros: a própria imagem
+  for (const [k, p] of Object.entries(PAINTINGS)) thumbs[k] = `assets/paintings/${p.img}.jpg`;
 }

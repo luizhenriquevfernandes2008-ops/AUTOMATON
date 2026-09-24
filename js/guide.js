@@ -16,6 +16,9 @@ export function guideHTML() {
   return `
 <div class="doc guide">
 <h2>📖 Guia do AUTOMATON</h2>
+<h3>Movimento e cafezinho ☕</h3>
+<p><kbd>WASD</kbd> anda, <kbd>Shift</kbd> corre e ganha embalo aos poucos. <kbd>Ctrl</kbd> durante a corrida desliza por até 1,1 s: solte para levantar ou use <kbd>Espaço</kbd> para saltar conservando o impulso. Solte e aperte Ctrl de novo para outro deslize (intervalo de 1,5 s). Parar, inverter a direção ou bater reduz o embalo.</p>
+<p>Aperte <kbd>E</kbd> na <b>cafeteira do escritório</b> pra tomar um cafezinho: <b>+30% de velocidade por 90 segundos</b>. O HUD mostra a velocidade, o embalo e o tempo do café.</p>
 <p>No AUTOMATON <b>nada funciona sozinho</b>. As máquinas só trabalham quando <b>um computador manda</b>, e tudo que usa <b>energia ⚡</b> precisa de um <b>cabo 🔌</b> ligado num <b>gerador</b>.</p>
 
 <h3>1. Os sinais que aparecem no chão e nas máquinas</h3>
@@ -165,15 +168,39 @@ while True:
 <li>Decoração perto das máquinas dá bônus: plantas/árvores aumentam o clock dos computadores; luminárias e barris aceleram as máquinas.</li>
 </ul>
 
-<h3>14. 🧰 Ferramentas</h3>
+<h3>14. 🌱 Horta</h3>
+<ul>
+<li>Coloque um <b>Canteiro</b>, aperte <kbd>E</kbd> nele e escolha a semente: <b>café, milho, cenoura, abóbora, melancia</b> ou <b>bambu</b> (bambu vira <b>madeira</b> pra construir).</li>
+<li>Precisa de <b>água</b>: a chuva molha, o botão 💧 Regar também, e o <b>Irrigador</b> (1 ⚡) rega sozinho num raio de 2 células. De noite cresce pela metade.</li>
+<li><b>Estufa:</b> um <b>teto de vidro</b> em cima do canteiro: +50% e cresce igual de noite (a chuva não molha lá dentro).</li>
+<li>A colheita sai pela <b>seta laranja</b>. Código: <code>h = maquina("canteiro1")</code>, <code>h.plantar("cafe")</code>, <code>h.colher()</code>, <code>h.umidade()</code>.</li>
+</ul>
+
+<h3>15. 🧱 Construção e escritório</h3>
+<ul>
+<li>Tecla <kbd>2</kbd>: ferramenta <b>🧱 Construção</b>. <kbd>F</kbd> troca a peça (parede, janela, porta, piso, teto, cerca, pintar) e <kbd>T</kbd> troca o material (madeira, tijolo, concreto, vidro, aço) ou a cor da tinta.</li>
+<li>Paredes vão na <b>borda da célula mais perto da mira</b>. <kbd>X</kbd> desmonta e devolve o material.</li>
+<li>Materiais: bambu → madeira · 3 escórias → tijolo · <code>fundir("vidro")</code> (2 quartzos) · montadora: 2 escórias + 1 quartzo → 2 concretos · aço. Mande por esteira pro <b>Depósito de Materiais</b>, ou compre na loja (aba Materiais).</li>
+<li>No escritório só entram <b>móveis</b> (loja → Escritório) e construção. <b>Quadros</b> de domínio público (loja → Quadros): clique numa parede pra pendurar.</li>
+</ul>
+
+<h3>16. 🤖 Oopi, ☄️ eventos e ⚙️ hardware</h3>
+<ul>
+<li><kbd>E</kbd> no Oopi = carinho. <kbd>F</kbd> olhando pra ele = <b>tarefas</b>: colher a horta, buscar meteoritos, levar itens, seguir ou ficar. Ele comemora os <b>recordes</b> da fábrica 🏆.</li>
+<li><b>Chuva de meteoros</b> (noite): deixa um <b>veio de meteorito</b> (ponha um minerador!) e pedrinhas pra pegar com <kbd>E</kbd>. <b>Feira</b> (dia): 3 itens +60%. <b>Aurora</b> e <b>arco-íris</b>: só pra curtir.</li>
+<li>No editor, aba <b>⚙ Hardware</b>: <b>overclock</b> (até 3×) e <b>memória</b> (variáveis e tamanho das listas) de cada computador.</li>
+</ul>
+
+<h3>17. 🧰 Ferramentas</h3>
 <ul>
 <li><kbd>C</kbd> copiar uma área (clique em 2 cantos) · <kbd>V</kbd> colar de novo · <kbd>R</kbd> gira o grupo. Peças que faltarem são compradas.</li>
 <li><kbd>Ctrl+Z</kbd> desfaz (colocar, tirar, cabos, colar, girar).</li>
 <li><kbd>Tab</kbd> mapa · <kbd>K</kbd> estatísticas, placar dos computadores e conquistas · <kbd>P</kbd> modo foto · <kbd>G</kbd> troca a estação do rádio.</li>
 <li>No editor: autocompletar (dá pra desligar embaixo), depurador (clique no número da linha) e bibliotecas.</li>
+<li>Menu: <b>3 fábricas</b> (saves separados). Configurações: <b>teclas</b>, <b>modo daltônico</b>, <b>fonte do editor</b> e <b>controle</b> 🎮 (alavancas andam e olham, <kbd>A</kbd> pula, <kbd>X</kbd> usa, <kbd>RT</kbd> coloca, <kbd>Start</kbd> pausa).</li>
 </ul>
 
-<h3>15. Problemas comuns</h3>
+<h3>18. Problemas comuns</h3>
 <table>
 <tr><th>Problema</th><th>Solução</th></tr>
 <tr><td>O item para no fim da esteira</td><td>A próxima peça não aceita por esse lado (seta laranja) ou está cheia.</td></tr>
@@ -181,6 +208,8 @@ while True:
 <tr><td>Computador com tela "SEM ENERGIA"</td><td>Ligue um cabo nele.</td></tr>
 <tr><td>Erro "Não achei a máquina"</td><td>O nome no código tem que ser igual à plaquinha em cima da máquina.</td></tr>
 <tr><td>Tudo lento</td><td>Energia fraca (HUD ⚡ vermelho): mais geradores. Ou compre "Clock da CPU" na loja.</td></tr>
+<tr><td>"Memória cheia" / "Lista cheia"</td><td>Reaproveite variáveis, use <code>.pop(0)</code>, ou melhore a memória no ⚙ Hardware.</td></tr>
+<tr><td>A planta não cresce</td><td>Terra seca, teto que não é de vidro em cima, ou é de noite.</td></tr>
 </table>
 </div>`;
 }

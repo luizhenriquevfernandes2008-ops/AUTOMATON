@@ -561,6 +561,7 @@ export class Interpreter {
     this.globals = new Map();
     this.builtins = new Map();
     this.print = opts.print || ((s) => console.log(s));
+    this.limits = opts.limits || null; // () => { vars, lista } (memória do computador)
     this.line = 0;
     this.depth = 0;
     this.waitLabel = '';
@@ -586,8 +587,25 @@ export class Interpreter {
   }
 
   setVar(name, v, f) {
-    if (f.isGlobal || f.globalNames.has(name)) this.globals.set(name, v);
-    else f.vars.set(name, v);
+    const map = f.isGlobal || f.globalNames.has(name) ? this.globals : f.vars;
+    if (this.limits && !map.has(name) && !(v && v.node)) {
+      const lim = this.limits().vars;
+      if (this.varCount(f) >= lim) throw this.err(`Memória cheia: este computador guarda só ${lim} variáveis. Melhore a memória no ⚙ Hardware do editor (ou reaproveite variáveis)`);
+    }
+    map.set(name, v);
+  }
+  // variáveis de dados em uso (funções não contam)
+  varCount(f) {
+    let n = 0;
+    const count = (m) => { for (const v of m.values()) if (!(v && v.node) && !(v instanceof Builtin)) n++; };
+    count(this.globals);
+    if (f && !f.isGlobal) count(f.vars);
+    return n;
+  }
+  checkListRoom(obj, add, line) {
+    if (!this.limits) return;
+    const lim = this.limits().lista;
+    if (obj.length + add > lim) throw this.err(`Lista cheia: a memória deste computador aguenta ${lim} itens por lista. Tire itens velhos com .pop(0) ou melhore a memória no ⚙ Hardware`, line);
   }
 
   *execBlock(stmts, f) {
@@ -918,13 +936,13 @@ export class Interpreter {
     const B = (fn, min = 0, max = min) => new Builtin(name, fn, min, max);
     if (Array.isArray(obj)) {
       switch (name) {
-        case 'append': case 'adicionar': return B(([x]) => { obj.push(x); return null; }, 1);
+        case 'append': case 'adicionar': return B(([x]) => { this.checkListRoom(obj, 1, line); obj.push(x); return null; }, 1);
         case 'pop': case 'tirar': return B((a) => {
           if (!obj.length) throw this.err('pop() numa lista vazia', line);
           if (!a.length) return obj.pop();
           return obj.splice(this.listIndex(obj, a[0], line), 1)[0];
         }, 0, 1);
-        case 'insert': return B(([i, x]) => { obj.splice(i < 0 ? Math.max(0, obj.length + i) : i, 0, x); return null; }, 2);
+        case 'insert': return B(([i, x]) => { this.checkListRoom(obj, 1, line); obj.splice(i < 0 ? Math.max(0, obj.length + i) : i, 0, x); return null; }, 2);
         case 'remove': return B(([x]) => {
           const i = obj.findIndex(y => jEq(x, y));
           if (i < 0) throw this.err(`${repr(x)} não está na lista`, line);

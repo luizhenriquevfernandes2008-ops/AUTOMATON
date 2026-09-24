@@ -35,7 +35,7 @@
   <div id="menu" class="hidden">
     <div class="menu-bg"></div>
     <aside class="menu-left">
-      <div class="sys-tag"><span class="led"></span>sistema de automação · v1.1</div>
+      <div class="sys-tag"><span class="led"></span>sistema de automação · v1.2</div>
       <div class="title-row">
         <svg><use href="#gear" /></svg>
         <h1 class="title">AUTO<span class="t-accent">MATON</span></h1>
@@ -59,8 +59,9 @@
       <!-- início -->
       <div class="mpanel show" data-panel="home">
         <div class="card-x">
-          <div class="card-h"><span>// save_01</span><b id="save-state">—</b></div>
+          <div class="card-h"><span id="save-title">// fábrica 1</span><b id="save-state">—</b></div>
           <div id="save-card"></div>
+          <div class="slots" id="slots"></div>
         </div>
         <div class="card-x">
           <div class="card-h"><span>// pc1 · executando</span><b id="term-clock">2 instr/s</b></div>
@@ -101,7 +102,9 @@
           <div class="card-h"><span>// controles</span></div>
           <div class="keys">
             <kbd>W A S D</kbd><span>andar</span><kbd>Shift</kbd><span>correr</span>
-            <kbd>1</kbd><span>🔌 cabo</span><kbd>2-9</kbd><span>escolher peça</span>
+            <kbd>Ctrl</kbd><span>deslizar correndo</span><kbd>Espaço</kbd><span>pular / sair do deslize</span>
+            <kbd>1</kbd><span>🔌 cabo</span><kbd>2</kbd><span>🧱 construção</span>
+            <kbd>3-9</kbd><span>escolher peça</span><kbd>F</kbd><kbd>T</kbd><span>peça / material da construção</span>
             <kbd>Clique</kbd><span>colocar / usar</span><kbd>R</kbd><span>girar peça</span>
             <kbd>E</kbd><span>programar / detalhes</span><kbd>X</kbd><span>guardar peça</span>
             <kbd>B</kbd><span>loja</span><kbd>H</kbd><span>guia</span>
@@ -110,7 +113,9 @@
             <kbd>C</kbd><span>copiar grupo</span><kbd>V</kbd><span>colar grupo</span>
             <kbd>Ctrl+Z</kbd><span>desfazer</span><kbd>P</kbd><span>modo foto</span>
             <kbd>G</kbd><span>trocar rádio</span><kbd>F10</kbd><span>passo (depurador)</span>
+            <kbd>F</kbd><span>no Oopi: tarefas</span><kbd>🎮</kbd><span>controle funciona também</span>
           </div>
+          <div class="muted" style="margin-top:8px;font-size:12.5px">Dá pra trocar as teclas em <b>Configurações</b>.</div>
         </div>
         <div class="row"><button class="primary" id="menu-guide">📖 Abrir o guia completo</button><button id="menu-tutorial">🎓 Fazer o tutorial interativo</button></div>
       </div>
@@ -133,12 +138,20 @@
             <label class="set-row">Rádio<select id="set-station" class="set-select"></select><output></output></label>
             <div class="set-row"><span>Pet Oopi</span><span class="seg" id="set-pet"><button data-v="1">Ligado</button><button data-v="0">Desligado</button></span><output></output></div>
             <div class="set-row"><span>Autocompletar</span><span class="seg" id="set-ac"><button data-v="1">Ligado</button><button data-v="0">Desligado</button></span><output></output></div>
+            <label class="set-row">Fonte do editor<input type="range" data-setting="edFont" min="11" max="22" step="1"><output></output></label>
+            <label class="set-row">Daltonismo<select id="set-cb" class="set-select"></select><output></output></label>
+            <label class="set-row">Controle 🎮<input type="range" data-setting="padSens" min="0.4" max="2.5" step="0.1"><output></output></label>
             <div class="set-row"><span>Qualidade</span>
               <div class="seg" id="quality-seg">
                 <button data-q="baixa">Baixa</button><button data-q="media">Média</button><button data-q="alta">Alta</button>
               </div><output id="quality-out"></output>
             </div>
           </div>
+        </div>
+        <div class="card-x">
+          <div class="card-h"><span>// teclas</span><button id="keys-reset" class="mini">restaurar padrão</button></div>
+          <div class="muted" style="font-size:12.5px;margin-bottom:8px">Clique numa tecla e aperte a nova. Esc cancela. Se a tecla já era de outra ação, as duas trocam.</div>
+          <div id="keys-list" class="keys-list"></div>
         </div>
       </div>
 
@@ -149,6 +162,7 @@
           <div class="credit-list">
             <div><span>modelos 3d e efeitos sonoros</span>Kenney.nl: Factory, Space, Nature e Furniture Kit (CC0)</div>
             <div><span>céu e texturas</span>Poly Haven (CC0)</div>
+            <div><span>quadros (domínio público)</span>Wikimedia Commons: Van Gogh, Hokusai, Monet, Vermeer e Almeida Júnior</div>
             <div><span>músicas</span>Kevin MacLeod, incompetech.com (CC BY 4.0): Bossa Antigua, Casa Bossa Nova, BossaBossa, Samba Isobel, Cool Vibes, Sidewalk Shade, Latin Industries, Airport Lounge, Lobby Time, Wallpaper, Dreamer, Deliberate Thought, Carefree, Easy Lemon, Jazz Brunch, Smooth Lovin, Hep Cats, Bass Walker, George Street Shuffle, Local Forecast, Laid Back Guitars</div>
             <div><span>bossas do OpenGameArt (CC0)</span>Bossa Town (KarateStudios), Bossa Shop Theme (SpringySpringo), Bossa Nova 8-bit (Joth)</div>
             <div><span>som ambiente</span>Forest Ambience e Rain Loop (Ylmir), OpenGameArt.org (CC0)</div>
@@ -179,6 +193,12 @@
       <button id="music-next" title="Próxima (M)">⏭</button>
     </div>
     <div id="objective"></div>
+    <div id="movement" class="hud-box">
+      <div class="movement-top"><span id="move-state">PASSO</span><span><b id="move-speed">0,0</b> m/s</span></div>
+      <div class="momentum-track"><div id="momentum-bar"></div></div>
+      <div class="movement-keys">Shift correr · Ctrl deslizar · Espaço pular</div>
+      <div id="coffee-status" class="hidden"></div>
+    </div>
     <div id="crosshair"></div>
     <div id="prompt"></div>
     <div id="buildhint"></div>
@@ -226,6 +246,7 @@
             <button class="ed-tab" data-tab="maquinas">Máquinas</button>
             <button class="ed-tab" data-tab="depurar">Depurar</button>
             <button class="ed-tab" data-tab="libs">Bibliotecas</button>
+            <button class="ed-tab" data-tab="hardware">⚙ Hardware</button>
           </div>
           <div id="ed-side"><div id="console"></div></div>
         </div>
@@ -243,6 +264,9 @@
           <button class="shop-tab" data-tab="maquinas">Máquinas</button>
           <button class="shop-tab" data-tab="melhorias">Melhorias</button>
           <button class="shop-tab" data-tab="decoracao">Decoração</button>
+          <button class="shop-tab" data-tab="escritorio">Escritório</button>
+          <button class="shop-tab" data-tab="quadros">Quadros</button>
+          <button class="shop-tab" data-tab="materiais">Materiais</button>
           <button class="shop-tab" data-tab="mercado">Mercado</button>
           <button class="shop-tab" data-tab="receitas">Receitas</button>
         </div>
@@ -277,6 +301,7 @@
         <button id="panel-guide">📖 Como funciona?</button>
         <button id="panel-research" class="primary">🔬 Pesquisas</button>
       </div>
+      <div class="panel-actions" id="panel-extra"></div>
       <div class="panel-actions">
         <button id="panel-upgrade" class="primary">⬆ Melhorar</button>
       </div>

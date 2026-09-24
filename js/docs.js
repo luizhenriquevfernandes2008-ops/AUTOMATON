@@ -144,7 +144,17 @@ ${code(`enquanto Verdadeiro:
 <tr><td><code>.ligar()</code>, <code>.desligar()</code>, <code>.combustivel()</code>, <code>.producao()</code></td><td>Desligue quando não precisar pra economizar carvão</td></tr>
 <tr><th colspan="2">Lixeira</th></tr>
 <tr><td><code>.destruidos()</code></td><td>Quantos itens já destruiu</td></tr>
+<tr><th colspan="2">Canteiro (horta)</th></tr>
+<tr><td><code>.plantar("cafe")</code> ⏳</td><td>Planta: "cafe", "milho", "cenoura", "abobora", "melancia" ou "bambu" (vira madeira)</td></tr>
+<tr><td><code>.colher()</code> ⏳</td><td>Espera ficar pronta e colhe; sai pela seta laranja</td></tr>
+<tr><td><code>.pronta()</code>, <code>.crescimento()</code>, <code>.umidade()</code>, <code>.planta()</code></td><td>Estado da planta e da terra (0 a 1)</td></tr>
+<tr><td><code>.replantar(True)</code></td><td>Planta de novo sozinho depois de colher</td></tr>
+<tr><th colspan="2">Irrigador</th></tr>
+<tr><td><code>.regar()</code> ⏳, <code>.ligar()</code>, <code>.desligar()</code>, <code>.ligado()</code></td><td>Rega os canteiros num raio de 2 células</td></tr>
+<tr><th colspan="2">Depósito de Materiais</th></tr>
+<tr><td><code>.estoque()</code></td><td>Materiais de construção que você tem</td></tr>
 </table>
+<p><b>Memória:</b> cada computador guarda um número limitado de variáveis e de itens por lista (começa com 24 e 256). Melhore na aba <b>⚙ Hardware</b>. Funções não contam.</p>
 
 <h3>Veios de minério</h3>
 <table><tr><th>Veio</th><th>Item</th><th>Tempo</th><th>Libera</th></tr>${oreRows}</table>

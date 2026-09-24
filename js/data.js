@@ -24,6 +24,18 @@ export const ITEMS = {
   processador: { nome: 'Processador', base: 170, cor: '#2f6fd6' },
   modulo_foguete: { nome: 'Módulo de Foguete', base: 1200, cor: '#f0f0f5' },
   satelite: { nome: 'Satélite', base: 1500, cor: '#ffd35a' },
+  // horta
+  grao_cafe: { nome: 'Grão de Café', base: 12, cor: '#6b3a22', horta: true },
+  melancia: { nome: 'Melancia', base: 30, cor: '#3f9a4a', horta: true },
+  abobora: { nome: 'Abóbora', base: 24, cor: '#f08a2a', horta: true },
+  milho: { nome: 'Milho', base: 7, cor: '#f2d04a', horta: true },
+  cenoura: { nome: 'Cenoura', base: 5, cor: '#f0782a', horta: true },
+  // materiais de construção
+  madeira: { nome: 'Madeira', base: 4, cor: '#b07a4a', material: true },
+  concreto: { nome: 'Concreto', base: 9, cor: '#9a9ea6', material: true },
+  vidro: { nome: 'Vidro', base: 12, cor: '#9fd8ff', material: true },
+  // raro: cai com a chuva de meteoros
+  fragmento_estelar: { nome: 'Fragmento Estelar', base: 60, cor: '#b18cff' },
 };
 
 // Minérios que existem no mapa
@@ -32,6 +44,7 @@ export const ORES = {
   cobre: { item: 'minerio_cobre', nome: 'Cobre', cor: 0xe8844a, tempo: 3.5 },
   quartzo: { item: 'quartzo', nome: 'Quartzo', cor: 0xf3c4ff, tempo: 4.5, nivel: 5 },
   carvao: { item: 'carvao', nome: 'Carvão', cor: 0x2e2e38, tempo: 3, tech: 'carvao' },
+  estelar: { item: 'fragmento_estelar', nome: 'Meteorito', cor: 0xb18cff, tempo: 5, raro: true },
 };
 
 // Fornalha: receitas (a chave é o que você passa em .fundir(...)). escoria = quanto de escória sobra por fundição
@@ -40,6 +53,7 @@ export const SMELT = {
   minerio_cobre: { in: { minerio_cobre: 1 }, out: 'lingote_cobre', tempo: 2.5, nivel: 2, escoria: 0.5 },
   quartzo: { in: { quartzo: 1 }, out: 'silicio', tempo: 4, nivel: 5 },
   aco: { in: { lingote_ferro: 1, carvao: 1 }, out: 'aco', tempo: 4, nivel: 2, tech: 'metalurgia', escoria: 1 },
+  vidro: { in: { quartzo: 2 }, out: 'vidro', tempo: 3, nivel: 5 },
 };
 
 // Montadora: receitas
@@ -54,6 +68,62 @@ export const RECIPES = {
   processador: { in: { chip: 2, silicio: 1 }, qtd: 1, tempo: 6, nivel: 5, tech: 'foguete' },
   modulo_foguete: { in: { motor: 2, viga: 4, processador: 1 }, qtd: 1, tempo: 12, nivel: 5, tech: 'foguete' },
   satelite: { in: { processador: 2, robozinho: 1, fio: 4 }, qtd: 1, tempo: 14, nivel: 5, tech: 'foguete' },
+  concreto: { in: { escoria: 2, quartzo: 1 }, qtd: 2, tempo: 3, nivel: 5 },
+};
+
+// ─── Horta ───
+// tempo = segundos pra ficar pronta (com água e de dia). colheita = itens por colheita. estagios = modelos 3D de cada fase
+export const CROPS = {
+  cafe: { nome: 'Café', icone: '☕', item: 'grao_cafe', qtd: 3, tempo: 150, semente: 4, estagios: ['c_leafsA', 'c_leafsB', 'c_bush'] },
+  milho: { nome: 'Milho', icone: '🌽', item: 'milho', qtd: 3, tempo: 110, semente: 2, estagios: ['c_cornA', 'c_cornB', 'c_cornC', 'c_cornD'] },
+  cenoura: { nome: 'Cenoura', icone: '🥕', item: 'cenoura', qtd: 3, tempo: 80, semente: 1, estagios: ['c_leafsA', 'c_carrot'] },
+  abobora: { nome: 'Abóbora', icone: '🎃', item: 'abobora', qtd: 1, tempo: 170, semente: 5, estagios: ['c_leafsA', 'c_leafsB', 'c_pumpkin'] },
+  melancia: { nome: 'Melancia', icone: '🍉', item: 'melancia', qtd: 1, tempo: 200, semente: 6, estagios: ['c_leafsA', 'c_leafsB', 'c_melon'] },
+  bambu: { nome: 'Bambu', icone: '🎋', item: 'madeira', qtd: 3, tempo: 120, semente: 2, estagios: ['c_bambooA', 'c_bambooB'] },
+};
+
+// ─── Construção: paredes, pisos e tetos ───
+// custo = quantos itens do material cada peça gasta. borda = fica na borda entre duas células
+export const PIECES = {
+  parede: { nome: 'Parede', icone: '🧱', model: 's_wall', custo: 4, borda: true },
+  janela: { nome: 'Janela', icone: '🪟', model: 's_window', custo: 3, vidro: 2, borda: true },
+  porta: { nome: 'Porta', icone: '🚪', model: 's_door', custo: 3, borda: true, passa: true },
+  piso: { nome: 'Piso', icone: '⬛', model: 's_floor', custo: 2 },
+  teto: { nome: 'Teto', icone: '🏠', model: 's_floor', custo: 2, alto: true },
+  cerca: { nome: 'Cerca', icone: '🪵', model: 's_fence', custo: 1, borda: true, fixo: 'madeira' },
+};
+// materiais: item gasto, cor e acabamento
+export const MATERIALS = {
+  madeira: { nome: 'Madeira', item: 'madeira', cor: 0xb98352, rough: 0.8 },
+  tijolo: { nome: 'Tijolo', item: 'tijolo', cor: 0xb85a3e, rough: 0.95 },
+  concreto: { nome: 'Concreto', item: 'concreto', cor: 0xa3a7ae, rough: 0.95 },
+  vidro: { nome: 'Vidro', item: 'vidro', cor: 0xa8dcff, rough: 0.1, vidro: true },
+  aco: { nome: 'Aço', item: 'aco', cor: 0x7f8b9c, rough: 0.35, metal: 0.6 },
+};
+export const PAINTS = [
+  { nome: 'Sem tinta', cor: null }, { nome: 'Branco', cor: 0xf2eee6 }, { nome: 'Creme', cor: 0xf3dfb0 }, { nome: 'Terracota', cor: 0xd0714a },
+  { nome: 'Verde-sálvia', cor: 0x9bb88f }, { nome: 'Azul-céu', cor: 0x8fb8e0 }, { nome: 'Lavanda', cor: 0xb8a4de }, { nome: 'Rosa', cor: 0xe8a4b8 },
+  { nome: 'Amarelo', cor: 0xf2c94c }, { nome: 'Grafite', cor: 0x4a4e5a },
+];
+export const PAINT_PRICE = 2;
+// preço de 1 material na loja (mais caro que fabricar)
+export const MATERIAL_SHOP = { madeira: 8, tijolo: 12, concreto: 18, vidro: 24, aco: 45 };
+
+// quadros de domínio público (Wikimedia Commons)
+export const PAINTINGS = {
+  q_noite: { nome: 'A Noite Estrelada', autor: 'Vincent van Gogh, 1889', img: 'vangogh_noite', w: 512, h: 405, preco: 120 },
+  q_onda: { nome: 'A Grande Onda', autor: 'Katsushika Hokusai, c. 1831', img: 'hokusai_onda', w: 512, h: 344, preco: 120 },
+  q_impressao: { nome: 'Impressão, Nascer do Sol', autor: 'Claude Monet, 1872', img: 'monet_impressao', w: 512, h: 398, preco: 120 },
+  q_girassois: { nome: 'Girassóis', autor: 'Vincent van Gogh, 1889', img: 'vangogh_girassois', w: 512, h: 671, preco: 150 },
+  q_perola: { nome: 'Moça com Brinco de Pérola', autor: 'Johannes Vermeer, c. 1665', img: 'vermeer_perola', w: 512, h: 606, preco: 150 },
+  q_caipira: { nome: 'Caipira Picando Fumo', autor: 'Almeida Júnior, 1893', img: 'almeida_caipira', w: 512, h: 729, preco: 180 },
+  q_fuji: { nome: 'Fuji Vermelho', autor: 'Katsushika Hokusai, c. 1831', img: 'hokusai_fuji', w: 512, h: 342, preco: 150 },
+};
+
+// melhorias de hardware de cada computador (compradas no ⚙ Hardware do editor)
+export const PC_UPGRADES = {
+  clock: { nome: 'Overclock', icone: '⏩', desc: 'Multiplica as instruções por segundo deste computador.', valores: [1, 1.5, 2, 3], precos: [300, 1200, 4000], niveis: [2, 4, 6], energia: [0, 1, 2, 4], unidade: '×' },
+  memoria: { nome: 'Memória', icone: '🧠', desc: 'Quantas variáveis e itens por lista o programa pode guardar.', valores: [24, 48, 96, Infinity], lista: [256, 1024, 4096, Infinity], precos: [200, 800, 2500], niveis: [2, 4, 6], energia: [0, 0, 1, 2] },
 };
 
 // Máquinas colocáveis
@@ -160,6 +230,19 @@ export const MACHINES = {
     nome: 'Doca de Drones', preco: 800, nivel: 1, tech: 'drones', prefixo: 'doca', model: 'hangar', energia: 8,
     desc: 'Cria um drone programável que voa e carrega itens: .ir_para("bau1"), .pegar(), .soltar(). Gasta 8 ⚡.', solido: true,
   },
+  // horta
+  canteiro: {
+    nome: 'Canteiro', preco: 35, nivel: 1, prefixo: 'canteiro', model: 'plot',
+    desc: 'Planta café, milho, cenoura, abóbora, melancia ou bambu (vira madeira). Precisa de água: chuva, regador (E) ou irrigador. A colheita sai pela seta laranja.', solido: false,
+  },
+  irrigador: {
+    nome: 'Irrigador', preco: 90, nivel: 2, prefixo: 'irrigador', model: 'sprinkler', energia: 1,
+    desc: 'Rega sozinho os canteiros em volta (2 células). .regar() rega na hora, .desligar() para. Gasta 1 ⚡.', solido: true,
+  },
+  deposito: {
+    nome: 'Depósito de Materiais', preco: 120, nivel: 1, prefixo: 'deposito', model: 'depot',
+    desc: 'Recebe madeira, tijolo, concreto, vidro e aço por esteira e guarda no seu estoque de construção (🧱). Não gasta energia.', solido: true,
+  },
 };
 
 // Máquinas que podem ser melhoradas pra Mk2 / Mk3
@@ -209,6 +292,8 @@ export const DECOR_BONUS = {
   luminaria: { vel: 0.05 }, barris: { vel: 0.03 }, antena: { cpu: 0.05, vel: 0.05 },
   sofa: { cpu: 0.03 }, cafeteira: { vel: 0.04 }, banco: { cpu: 0.02 },
   estatua: { cpu: 0.1, vel: 0.1, raio: 5 },
+  estante: { cpu: 0.04 }, poltrona: { cpu: 0.03 }, tv: { cpu: 0.02 }, urso: { cpu: 0.03 }, sofa_longo: { cpu: 0.04 },
+  mesa_redonda: { cpu: 0.02 }, tapete: { cpu: 0.02 }, luminaria_piso: { vel: 0.04 }, geladeira: { vel: 0.03 }, vaso_flor: { cpu: 0.03 },
 };
 export const DECOR_BONUS_MAX = 0.3;
 
@@ -247,6 +332,18 @@ export const ACHIEVEMENTS = [
   { id: 'pet', nome: 'Melhor amigo', desc: 'Faça carinho no Oopi.', icone: '💜' },
   { id: 'mk3', nome: 'Turbinado', desc: 'Melhore uma máquina pra Mk3.', icone: '⏫' },
   { id: 'copiar', nome: 'Ctrl+C, Ctrl+V', desc: 'Cole um grupo de máquinas.', icone: '📋' },
+  { id: 'horta', nome: 'Mão verde', desc: 'Faça a primeira colheita na horta.', icone: '🌱' },
+  { id: 'colheita_100', nome: 'Fazendeiro(a)', desc: 'Colha 100 itens.', icone: '🧑‍🌾' },
+  { id: 'estufa', nome: 'Efeito estufa (do bom)', desc: 'Colha um canteiro debaixo de um teto de vidro.', icone: '🪴' },
+  { id: 'arquiteto', nome: 'Arquiteto(a)', desc: 'Construa 30 peças (paredes, pisos, tetos...).', icone: '🏗️' },
+  { id: 'pintor', nome: 'Mão na tinta', desc: 'Pinte uma parede.', icone: '🖌️' },
+  { id: 'galeria', nome: 'Galeria de arte', desc: 'Pendure 3 quadros.', icone: '🖼️' },
+  { id: 'meteoro', nome: 'Poeira de estrelas', desc: 'Pegue um fragmento estelar.', icone: '☄️' },
+  { id: 'aurora', nome: 'Luzes do céu', desc: 'Veja uma aurora.', icone: '🌌' },
+  { id: 'feira', nome: 'Dia de feira', desc: 'Venda durante uma feira.', icone: '🎪' },
+  { id: 'overclock', nome: 'Overclock', desc: 'Melhore o hardware de um computador.', icone: '⏩' },
+  { id: 'recorde', nome: 'Recordista', desc: 'Bata um recorde da fábrica.', icone: '🏆' },
+  { id: 'oopi_tarefa', nome: 'Oopi ajudante', desc: 'Peça uma tarefa pro Oopi.', icone: '🤖' },
 ];
 
 // ferramentas que ficam sempre na barra
@@ -254,6 +351,10 @@ export const TOOLS = {
   cabo: {
     nome: 'Cabo 🔌',
     desc: 'Clique no gerador (ou poste) e depois na máquina pra ligar. Continua ligando em sequência. Botão direito / Q para. X remove os cabos da peça mirada.',
+  },
+  construir: {
+    nome: 'Construção 🧱',
+    desc: 'Paredes, janelas, portas, pisos, tetos e cercas. F troca a peça, T troca o material (ou a cor no 🖌️ Pintar). Paredes ficam na borda mais perto da mira. X desmonta e devolve o material.',
   },
 };
 
@@ -274,6 +375,21 @@ export const DECOR = {
   barris: { nome: 'Barris', preco: 30, nivel: 4, model: 'd_barrels', bonus: '+3% velocidade nas máquinas perto' },
   antena: { nome: 'Antena Parabólica', preco: 150, nivel: 5, model: 'd_dish', bonus: '+5% CPU e velocidade perto' },
   estatua: { nome: 'Estátua do Oopi', preco: 1500, nivel: 8, model: 'd_statue', bonus: '+10% CPU e velocidade num raio grande' },
+  // móveis do escritório (podem ficar dentro do escritório)
+  estante: { nome: 'Estante de Livros', preco: 70, nivel: 1, model: 'o_bookcase', casa: true, bonus: '+4% CPU perto' },
+  poltrona: { nome: 'Poltrona', preco: 60, nivel: 1, model: 'o_armchair', casa: true, bonus: '+3% CPU perto' },
+  sofa_longo: { nome: 'Sofá Grande', preco: 110, nivel: 2, model: 'o_sofaLong', casa: true, bonus: '+4% CPU perto' },
+  tv: { nome: 'TV com Rack', preco: 140, nivel: 2, model: 'o_tv', casa: true, bonus: '+2% CPU perto' },
+  tapete: { nome: 'Tapete', preco: 25, nivel: 1, model: 'o_rug', casa: true, baixo: true, bonus: '+2% CPU perto' },
+  luminaria_piso: { nome: 'Luminária de Pé', preco: 45, nivel: 1, model: 'o_floorLamp', casa: true, luz: true, bonus: '+4% velocidade perto' },
+  mesa_redonda: { nome: 'Mesa Redonda', preco: 50, nivel: 1, model: 'o_tableRound', casa: true, bonus: '+2% CPU perto' },
+  cadeira: { nome: 'Cadeira', preco: 20, nivel: 1, model: 'o_chair', casa: true },
+  mesinha: { nome: 'Mesinha com Abajur', preco: 40, nivel: 1, model: 'o_sideTable', casa: true, luz: true },
+  geladeira: { nome: 'Frigobar', preco: 90, nivel: 2, model: 'o_fridge', casa: true, bonus: '+3% velocidade perto' },
+  cabideiro: { nome: 'Cabideiro', preco: 20, nivel: 1, model: 'o_coatRack', casa: true },
+  urso: { nome: 'Ursinho de Pelúcia', preco: 30, nivel: 1, model: 'o_bear', casa: true, bonus: '+3% CPU perto (fofura)' },
+  vaso_flor: { nome: 'Plantinha', preco: 15, nivel: 1, model: 'o_plant', casa: true, bonus: '+3% CPU perto' },
+  ventilador: { nome: 'Ventilador de Teto', preco: 60, nivel: 2, model: 'o_fan', casa: true, noTeto: true },
 };
 
 export const UPGRADES = {
@@ -456,6 +572,8 @@ historico = []
 while True:
     d = dinheiro()
     historico.append(d)
+    if len(historico) > 30:
+        historico.pop(0)       # guarda só os últimos 30 (economiza memória)
     t.grafico(historico)
     if energia()["usado"] > energia()["gerado"]:
         l.cor("vermelho")
@@ -486,6 +604,21 @@ caixa = maquina("venda1")
 while True:
     minerar_varios(["minerador1"])
     vender_se_caro(caixa, "minerio_ferro", 2.3)
+`,
+  },
+  {
+    nome: '🌱 Horta automática', code: `# Planta, espera crescer e colhe (a colheita sai pela seta laranja)
+horta = maquina("canteiro1")
+agua = maquina("irrigador1")    # opcional: rega sozinho
+caixa = maquina("venda1")
+
+horta.plantar("cafe")
+while True:
+    if horta.umidade() < 0.3:
+        agua.regar()
+    horta.colher()             # espera ficar pronta e colhe
+    if caixa.quantidade() >= 6:
+        caixa.vender()
 `,
   },
   {

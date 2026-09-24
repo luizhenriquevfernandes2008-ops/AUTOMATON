@@ -6,8 +6,17 @@ import { serializeWires, loadWires } from './power.js';
 import { setOreVisible } from './world.js';
 import { MACHINES, DECOR, CELL } from './data.js';
 import { audio } from './audio.js';
+import { serializeStructures, loadStructures } from './structures.js';
+import { serializeEvents, loadEvents } from './events.js';
 
-const KEY = 'automaton_save_v1';
+// 3 fábricas (espaços de save). A 1 usa a chave antiga pra não perder saves de versões anteriores.
+export const SLOTS = [1, 2, 3];
+const slotKey = (n) => (n === 1 ? 'automaton_save_v1' : `automaton_save_slot${n}`);
+export function currentSlot() {
+  try { const n = +localStorage.getItem('automaton_slot'); return SLOTS.includes(n) ? n : 1; } catch { return 1; }
+}
+export function setSlot(n) { try { localStorage.setItem('automaton_slot', String(n)); } catch { /* ignora */ } }
+const KEY = slotKey(currentSlot());
 // o jogo se chamava "Fabriquinha": traz o save antigo, se existir
 try {
   const old = localStorage.getItem('fabriquinha_save_v1');
@@ -15,9 +24,9 @@ try {
   if (old) localStorage.removeItem('fabriquinha_save_v1');
 } catch { /* sem localStorage */ }
 
-export function saveInfo() {
+export function saveInfo(slot = currentSlot()) {
   try {
-    const d = JSON.parse(localStorage.getItem(KEY) || 'null');
+    const d = JSON.parse(localStorage.getItem(slotKey(slot)) || 'null');
     if (!d) return null;
     return {
       level: d.economy?.level || 1,
@@ -27,12 +36,22 @@ export function saveInfo() {
       belts: (d.entities || []).filter((e) => e.type === 'esteira').length,
       objective: d.economy?.objective || 0,
       earned: d.economy?.stats?.earned || 0,
+      name: d.name || '',
+      saved: d.savedAt || 0,
     };
   } catch { return null; }
 }
 
 export function hasSave() {
   try { return !!localStorage.getItem(KEY); } catch { return false; }
+}
+export function renameSlot(slot, name) {
+  try {
+    const d = JSON.parse(localStorage.getItem(slotKey(slot)) || 'null');
+    if (!d) return;
+    d.name = name;
+    localStorage.setItem(slotKey(slot), JSON.stringify(d));
+  } catch { /* ignora */ }
 }
 
 export function saveGame() {
@@ -48,6 +67,11 @@ export function saveGame() {
       player: { x: p.x, z: p.z, yaw: game.camera.rotation.y, pitch: game.camera.rotation.x },
       stash: game.builder.codeStash,
       settings: { ...audio.settings, sens: game.player.controls.pointerSpeed, musicOn: audio.musicOn },
+      structures: serializeStructures(),
+      events: serializeEvents(),
+      pet: game.pet?.serialize(),
+      name: game.slotName || '',
+      savedAt: Date.now(),
     };
     localStorage.setItem(KEY, JSON.stringify(data));
     return true;
@@ -69,7 +93,11 @@ export function loadGame() {
   try { d = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { d = null; }
   if (!d) return false;
   game.time = d.time || 0;
+  game.slotName = d.name || '';
   game.economy.load(d.economy);
+  loadEvents(d.events); // antes das máquinas: o minerador precisa achar o veio de meteorito
+  loadStructures(d.structures);
+  game.pet?.load(d.pet);
   for (const ed of d.entities || []) {
     if (!MACHINES[ed.type] && !DECOR[ed.type]) continue;
     try {
@@ -92,6 +120,6 @@ export function loadGame() {
   return true;
 }
 
-export function deleteSave() {
-  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+export function deleteSave(slot = currentSlot()) {
+  try { localStorage.removeItem(slotKey(slot)); } catch { /* ignore */ }
 }

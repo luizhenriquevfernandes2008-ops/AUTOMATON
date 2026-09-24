@@ -62,6 +62,14 @@ const SFX = {
   thruster: ['thrusterFire_000'],
   achievement: ['maximize_008'],
   photo: ['laserRetro_000'],
+  stepWood: ['footstep_wood_000', 'footstep_wood_001', 'footstep_wood_002'],
+  plank: ['impactPlank_medium_000', 'impactPlank_medium_001'],
+  glass: ['impactGlass_light_000', 'impactGlass_light_001'],
+  water: ['slime_000', 'slime_001'],
+  meteor: ['explosionCrunch_000'],
+  harvest: ['scratch_001'],
+  record: ['maximize_003'],
+  plant: ['drop_001'],
 };
 
 class AudioManager {

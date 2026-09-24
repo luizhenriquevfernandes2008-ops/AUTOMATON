@@ -3,8 +3,10 @@ import { game } from './state.js';
 import { TECHS, PHASES, ITEMS, ACHIEVEMENTS, REGIONS, MACHINES, CELL, WORLD_MIN, WORLD_MAX, GRID_MIN, GRID_MAX, ORES } from './data.js';
 import { thumbs } from './thumbs.js';
 import { audio } from './audio.js';
-import { ores } from './machines.js';
+import { ores, findByName, itemName } from './machines.js';
 import { wires } from './power.js';
+import { structures, edgeSegment } from './structures.js';
+import { PIECES, MATERIALS } from './data.js';
 
 const fmt = (n) => Math.round(n).toLocaleString('pt-BR');
 const icon = (k) => `<img class="ic" src="${thumbs['item:' + k] || ''}" alt="">`;
@@ -163,9 +165,9 @@ const TYPE_COLOR = {
   divisor: '#3ee6b8', juntador: '#ffcf5c', minerador: '#6cb8ff', fornalha: '#ff8a3a', montadora: '#b39bff', separador: '#ff6ec7',
   venda: '#ffb020', bau: '#c0643c', computador: '#3ee6b8', gerador: '#ffd84a', gerador_grande: '#ffd84a', gerador_carvao: '#ffd84a',
   painel_solar: '#8fb8ff', poste: '#ffa640', laboratorio: '#6cf5ff', doca_drones: '#9fd8ff', lampada: '#fff4a0', tela: '#9fa8c0',
-  altofalante: '#9fa8c0', lixeira: '#7a6a5a',
+  altofalante: '#9fa8c0', lixeira: '#7a6a5a', canteiro: '#6aa84a', irrigador: '#6cb8ff', deposito: '#b98352',
 };
-const ORE_COLOR = { ferro: '#9fb4d6', cobre: '#e8844a', quartzo: '#f3c4ff', carvao: '#555566' };
+const ORE_COLOR = { ferro: '#9fb4d6', cobre: '#e8844a', quartzo: '#f3c4ff', carvao: '#555566', estelar: '#b18cff' };
 const mapView = { zoom: 1, cx: 0, cz: 0, drag: null };
 export function renderMap(el) {
   if (!el.querySelector('canvas')) {
@@ -221,6 +223,19 @@ function drawMap(c) {
   g.fillStyle = '#ffffff22'; g.strokeStyle = '#ffb020'; g.lineWidth = 2;
   g.fillRect(X(-1), Z(-22), 3 * s, 3 * s); g.strokeRect(X(-1), Z(-22), 3 * s, 3 * s);
   g.fillStyle = '#ffb020'; g.font = `${Math.max(12, s * 1.2)}px sans-serif`; g.fillText('🚀', X(-0.5), Z(-19.6));
+  // pisos, tetos e paredes construídos
+  for (const st of structures.values()) {
+    if (st.kind !== 'peca') continue;
+    const col = '#' + (st.paint ?? MATERIALS[st.mat].cor).toString(16).padStart(6, '0');
+    if (PIECES[st.piece].borda) {
+      const sg = edgeSegment(st);
+      g.strokeStyle = col; g.lineWidth = Math.max(2, s * 0.18);
+      g.beginPath(); g.moveTo(X(sg.ax / CELL), Z(sg.az / CELL)); g.lineTo(X(sg.bx / CELL), Z(sg.bz / CELL)); g.stroke();
+    } else {
+      g.fillStyle = col + (PIECES[st.piece].alto ? '30' : '55');
+      g.fillRect(X(st.x), Z(st.z), s, s);
+    }
+  }
   // cabos
   g.strokeStyle = '#ffa64088'; g.lineWidth = 1.2;
   for (const w of wires) { g.beginPath(); g.moveTo(X(w.a.x + 0.5), Z(w.a.z + 0.5)); g.lineTo(X(w.b.x + 0.5), Z(w.b.z + 0.5)); g.stroke(); }
@@ -242,6 +257,9 @@ function drawMap(c) {
     if (e.name && s > 9) { g.fillStyle = '#ece5d5'; g.font = '10px "JetBrains Mono", monospace'; g.fillText(e.name, x, z - 2); }
   }
   for (const d of game.drones || []) { g.fillStyle = '#9fd8ff'; g.beginPath(); g.arc(X(d.p.x / CELL), Z(d.p.z / CELL), Math.max(3, s * 0.35), 0, Math.PI * 2); g.fill(); }
+  // pedrinhas de meteorito e o Oopi
+  for (const pk of game.events?.pickups || []) { g.fillStyle = '#b18cff'; g.beginPath(); g.arc(X(pk.x / CELL), Z(pk.z / CELL), Math.max(2.5, s * 0.25), 0, Math.PI * 2); g.fill(); }
+  if (game.pet?.obj.visible) { g.fillStyle = '#ff6ec7'; g.font = `${Math.max(12, s)}px sans-serif`; g.fillText('🤖', X(game.pet.p.x / CELL) - 6, Z(game.pet.p.z / CELL) + 5); }
   // jogador
   const p = game.camera.position;
   const fwd = { x: -Math.sin(game.camera.rotation.y), z: -Math.cos(game.camera.rotation.y) };
@@ -249,4 +267,64 @@ function drawMap(c) {
   g.fillStyle = '#ff5a6e'; g.beginPath();
   g.moveTo(px + fwd.x * 12, pz + fwd.z * 12); g.lineTo(px - fwd.z * 6 - fwd.x * 5, pz + fwd.x * 6 - fwd.z * 5); g.lineTo(px + fwd.z * 6 - fwd.x * 5, pz - fwd.x * 6 - fwd.z * 5); g.closePath(); g.fill();
   g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke();
+}
+
+// ─────────────── Oopi: humor e tarefas ───────────────
+export function renderPet(el) {
+  const pet = game.pet;
+  if (!pet || !pet.obj.visible) { el.innerHTML = '<p class="muted">O Oopi está desligado nas Configurações.</p>'; return; }
+  const ripe = game.entities.filter((e) => e.type === 'canteiro' && e.ready).length;
+  const rocks = (game.events?.pickups || []).length;
+  const sources = game.entities.filter((e) => e.isMachine && e.name && (e.type === 'bau' || e.type === 'venda' || e.out?.length || e.type === 'canteiro'));
+  const targets = game.entities.filter((e) => e.isMachine && e.name && e.canAccept && !['computador', 'gerador', 'gerador_grande', 'poste'].includes(e.type));
+  const opt = (list) => list.map((e) => `<option value="${e.name}">${e.name}</option>`).join('');
+  const t = pet.task;
+  const taskText = !t ? 'Nenhuma: tô livre! 😊' : t.tipo === 'colher' ? `🧺 Colhendo a horta (${t.done} feitos)` : t.tipo === 'meteoritos' ? `☄️ Buscando meteoritos (${t.done})` : `📦 Levando ${t.item ? itemName(t.item) : 'itens'} de ${t.from} pra ${t.to} (${t.done}/${t.n})`;
+  el.innerHTML = `
+  <div class="pet-win">
+    <div class="pet-top">
+      <img src="${thumbs.estatua || ''}" alt="">
+      <div>
+        <div class="pet-name">Oopi <span class="muted">· robozinho assistente</span></div>
+        <div class="pet-mood">Humor: <b>${pet.moodText}</b></div>
+        <div class="progress-line pet-bar"><i style="width:${Math.round(pet.mood * 100)}%"></i></div>
+        <div class="muted" style="font-size:12.5px">Carinho (<kbd>E</kbd> nele) e tarefas deixam ele feliz. Ele comemora quando a fábrica bate recorde 🏆</div>
+      </div>
+    </div>
+    <div class="row">
+      <button id="pet-carinho" class="primary">💜 Carinho</button>
+      <button id="pet-seguir" class="${pet.mode === 'seguir' ? 'on' : ''}">🐾 Me seguir</button>
+      <button id="pet-ficar" class="${pet.mode === 'ficar' ? 'on' : ''}">🧍 Ficar aqui</button>
+    </div>
+    <div class="card-x pet-task"><div class="card-h"><span>// tarefa atual</span>${t ? '<button id="pet-cancel" class="mini">cancelar</button>' : ''}</div><div>${taskText}</div></div>
+    <div class="pet-tasks">
+      <button data-t="colher" ${ripe ? '' : 'disabled'}>🧺 Colher a horta <small>${ripe} canteiro(s) pronto(s)</small></button>
+      <button data-t="meteoritos" ${rocks ? '' : 'disabled'}>☄️ Buscar meteoritos <small>${rocks} no chão</small></button>
+    </div>
+    <div class="card-x">
+      <div class="card-h"><span>// 📦 levar itens</span></div>
+      <div class="pet-fetch">
+        <label>De <select id="pet-from">${opt(sources)}</select></label>
+        <label>Item <select id="pet-item"><option value="">qualquer</option>${Object.keys(ITEMS).map((k) => `<option value="${k}">${ITEMS[k].nome}</option>`).join('')}</select></label>
+        <label>Pra <select id="pet-to">${opt(targets)}</select></label>
+        <label>Quantos <select id="pet-n"><option>1</option><option selected>5</option><option>10</option><option>20</option></select></label>
+        <button id="pet-go" ${sources.length && targets.length ? '' : 'disabled'}>Vai, Oopi!</button>
+      </div>
+      <div class="muted" style="font-size:12.5px;margin-top:6px">Ele pega de baús, caixas de venda, canteiros e da saída das máquinas, e entrega em qualquer máquina que aceite o item.</div>
+    </div>
+  </div>`;
+  const $ = (s) => el.querySelector(s);
+  const again = () => { audio.play('click', { volume: 0.4 }); renderPet(el); };
+  $('#pet-carinho').onclick = () => { pet.pet(); again(); };
+  $('#pet-seguir').onclick = () => { pet.setMode('seguir'); again(); };
+  $('#pet-ficar').onclick = () => { pet.setMode('ficar'); again(); };
+  if ($('#pet-cancel')) $('#pet-cancel').onclick = () => { pet.cancelTask(); pet.say('Tá bom, parei 👍'); again(); };
+  el.querySelectorAll('.pet-tasks button').forEach((b) => { b.onclick = () => { pet.startTask({ tipo: b.dataset.t }); again(); }; });
+  $('#pet-go').onclick = () => {
+    const from = $('#pet-from').value, to = $('#pet-to').value;
+    if (from === to) { game.ui.toast('Escolha máquinas diferentes', 'warn'); return; }
+    if (!findByName(from) || !findByName(to)) return;
+    pet.startTask({ tipo: 'buscar', from, to, item: $('#pet-item').value || null, n: +$('#pet-n').value });
+    again();
+  };
 }

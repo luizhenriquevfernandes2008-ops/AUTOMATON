@@ -13,7 +13,7 @@ export const makesPower = (e) => !!(MACHINES[e.type]?.gera);
 // quanto ⚡ a entidade gera AGORA (carvão precisa de combustível, solar depende do sol)
 export const outputOf = (e) => (e.powerOutput ? e.powerOutput() : (MACHINES[e.type]?.gera || 0));
 // quanto ⚡ ela pede (Mk2/Mk3 gastam mais)
-export const demandOf = (e) => (MACHINES[e.type]?.energia || 0) * (TIERS[e.tier || 0]?.energia || 1);
+export const demandOf = (e) => (MACHINES[e.type]?.energia || 0) * (TIERS[e.tier || 0]?.energia || 1) + (e.hwEnergy || 0);
 export function wireMax(e) {
   if (WIRE_MAX[e.type]) return WIRE_MAX[e.type];
   return usesPower(e) ? WIRE_MAX_MACHINE : 0;
