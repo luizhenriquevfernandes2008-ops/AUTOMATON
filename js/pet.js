@@ -9,6 +9,8 @@ import { findByName, itemName } from './machines.js';
 import { takeFrom } from './machines2.js';
 import { takeItemMesh, releaseItemMesh } from './itemMeshes.js';
 import { collectPickup } from './events.js';
+import { OOPI_HATS, OOPI_COLORS, FRIEND_PERKS } from './data.js';
+import { crateHint } from './disks.js';
 
 const IDLE_LINES = [
   'Que dia bonito pra automatizar 😊', 'Bip bop! 🤖', 'Já tomou um cafezinho hoje? ☕', 'Essa esteira tá linda!',
@@ -40,6 +42,11 @@ export class Pet {
     this.cargo = null;        // item carregado
     this.mood = 0.6;          // 0..1 (carinho sobe, o tempo baixa devagar)
     this.home = new THREE.Vector3();
+    this.hatObj = null;
+    this.origMats = new Map();
+    this.body.traverse((o) => { if (o.isMesh) this.origMats.set(o, o.material); });
+    this.lastPetT = -99;
+    this.autoT = 5;
     game.scene.add(this.obj);
     const cam = game.camera.position;
     this.p.set(cam.x + 1.5, 0, cam.z + 1);
@@ -50,6 +57,10 @@ export class Pet {
     game.on('weather', (w) => { if (w === 'chuva') this.say('Olha a chuva! 🌧️ Rega a horta de graça.'); });
     game.on('computerError', (pc) => { if (Math.random() < 0.6) this.say(`Ih, o ${pc.name} deu erro na linha ${pc.errorLine} 😬`); });
     game.on('record', (r) => { this.say(`🏆 Recorde! ${r.texto}`, 6); this.celebrate(); });
+    game.on('contractDone', (o) => { this.say(`${o.icone} Contrato entregue! Bora pro próximo? 📋`, 5); this.celebrate(); });
+    game.on('missionDone', () => { this.say('Mais um satélite lá em cima! 🛰️✨', 6); this.celebrate(); });
+    game.on('challenge', () => { if (Math.random() < 0.7) this.say('Que código lindo! 🧩', 4); });
+    game.on('disk', (from) => { if (from !== 'correio') this.say('Um disco de dados! Vamos analisar no laboratório? 💾', 5); });
     game.on('evento_mundo', (t) => {
       if (t === 'feira') this.say('Dia de feira! 🎪 Bora vender caro!', 5);
       if (t === 'aurora') this.say('Que lindo… 🌌', 5);
@@ -90,9 +101,51 @@ export class Pet {
     this.hop = 0.35;
     this.mood = Math.min(1, this.mood + 0.15);
     game.economy.stats.pets = (game.economy.stats.pets || 0) + 1;
+    if (game.time - this.lastPetT > 20) { this.lastPetT = game.time; this.addFriend(1); }
     puff(new THREE.Vector3(this.p.x, 0.9, this.p.z), { color: 0xff6ec7, count: 8, size: 0.2, up: 1.4, additive: true, spread: 0.6, life: 1.2 });
     const lines = this.mood > 0.9 ? ['Te amo, humano! 💜💜', 'Melhor dia da minha vida ✨', 'Bip bip bip!!! ❤️'] : ['Hihi, cócegas! 💜', 'Você é meu humano favorito 💜', 'Bip bip ❤️', 'Obrigado pelo carinho!'];
     this.say(lines[Math.floor(Math.random() * lines.length)]);
+  }
+  // ─── amizade (carinho +1 a cada 20 s, tarefa +3) ───
+  addFriend(n) {
+    const eco = game.economy;
+    const before = eco.friendLevel;
+    eco.oopi.friend += n;
+    const after = eco.friendLevel;
+    if (after > before) {
+      if (after === 2) this.giveHat('flor');
+      if (after === 4) this.giveHat('coroa');
+      this.say(`Amizade nível ${after}! 💞`, 6);
+      this.celebrate();
+      game.ui?.banner(`💞 Amizade com o Oopi: nível ${after}`, 'Vocês estão cada vez mais amigos!', [FRIEND_PERKS[after - 1]]);
+    }
+  }
+  giveHat(k) {
+    const o = game.economy.oopi;
+    if (!o.hats.includes(k)) o.hats.push(k);
+    o.hat = k;
+    this.applyLook();
+  }
+  // chapéu e cor (loja de fichas)
+  applyLook() {
+    const o = game.economy?.oopi;
+    if (!o) return;
+    if (this.hatObj) { this.body.remove(this.hatObj); this.hatObj = null; }
+    const H = o.hat && OOPI_HATS[o.hat];
+    if (H) {
+      const h = cloneModel(H.model);
+      const top = this.body.userData.size?.y || 0.36;
+      h.scale.multiplyScalar(1 / 2.2); // o corpo é escalado 2.2×
+      if (H.model === 'cog') h.scale.multiplyScalar(0.8);
+      h.position.y = top + (H.y || 0);
+      this.body.add(h);
+      this.hatObj = h;
+    }
+    const C = OOPI_COLORS[o.color] || OOPI_COLORS.padrao;
+    for (const [mesh, mat] of this.origMats) {
+      if (C.cor == null) mesh.material = mat;
+      else { const m = mat.clone(); m.color = new THREE.Color(mat.color).lerp(new THREE.Color(C.cor), 0.65); mesh.material = m; }
+    }
   }
   // pulinho + giro + confete
   celebrate() {
@@ -173,7 +226,7 @@ export class Pet {
       : t.tipo === 'meteoritos' ? (t.done ? `Peguei ${t.done} fragmento(s)! ✨` : 'Não tem pedrinha nenhuma por aí')
         : t.done ? `Entreguei ${t.done} item(ns) 📦` : 'Não consegui buscar 😕';
     this.say(msg, 4);
-    if (t.done) this.mood = Math.min(1, this.mood + 0.05);
+    if (t.done) { this.mood = Math.min(1, this.mood + 0.05); if (!t.auto) this.addFriend(3); }
     this.cancelTask();
   }
 
@@ -232,11 +285,20 @@ export class Pet {
     this.obj.position.set(this.p.x, h + hopY, this.p.z);
     if (this.cargo) this.cargo.mesh.position.set(this.p.x, this.obj.position.y + 0.95, this.p.z);
     if (this.hearts > 0) this.hearts -= dt;
+    // amizade nível 3: pega sozinho as pedrinhas de meteoro perto
+    this.autoT -= dt;
+    if (this.autoT <= 0) {
+      this.autoT = 8;
+      if (!this.task && this.mode === 'seguir' && game.economy.friendLevel >= 3) {
+        const near = (game.events?.pickups || []).some((pk) => Math.hypot(pk.x - cam.x, pk.z - cam.z) < 14);
+        if (near) { this.task = { tipo: 'meteoritos', step: 0, wait: 0, done: 0, auto: true }; this.say('Deixa que eu pego as pedrinhas! ☄️'); }
+      }
+    }
     // falas aleatórias
     this.talkT -= dt;
     if (this.talkT <= 0) {
       this.talkT = 45 + Math.random() * 60;
-      if (game.mode === 'play' && !this.task) this.say(this.mood < 0.35 ? 'Tô com saudade de um carinho… 🥺' : IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)]);
+      if (game.mode === 'play' && !this.task) this.say(this.mood < 0.35 ? 'Tô com saudade de um carinho… 🥺' : this.tip());
     }
     if (this.bubble && this.bubble.visible) {
       this.bubbleT -= dt;
@@ -244,6 +306,17 @@ export class Pet {
       this.bubble.material.opacity = Math.min(1, this.bubbleT * 2);
       if (this.bubbleT <= 0) this.bubble.visible = false;
     }
+  }
+  // dicas de coisas pra fazer (misturadas com as falas normais)
+  tip() {
+    const eco = game.economy;
+    const r = Math.random();
+    if (r < 0.2) { const h = crateHint(); if (h) return `Ouvi dizer que tem uma caixa perdida ${h} 📦`; }
+    if (r < 0.35 && eco.level >= 2 && !(eco.contracts?.active?.length)) return 'Tem pedido novo no 📋 Quadro de Contratos!';
+    if (r < 0.45 && eco.disks > 0) return `Você tem ${eco.disks} 💾 disco(s) pra analisar no Laboratório!`;
+    if (r < 0.55 && eco.tokens >= 3) return `Tá com ${eco.tokens} 🎟️ fichas… me compra um chapéu? 🎩`;
+    if (r < 0.62) return 'Já tentou os quebra-cabeças do 🧩 Terminal de Desafios?';
+    return IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)];
   }
   turnTo(target, k) {
     let d = target - this.obj.rotation.y;

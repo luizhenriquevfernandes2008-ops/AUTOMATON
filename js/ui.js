@@ -1,6 +1,11 @@
 // Interface: HUD, barra de itens, loja, painel de máquina, janelas, confirmações e avisos.
 import { game } from './state.js';
-import { MACHINES, DECOR, UPGRADES, ITEMS, OBJECTIVES, unlocksAt, RECIPES, SMELT, TECHS, PHASES, TIERS, TIERABLE, REGIONS, PIECES, MATERIALS, PAINTS, PAINT_PRICE, PAINTINGS, MATERIAL_SHOP, CROPS } from './data.js';
+import { MACHINES, DECOR, UPGRADES, ITEMS, OBJECTIVES, unlocksAt, RECIPES, SMELT, TECHS, PHASES, TIERS, TIERABLE, REGIONS, PIECES, MATERIALS, PAINTS, PAINT_PRICE, PAINTINGS, MATERIAL_SHOP, CROPS, recipeOut, OOPI_HATS, OOPI_COLORS, SATELLITES, missionNeeds } from './data.js';
+import { renderContracts, contractState } from './contracts.js';
+import { renderChallenges } from './challengeUI.js';
+import { renderBlueprints } from './blueprints.js';
+import { renderMail } from './mail.js';
+import { confetti } from './fx.js';
 import { thumbs } from './thumbs.js';
 import { audio } from './audio.js';
 import { Editor } from './editor.js';
@@ -17,7 +22,10 @@ const $ = (s) => document.querySelector(s);
 const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
 // máquinas sem painel de detalhes
 export const NO_PANEL = new Set(['esteira', 'poste', 'divisor', 'juntador', 'esteira_alta', 'rampa_sobe', 'rampa_desce']);
-const XWIN = { research: '🔬 Laboratório · Pesquisas', platform: '🚀 Projeto Foguete', stats: '📊 Estatísticas', map: '🗺️ Mapa', pet: '🤖 Oopi' };
+const XWIN = { research: '🔬 Laboratório · Pesquisas', platform: '🚀 Projeto Foguete', stats: '📊 Estatísticas', map: '🗺️ Mapa', pet: '🤖 Oopi', contracts: '📋 Quadro de Contratos', challenges: '🧩 Terminal de Desafios', projects: '📐 Projetos', mail: '📬 Correio da Manhã' };
+// janelas que não se redesenham sozinhas (têm campos de texto)
+const NO_AUTO = new Set(['pet', 'challenges', 'projects', 'mail']);
+const CONTRACT_SLOTS = [{ vagas: 3, fichas: 8 }, { vagas: 4, fichas: 15 }];
 
 export class UI {
   constructor() {
@@ -45,7 +53,7 @@ export class UI {
     game.on('tech', (id) => {
       const t = TECHS[id];
       const machines = Object.values(MACHINES).filter((m) => m.tech === id).map((m) => m.nome);
-      const recs = Object.entries(RECIPES).filter(([, r]) => r.tech === id).map(([k]) => ITEMS[k].nome);
+      const recs = Object.entries(RECIPES).filter(([, r]) => r.tech === id && !r.alt).map(([k, r]) => ITEMS[recipeOut(k, r)].nome);
       this.banner(`${t.icone} ${t.nome}`, 'Pesquisa concluída!', [...machines.map((m) => 'Máquina: ' + m), ...recs.map((r) => 'Receita: ' + r), t.desc]);
       this.renderObjective();
     });
@@ -55,9 +63,20 @@ export class UI {
       this.renderObjective();
     });
     game.on('launched', () => {
-      this.banner('🚀 FOGUETE LANÇADO!', 'Você terminou o Projeto Foguete 🎉', ['Obrigado por jogar AUTOMATON!', 'A fábrica continua sua: siga crescendo com calma.']);
+      this.banner('🚀 FOGUETE LANÇADO!', 'Você terminou o Projeto Foguete 🎉 +2 ⭐', ['🛰️ Programa Espacial liberado: a plataforma agora lança satélites com bônus permanentes', '♾️ Pesquisas infinitas liberadas no Laboratório (gastam ⭐ estrelas)', 'Obrigado por jogar AUTOMATON! 💜']);
       this.renderObjective();
     });
+    game.on('missionDone', ({ sat, prize, n }) => {
+      const S = SATELLITES[sat];
+      this.banner(`${S.icone} Missão ${n + 1} concluída!`, `${S.nome} em órbita (${game.economy.satLvl(sat)}/5)`, [S.desc, `+$ ${fmt(prize.dinheiro)} · +${prize.estrelas} ⭐`]);
+      this.renderObjective();
+      this.updateStats();
+    });
+    game.on('tokens', () => this.updateStats());
+    game.on('combo', (n) => this.showCombo(n));
+    game.on('contracts', () => { if (this.overlay === 'contracts') this.renderX(); this.renderObjective(); });
+    game.on('contractProgress', () => { this.objDirty = true; });
+    game.on('achievement', () => { if (Math.random() < 0.5) confetti(40); });
     game.on('research', () => { if (this.overlay === 'research') this.renderX(); });
     game.on('materials', () => { if (game.builder?.selected === 'construir') this.renderHotbar(); if (this.overlay === 'shop') this.renderShop(); });
     game.on('record', (r) => this.toast(`🏆 <b>Recorde da fábrica!</b> ${r.texto}`, 'ach'));
@@ -78,12 +97,14 @@ export class UI {
       if (performance.now() - this.openTime < 200 || e.repeat) return; // a mesma tecla que abriu não fecha
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
       const o = this.overlay;
-      if (e.key === 'Escape' && ['shop', 'panel', 'guide', 'research', 'platform', 'stats', 'map', 'pet'].includes(o)) { e.preventDefault(); this.closeOverlay(); }
+      if (e.key === 'Escape' && ['shop', 'panel', 'guide', 'research', 'platform', 'stats', 'map', 'pet', 'contracts', 'challenges', 'projects', 'mail'].includes(o)) { e.preventDefault(); this.closeOverlay(); }
+      if (e.code === keyOf('projetos') && o === 'projects') this.closeOverlay();
+      if (e.code === keyOf('contratos') && o === 'contracts') this.closeOverlay();
       if (e.code === keyOf('loja') && o === 'shop') this.closeOverlay();
       if (e.code === keyOf('guia') && o === 'guide') this.closeOverlay();
       if (e.code === keyOf('stats') && o === 'stats') this.closeOverlay();
       if (e.code === keyOf('mapa') && o === 'map') { e.preventDefault(); this.closeOverlay(); }
-      if (e.code === keyOf('usar') && ['shop', 'panel', 'research', 'platform', 'pet'].includes(o)) this.closeOverlay();
+      if (e.code === keyOf('usar') && ['shop', 'panel', 'research', 'platform', 'pet', 'contracts'].includes(o)) this.closeOverlay();
       if (e.code === keyOf('peca') && o === 'pet') this.closeOverlay();
     });
   }
@@ -97,22 +118,53 @@ export class UI {
     $('#xptext').textContent = `${fmt(Math.floor(eco.xp))} / ${fmt(eco.xpNeeded)} XP`;
     const t = totals();
     $('#cpu').innerHTML = `🖥️ ${eco.cpuHz} instr/s · <span class="${t.demand > t.supply ? 'bad' : ''}">⚡ ${fmt(t.demand)}/${fmt(t.supply)}</span>`;
+    $('#tokens').innerHTML = `🎟️ ${eco.tokens}${eco.launched || eco.stars ? ` · ⭐ ${eco.stars}` : ''}${eco.disks ? ` · 💾 ${eco.disks}` : ''}`;
+    // dinheiro "pula" quando sobe
+    if (this.lastMoney != null && eco.money > this.lastMoney + 0.5) {
+      const m = $('#money');
+      m.classList.remove('pulse'); void m.offsetWidth; m.classList.add('pulse');
+    }
+    this.lastMoney = eco.money;
     if (this.overlay === 'shop') $('#shop-money').textContent = '$ ' + fmt(eco.money);
   }
 
+  showCombo(n) {
+    const el = $('#combo');
+    if (n < 2) { el.classList.add('hidden'); return; }
+    el.innerHTML = `🔥 Combo ×${n} <small>+${Math.min(n - 1, 10) * 2}%</small>`;
+    el.classList.remove('hidden', 'pop'); void el.offsetWidth; el.classList.add('pop');
+    el.style.setProperty('--hot', Math.min(1, n / 10));
+    if (n === 5 || n === 10) confetti(n * 4);
+  }
   renderObjective() {
     const eco = game.economy;
     const o = OBJECTIVES[eco.objective];
     let html = o ? `<div class="obj-title">🎯 Objetivo ${eco.objective + 1}/${OBJECTIVES.length}</div><div>${o.texto}</div>${o.premio ? `<div class="obj-prize">Prêmio: $ ${o.premio}</div>` : ''}` : '';
     // Projeto Foguete (aparece depois do objetivo 6 ou quando já começou)
     const p = PHASES[eco.phase];
-    if (eco.launched) html += `<div class="obj-rocket"><div class="obj-title">🚀 Projeto Foguete</div><div>Concluído! O satélite está em órbita ✨</div></div>`;
+    if (eco.launched) {
+      const m = eco.mission;
+      if (m.sat) {
+        const need = missionNeeds(m.n, m.sat);
+        const rows = Object.entries(need).map(([k, n]) => { const h = Math.min(n, m.progress[k] || 0); return `<div class="obj-need"><img src="${thumbs['item:' + k] || ''}"><span>${ITEMS[k].nome}</span><i><b style="width:${(h / n) * 100}%"></b></i><em>${h}/${n}</em></div>`; }).join('');
+        html += `<div class="obj-rocket"><div class="obj-title">🛰️ Missão ${m.n + 2} · ${SATELLITES[m.sat].icone} ${SATELLITES[m.sat].nome}</div>${rows}</div>`;
+      } else html += `<div class="obj-rocket"><div class="obj-title">🛰️ Programa Espacial</div><div class="muted" style="font-size:12.5px">Escolha o satélite da próxima missão na plataforma (E) · ⭐ ${eco.stars}</div></div>`;
+    }
     else if (p && (eco.objective >= 6 || eco.phase > 0 || Object.keys(eco.phaseProgress).length)) {
       const rows = Object.entries(p.itens).map(([k, n]) => {
         const h = Math.min(n, eco.phaseProgress[k] || 0);
         return `<div class="obj-need"><img src="${thumbs['item:' + k] || ''}"><span>${ITEMS[k].nome}</span><i><b style="width:${(h / n) * 100}%"></b></i><em>${h}/${n}</em></div>`;
       }).join('');
       html += `<div class="obj-rocket"><div class="obj-title">🚀 Projeto Foguete · fase ${eco.phase + 1}/${PHASES.length}</div><div class="muted" style="font-size:12.5px">${p.nome}: leve os itens até a plataforma (ao norte)</div>${rows}</div>`;
+    }
+    // contratos em andamento
+    const cs = eco.contracts?.active || [];
+    if (cs.length) {
+      html += `<div class="obj-rocket"><div class="obj-title">📋 Contratos</div>${cs.map((c) => {
+        const need = Object.entries(c.itens).reduce((a, [, n]) => a + n, 0), have = Object.entries(c.itens).reduce((a, [k, n]) => a + Math.min(n, c.progresso[k] || 0), 0);
+        const left = Math.max(0, c.ate - game.time);
+        return `<div class="obj-need"><span style="grid-column:1/3">${c.icone} ${c.cliente}</span><i><b style="width:${(have / need) * 100}%"></b></i><em>${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}</em></div>`;
+      }).join('')}</div>`;
     }
     if (!html) html = '<div class="obj-title">🌟 Todos os objetivos completos!</div><div>Continue construindo com calma.</div>';
     $('#objective').innerHTML = html;
@@ -212,7 +264,9 @@ export class UI {
 
   levelUp(l) {
     audio.play('levelup', { volume: 0.8 });
+    confetti(60);
     const un = unlocksAt(l);
+    if (l === 2) un.push('📋 Quadro de Contratos (escritório) e Doca de Entrega');
     this.banner(`✨ Nível ${l}! ✨`, un.length ? 'Liberado:' : 'Continue assim!', un);
     this.updateStats();
   }
@@ -260,8 +314,8 @@ export class UI {
       this.xArg = arg;
       $('#xwin').classList.remove('hidden');
       $('#xwin').dataset.kind = name;
-      $('#xwin-title').textContent = XWIN[name];
-      $('#xwin-hint').textContent = name === 'map' ? 'Tab ou Esc fecha' : name === 'stats' ? 'K ou Esc fecha' : name === 'pet' ? 'E ou Esc fecha' : 'Esc fecha';
+      $('#xwin-title').textContent = name === 'platform' && game.economy.launched ? '🛰️ Programa Espacial' : XWIN[name];
+      $('#xwin-hint').textContent = name === 'map' ? 'Tab ou Esc fecha' : name === 'stats' ? 'K ou Esc fecha' : name === 'pet' ? 'E ou Esc fecha' : name === 'projects' ? 'J ou Esc fecha' : name === 'contracts' ? 'L ou Esc fecha' : 'Esc fecha';
       $('#xwin-body').innerHTML = '';
       this.renderX(arg);
     }
@@ -273,6 +327,10 @@ export class UI {
     if (this.overlay === 'stats') renderStats(body, arg);
     if (this.overlay === 'map') renderMap(body);
     if (this.overlay === 'pet') renderPet(body);
+    if (this.overlay === 'contracts') renderContracts(body);
+    if (this.overlay === 'challenges') renderChallenges(body);
+    if (this.overlay === 'projects') renderBlueprints(body);
+    if (this.overlay === 'mail') renderMail(body);
   }
 
   closeOverlay(silent) {
@@ -309,7 +367,7 @@ export class UI {
       <div class="c-desc">${o.desc || ''}</div>
       <div class="c-foot">${o.locked ? `<span class="lock">${o.locked}</span>` : o.foot}</div></div>`;
     if (this.shopTab === 'maquinas' || this.shopTab === 'decoracao' || this.shopTab === 'escritorio') {
-      const src = this.shopTab === 'maquinas' ? MACHINES : Object.fromEntries(Object.entries(DECOR).filter(([, d]) => !!d.casa === (this.shopTab === 'escritorio')));
+      const src = this.shopTab === 'maquinas' ? MACHINES : Object.fromEntries(Object.entries(DECOR).filter(([, d]) => !d.fichas && !!d.casa === (this.shopTab === 'escritorio')));
       const entries = Object.entries(src).sort((a, b) => (!!this.lockReason(a[1]) - !!this.lockReason(b[1])));
       if (this.shopTab === 'escritorio') body.innerHTML = '<p class="muted">Móveis podem ficar <b>dentro do escritório</b>. Pra paredes, pisos e tetos use a ferramenta 🧱 Construção (tecla 2). Os quadros ficam na aba Quadros.</p>';
       else body.innerHTML = '';
@@ -341,6 +399,8 @@ export class UI {
           game.emit('materials');
         };
       });
+    } else if (this.shopTab === 'fichas') {
+      this.renderTokenShop(body, card);
     } else if (this.shopTab === 'quadros') {
       body.innerHTML = `<p class="muted">Obras em <b>domínio público</b> (Wikimedia Commons). Compre, escolha na barra e clique numa parede pra pendurar.</p>
       <div class="cards">${Object.entries(PAINTINGS).map(([k, p]) => card({
@@ -370,10 +430,46 @@ export class UI {
       }).join('')}</table>`;
       body.querySelectorAll('canvas').forEach((c) => this.sparkline(c, eco.history[c.dataset.k]));
     } else if (this.shopTab === 'receitas') {
-      const st = (r) => (r.nivel > eco.level ? '🔒 nível ' + r.nivel : r.tech && !eco.hasTech(r.tech) ? '🔬 ' + TECHS[r.tech].nome : '✔');
-      body.innerHTML = `<h3 class="rec-h">Fornalha · <code>fundir("...")</code></h3><table class="market">${Object.entries(SMELT).map(([k, r]) => `<tr class="${st(r) !== '✔' ? 'locked' : ''}"><td><img src="${thumbs['item:' + r.out]}"></td><td><b>${ITEMS[r.out].nome}</b><br><code>fundir("${k}")</code></td><td>${Object.entries(r.in).map(([i, n]) => `${n}× ${ITEMS[i].nome}`).join(' + ')}${r.escoria ? ' <span class="muted">(+ escória)</span>' : ''}</td><td>${r.tempo}s</td><td>${st(r)}</td></tr>`).join('')}</table>
-      <h3 class="rec-h">Montadora · <code>fabricar("...")</code></h3><table class="market">${Object.entries(RECIPES).map(([k, r]) => `<tr class="${st(r) !== '✔' ? 'locked' : ''}"><td><img src="${thumbs['item:' + k]}"></td><td><b>${ITEMS[k].nome}</b><br><code>fabricar("${k}")</code></td><td>${Object.entries(r.in).map(([i, n]) => `${n}× ${ITEMS[i].nome}`).join(' + ')}${r.qtd > 1 ? ` → ${r.qtd}×` : ''}</td><td>${r.tempo}s</td><td>${st(r)}</td></tr>`).join('')}</table>`;
+      const st = (r, k) => (r.alt && !eco.hasAlt(k) ? '💾 disco' : r.nivel > eco.level ? '🔒 nível ' + r.nivel : r.tech && !eco.hasTech(r.tech) ? '🔬 ' + TECHS[r.tech].nome : '✔');
+      body.innerHTML = `<h3 class="rec-h">Fornalha · <code>fundir("...")</code></h3><table class="market">${Object.entries(SMELT).filter(([k, r]) => !r.alt || eco.hasAlt(k)).map(([k, r]) => `<tr class="${st(r, k) !== '✔' ? 'locked' : ''}"><td><img src="${thumbs['item:' + r.out]}"></td><td><b>${ITEMS[r.out].nome}${r.qtd > 1 ? ` ×${r.qtd}` : ''}</b>${r.alt ? ' 💾' : ''}<br><code>fundir("${k}")</code></td><td>${Object.entries(r.in).map(([i, n]) => `${n}× ${ITEMS[i].nome}`).join(' + ')}${r.escoria ? ' <span class="muted">(+ escória)</span>' : ''}</td><td>${r.tempo}s</td><td>${st(r, k)}</td></tr>`).join('')}</table>
+      <h3 class="rec-h">Montadora · <code>fabricar("...")</code></h3><table class="market">${Object.entries(RECIPES).filter(([k, r]) => !r.alt || eco.hasAlt(k)).map(([k, r]) => `<tr class="${st(r, k) !== '✔' ? 'locked' : ''}"><td><img src="${thumbs['item:' + recipeOut(k, r)]}"></td><td><b>${ITEMS[recipeOut(k, r)].nome}</b>${r.alt ? ' 💾' : ''}<br><code>fabricar("${k}")</code></td><td>${Object.entries(r.in).map(([i, n]) => `${n}× ${ITEMS[i].nome}`).join(' + ')}${r.qtd > 1 ? ` → ${r.qtd}×` : ''}</td><td>${r.tempo}s</td><td>${st(r, k)}</td></tr>`).join('')}</table>
+      <p class="muted">💾 Receitas alternativas aparecem aqui quando você analisa um disco de dados no Laboratório.</p>`;
     }
+  }
+
+  // loja de fichas 🎟️: chapéus e cores do Oopi, decoração exclusiva e vagas de contrato
+  renderTokenShop(body, card) {
+    const eco = game.economy;
+    const o = eco.oopi;
+    const tk = (n) => `<span class="price">🎟️ ${n}</span>`;
+    const hats = Object.entries(OOPI_HATS).map(([k, h]) => {
+      const own = o.hats.includes(k);
+      return card({ img: thumbs['hat:' + k], name: h.nome, desc: 'Chapéu pro Oopi', foot: own ? `<button class="tk-hat" data-k="${k}">${o.hat === k ? '✔ usando (tirar)' : 'Usar'}</button>` : `${tk(h.fichas)}<button class="tk-buyhat" data-k="${k}" ${eco.tokens < h.fichas ? 'disabled' : ''}>Comprar</button>` });
+    }).join('');
+    const colors = Object.entries(OOPI_COLORS).map(([k, c]) => {
+      const own = o.colors.includes(k);
+      const sw = `<i class="tk-sw" style="background:${c.cor == null ? 'linear-gradient(135deg,#e9f0ff,#9fb4d6)' : '#' + c.cor.toString(16).padStart(6, '0')}"></i>`;
+      return `<div class="tk-color">${sw}<b>${c.nome}</b>${own ? `<button class="tk-col" data-k="${k}" ${o.color === k ? 'disabled' : ''}>${o.color === k ? '✔' : 'Usar'}</button>` : `${tk(c.fichas)}<button class="tk-buycol" data-k="${k}" ${eco.tokens < c.fichas ? 'disabled' : ''}>Comprar</button>`}</div>`;
+    }).join('');
+    const decos = Object.entries(DECOR).filter(([, d]) => d.fichas).map(([k, d]) => card({
+      img: thumbs[k], name: d.nome, desc: `<span class="bonus">✦ ${d.bonus}</span>`,
+      foot: `${tk(d.fichas)}<span class="own">tem ${eco.inventory[k] || 0}</span><button class="buy" data-k="${k}" data-n="1" ${eco.tokens < d.fichas ? 'disabled' : ''}>Comprar</button>`,
+    })).join('');
+    const cs = contractState();
+    const nextSlot = CONTRACT_SLOTS.find((x) => x.vagas > cs.slots);
+    body.innerHTML = `<p class="muted">Você tem <b class="amber">🎟️ ${eco.tokens} fichas</b>. Ganhe fichas cumprindo <b>contratos</b> (📋 quadro no escritório), resolvendo <b>desafios</b> (🧩 terminal) e abrindo o <b>correio da manhã</b>.</p>
+      <h3 class="rec-h">🎩 Chapéus do Oopi <small class="muted">amizade nível ${eco.friendLevel}/5</small></h3><div class="cards">${hats}</div>
+      <h3 class="rec-h">🎨 Cor do Oopi</h3><div class="tk-colors">${colors}</div>
+      <h3 class="rec-h">✨ Decoração exclusiva</h3><div class="cards">${decos}</div>
+      <h3 class="rec-h">📋 Vagas de contrato</h3><div class="cards">${card({ name: `Mais uma vaga (${cs.slots} → ${nextSlot ? nextSlot.vagas : cs.slots})`, desc: 'Aceite mais contratos ao mesmo tempo.', foot: nextSlot ? `${tk(nextSlot.fichas)}<button id="tk-slot" ${eco.tokens < nextSlot.fichas ? 'disabled' : ''}>Comprar</button>` : '<span class="own">Máximo! ✨</span>' })}</div>`;
+    const done = () => { audio.play('buy', { volume: 0.6 }); game.pet?.applyLook(); this.renderShop(); };
+    body.querySelectorAll('.tk-buyhat').forEach((b) => { b.onclick = () => { const h = OOPI_HATS[b.dataset.k]; if (!eco.spendTokens(h.fichas)) return; o.hats.push(b.dataset.k); o.hat = b.dataset.k; game.pet?.say('Ficou lindo em mim? 🥹', 4); done(); }; });
+    body.querySelectorAll('.tk-hat').forEach((b) => { b.onclick = () => { o.hat = o.hat === b.dataset.k ? null : b.dataset.k; done(); }; });
+    body.querySelectorAll('.tk-buycol').forEach((b) => { b.onclick = () => { const c = OOPI_COLORS[b.dataset.k]; if (!eco.spendTokens(c.fichas)) return; o.colors.push(b.dataset.k); o.color = b.dataset.k; done(); }; });
+    body.querySelectorAll('.tk-col').forEach((b) => { b.onclick = () => { o.color = b.dataset.k; done(); }; });
+    body.querySelectorAll('.buy').forEach((b) => { b.onclick = () => this.buy(b.dataset.k, +b.dataset.n); });
+    const sb = body.querySelector('#tk-slot');
+    if (sb) sb.onclick = () => { if (!eco.spendTokens(nextSlot.fichas)) return; cs.slots = nextSlot.vagas; done(); };
   }
 
   sparkline(c, h) {
@@ -395,7 +491,8 @@ export class UI {
   buy(k, n) {
     const d = MACHINES[k] || DECOR[k] || PAINTINGS[k];
     if (d.nivel && this.lockReason(d)) return;
-    if (!game.economy.spend(d.preco * n)) { audio.play('deny'); return; }
+    if (d.fichas) { if (!game.economy.spendTokens(d.fichas * n)) { audio.play('deny'); return; } }
+    else if (!game.economy.spend(d.preco * n)) { audio.play('deny'); return; }
     game.economy.addItem(k, n);
     audio.play('buy', { volume: 0.6 });
     this.toast(`Comprou ${n > 1 ? n + '× ' : ''}${d.nome}! Está na sua barra (teclas 1-9).`, 'good');
@@ -500,11 +597,11 @@ export class UI {
   update(dt) {
     if (this.overlay === 'panel') this.renderPanel(false);
     if (this.overlay === 'editor') this.editor.update();
-    if (XWIN[this.overlay] && this.overlay !== 'pet') {
+    if (XWIN[this.overlay] && !NO_AUTO.has(this.overlay)) {
       this.xT -= dt;
       if (this.xT <= 0) {
-        this.xT = this.overlay === 'map' ? 0.2 : this.overlay === 'stats' ? 3 : 0.6;
-        if (this.overlay !== 'research' || !document.querySelector('.rs-node:hover')) this.renderX();
+        this.xT = this.overlay === 'map' ? 0.2 : this.overlay === 'stats' ? 3 : this.overlay === 'contracts' ? 1 : 0.6;
+        if ((this.overlay !== 'research' && this.overlay !== 'contracts' && this.overlay !== 'platform') || !document.querySelector('.rs-node:hover, .ct-card:hover, .sp-sat:hover, .dk-card:hover')) this.renderX();
       }
     }
     // barra da construção acompanha a mira (motivo de não poder construir)
@@ -513,7 +610,13 @@ export class UI {
       if (this.bhT <= 0) { this.bhT = 0.2; const h = this.buildPalette(); if (h !== this.lastBh) { this.lastBh = h; $('#buildhint').innerHTML = h; } }
     }
     this.clockT = (this.clockT || 0) - dt;
-    if (this.clockT <= 0) { this.clockT = 1; $('#clock').textContent = clockText(); }
+    if (this.clockT <= 0) {
+      this.clockT = 1;
+      $('#clock').textContent = clockText();
+      if (this.objDirty || game.economy.contracts?.active?.length) { this.objDirty = false; this.renderObjective(); }
+      const c = game.economy.combo;
+      if (c.n >= 2 && game.time - c.t > 10) { c.n = 0; $('#combo').classList.add('hidden'); }
+    }
     this.updatePrompt();
     const p = game.player;
     $('#move-speed').textContent = p.speed.toFixed(1).replace('.', ',');

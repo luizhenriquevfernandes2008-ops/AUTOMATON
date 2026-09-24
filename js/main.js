@@ -30,6 +30,11 @@ import { startTutorial, updateTutorial, refreshTutorial, tutorialActive } from '
 import { NO_PANEL } from './ui.js';
 import { clearRegion } from './world.js';
 import { TECHS, PAINTINGS } from './data.js';
+import { buildContractBoard, updateContracts, updateShips } from './contracts.js';
+import { buildTerminal } from './challengeUI.js';
+import { buildCrates, openCrate } from './disks.js';
+import { updateOrbit } from './space.js';
+import { checkDaily, openMail } from './mail.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -109,7 +114,7 @@ function bootLog(text, state = 'ok') {
 }
 async function boot() {
   const bar = $('#load-bar'), txt = $('#load-text');
-  bootLog('AUTOMATON v1.2 · kernel jiboia 🐍');
+  bootLog('AUTOMATON v1.3 · kernel jiboia 🐍');
   const l1 = bootLog('carregando modelos 3D, texturas e céu…', 'run');
   await loadAll(renderer, (p) => { bar.style.width = Math.round(p * 80) + '%'; txt.textContent = `modelos ${Math.round(p * 100)}%`; });
   l1.innerHTML = '<span class="ok">[ ok ]</span> modelos 3D, texturas e céu';
@@ -124,6 +129,8 @@ async function boot() {
   game.economy = new Economy();
   setTechNamer((id) => TECHS[id]?.nome || id);
   buildWorld();
+  buildContractBoard();
+  buildTerminal();
   initSky();
   game.player = new Player(camera, renderer.domElement);
   game.builder = new Builder();
@@ -141,6 +148,8 @@ async function boot() {
   if (!had) game.player.teleport(game.spawn, 0);
   game.hadSave = had;
   for (const r of game.economy.regions) clearRegion(r);
+  buildCrates();
+  game.pet.applyLook();
   refreshTutorial();
   rememberView();
   l3.innerHTML = '<span class="ok">[ ok ]</span> fábrica montada' + (had ? ' · save carregado' : '');
@@ -189,12 +198,12 @@ function startPlay() {
       // jogo novo: pergunta se quer o tutorial
       setTimeout(() => game.ui.confirm('Bem-vindo(a) ao AUTOMATON! 👋', '<p>Quer fazer o <b>tutorial interativo</b>? Ele te guia passo a passo na primeira fábrica (uns 5 minutos).</p><p class="muted">Dá pra pular a qualquer hora, e refazer depois no menu “Como jogar”.</p>',
         () => startTutorial(), { yes: '🎓 Sim, me ensina', no: 'Não, quero explorar' }), 400);
-    } else if (eco.offlineReport) {
-      const r = eco.offlineReport;
+    }
+    const gift = checkDaily(fresh);
+    if (fresh) { /* jogo novo: o correio começa amanhã */ } else if (gift || eco.offlineReport) {
+      const off = eco.offlineReport;
       eco.offlineReport = null;
-      const h = Math.floor(r.secs / 3600), m = Math.floor((r.secs % 3600) / 60);
-      setTimeout(() => game.ui.confirm('Bem-vindo(a) de volta! 🌙', `<p>Enquanto você estava fora (${h ? h + 'h ' : ''}${m}min), a fábrica continuou trabalhando e rendeu:</p><p style="font-size:30px;margin:6px 0" class="amber"><b>+$ ${r.gain.toLocaleString('pt-BR')}</b></p><p class="muted">O progresso offline rende metade do ritmo normal, por até 8 horas.</p>`,
-        null, { yes: 'Oba!', noButton: false }), 400);
+      setTimeout(() => openMail(gift, off), 400);
     } else {
       game.ui.toast('Bem-vindo(a) de volta ao AUTOMATON! 🎯');
     }
@@ -203,6 +212,7 @@ function startPlay() {
 }
 $('#btn-stats').onclick = () => game.ui.openOverlay('stats');
 $('#btn-map').onclick = () => game.ui.openOverlay('map');
+$('#btn-projects').onclick = () => game.ui.openOverlay('projects');
 $('#menu-tutorial').onclick = () => { startPlay(); setTimeout(() => startTutorial(), 600); };
 $('#btn-resume').onclick = () => { game.gesture = true; game.setMode('play'); };
 $('#btn-guide').onclick = () => game.ui.openOverlay('guide');
@@ -247,6 +257,8 @@ addEventListener('keydown', (e) => {
     case 'copiar': b.startCopy(); game.emit('hotbar'); break;
     case 'colar': b.startPaste(); game.emit('hotbar'); break;
     case 'foto': togglePhoto(true); break;
+    case 'projetos': game.ui.openOverlay('projects'); break;
+    case 'contratos': game.ui.openOverlay('contracts'); break;
     case 'peca': actions.piece(e.shiftKey ? -1 : 1); break;
     case 'material': actions.material(e.shiftKey ? -1 : 1); break;
   }
@@ -327,6 +339,9 @@ function interact() {
   if (a === 'shop') game.ui.openOverlay('shop', 'maquinas');
   if (a === 'market') game.ui.openOverlay('shop', 'mercado');
   if (a === 'platform') game.ui.openOverlay('platform');
+  if (a === 'contracts') game.ui.openOverlay('contracts');
+  if (a === 'challenges') game.ui.openOverlay('challenges');
+  if (a.startsWith('crate:')) openCrate(a.slice(6));
   if (a.startsWith('region:')) game.ui.buyRegion(a.slice(7));
   if (a === 'radio') { const s = audio.nextStation(); syncStation(); game.ui.toast(`📻 ${s.icone} ${s.nome}: ${audio.currentTrack().nome}`); }
   if (a === 'coffee') {
@@ -360,6 +375,7 @@ function simStep(dt) {
   objTimer -= dt;
   if (objTimer <= 0) { objTimer = 1; game.economy.checkObjective(); }
   updateEvents(dt);
+  updateContracts(dt);
   achTimer -= dt;
   if (achTimer <= 0) { achTimer = 2; game.economy.stats.paintingsHung = countPaintings(); game.economy.checkAchievements(); }
   recordTimer -= dt;
@@ -376,6 +392,8 @@ function loop(now) {
   if (simulate) simStep(dt);
   updateSky(dt, simulate || game.mode === 'menu');
   updateFx(dt);
+  updateShips(dt);
+  updateOrbit(dt);
   animateBelts(dt);
   updateMarketBoard(dt);
   if (game.mode === 'menu') updateMenuCamera(dt);

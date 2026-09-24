@@ -1,6 +1,6 @@
 // Grid, entidades e máquinas da fábrica.
 import * as THREE from 'three';
-import { CELL, ITEMS, ORES, SMELT, RECIPES, MACHINES, DECOR, TIERS, TIERABLE, DECOR_BONUS, DECOR_BONUS_MAX } from './data.js';
+import { CELL, ITEMS, ORES, SMELT, RECIPES, MACHINES, DECOR, TIERS, TIERABLE, DECOR_BONUS, DECOR_BONUS_MAX, recipeOut } from './data.js';
 import { cloneModel, assets } from './assets.js';
 import { PAL } from './palette.js';
 import { game } from './state.js';
@@ -330,7 +330,7 @@ export class Machine extends Entity {
   get power() { return powerRatio(this); }
   get canTier() { return TIERABLE.includes(this.type); }
   // multiplicador de velocidade: melhoria global × Mk × decoração
-  get speedMul() { return game.economy.machineSpeed * (TIERS[this.tier]?.vel || 1) * (1 + this.decorVel); }
+  get speedMul() { return game.economy.machineSpeed * (TIERS[this.tier]?.vel || 1) * (1 + this.decorVel) * game.economy.typeSpeed(this.type); }
   labelText() { return this.name + (this.tier ? ' ' + TIERS[this.tier].nome : ''); }
   rename(n) { this.name = n; setLabel(this.label, this.labelText()); }
   setTier(t) {
@@ -535,12 +535,12 @@ const SMELT_INPUTS = new Set(Object.values(SMELT).flatMap((r) => Object.keys(r.i
 // acha a receita pelo nome passado (minério, ou o produto, ex "aco")
 function smeltRecipe(want) {
   if (SMELT[want]) return want;
-  const k = Object.keys(SMELT).find((r) => SMELT[r].out === want);
+  const k = Object.keys(SMELT).find((r) => SMELT[r].out === want && !SMELT[r].alt);
   return k || null;
 }
 function smeltUnlocked(r) {
   const s = SMELT[r];
-  return s.nivel <= game.economy.level && (!s.tech || game.economy.hasTech(s.tech));
+  return s.nivel <= game.economy.level && (!s.tech || game.economy.hasTech(s.tech)) && (!s.alt || game.economy.hasAlt(r));
 }
 export class Smelter extends Machine {
   constructor(...a) { super(...a); this.slag = 0; }
@@ -558,7 +558,7 @@ export class Smelter extends Machine {
           const wantRaw = a[0] ?? null;
           let want = null;
           if (wantRaw !== null) {
-            checkItemArg(wantRaw, 'fundir');
+            if (!SMELT[wantRaw]) checkItemArg(wantRaw, 'fundir');
             want = smeltRecipe(wantRaw);
             if (!want) throw new JiboiaError(`A fornalha não sabe fazer "${wantRaw}". Ela funde: ${Object.keys(SMELT).join(', ')}`);
           }
@@ -571,11 +571,12 @@ export class Smelter extends Machine {
                 const s = SMELT[want];
                 if (s.nivel > game.economy.level) throw new JiboiaError(`Fundir ${itemName(s.out)} precisa do nível ${s.nivel}`);
                 if (s.tech && !game.economy.hasTech(s.tech)) throw new JiboiaError(`Fazer ${itemName(s.out)} precisa da pesquisa "${TECH_NAME(s.tech)}"`);
+                if (s.alt && !game.economy.hasAlt(want)) throw new JiboiaError(`A receita alternativa "${want}" precisa ser liberada com um 💾 disco de dados (analise no Laboratório)`);
               }
               if (this.out.length >= this.outCap) return 'Saída cheia';
               chosen = want || Object.keys(SMELT).find((r) => smeltUnlocked(r) && this.hasInputs(r));
               if (!chosen) {
-                const locked = Object.keys(SMELT).find((r) => this.hasInputs(r));
+                const locked = Object.keys(SMELT).find((r) => !SMELT[r].alt && this.hasInputs(r));
                 if (locked) {
                   const s = SMELT[locked];
                   throw new JiboiaError(s.tech && !game.economy.hasTech(s.tech) ? `Fazer ${itemName(s.out)} precisa da pesquisa "${TECH_NAME(s.tech)}"` : `Fundir ${itemName(locked)} precisa do nível ${s.nivel}`);
@@ -591,8 +592,8 @@ export class Smelter extends Machine {
             dur: () => SMELT[chosen].tempo,
             finish: () => {
               const s = SMELT[chosen];
-              this.out.push(s.out);
-              game.economy.produced(s.out);
+              for (let i = 0; i < (s.qtd || 1); i++) this.out.push(s.out);
+              game.economy.produced(s.out, s.qtd || 1);
               // sobra escória!
               this.slag += s.escoria || 0;
               if (this.slag >= 1) { this.slag -= 1; this.out.push('escoria'); game.economy.produced('escoria'); }
@@ -616,7 +617,7 @@ export class Smelter extends Machine {
 
 // ───────────────────────── Montadora ─────────────────────────
 const ALL_INGREDIENTS = new Set(Object.values(RECIPES).flatMap((r) => Object.keys(r.in)));
-const recipeUnlocked = (r) => RECIPES[r].nivel <= game.economy.level && (!RECIPES[r].tech || game.economy.hasTech(RECIPES[r].tech));
+const recipeUnlocked = (r) => RECIPES[r].nivel <= game.economy.level && (!RECIPES[r].tech || game.economy.hasTech(RECIPES[r].tech)) && (!RECIPES[r].alt || game.economy.hasAlt(r));
 export class Assembler extends Machine {
   get hasOutput() { return true; }
   get inputSides() { return [1, 2, 3]; }
@@ -630,6 +631,7 @@ export class Assembler extends Machine {
     }
     if (RECIPES[r].nivel > game.economy.level) throw new JiboiaError(`A receita "${r}" precisa do nível ${RECIPES[r].nivel}`);
     if (RECIPES[r].tech && !game.economy.hasTech(RECIPES[r].tech)) throw new JiboiaError(`A receita "${r}" precisa da pesquisa "${TECH_NAME(RECIPES[r].tech)}" no Laboratório`);
+    if (RECIPES[r].alt && !game.economy.hasAlt(r)) throw new JiboiaError(`A receita alternativa "${r}" precisa ser liberada com um 💾 disco de dados (analise no Laboratório)`);
   }
   api() {
     return {
@@ -640,8 +642,9 @@ export class Assembler extends Machine {
         fn: ([r]) => {
           this.checkRecipe(r);
           const rec = RECIPES[r];
+          const outItem = recipeOut(r, rec);
           return this.request({
-            label: 'Fabricando ' + itemName(r),
+            label: 'Fabricando ' + itemName(outItem),
             counts: 'item',
             check: () => {
               if (this.out.length + rec.qtd > this.outCap) return 'Saída cheia';
@@ -651,11 +654,11 @@ export class Assembler extends Machine {
             start: () => { for (const [k, n] of Object.entries(rec.in)) this.takeInv(k, n); },
             dur: rec.tempo,
             finish: () => {
-              for (let i = 0; i < rec.qtd; i++) this.out.push(r);
-              game.economy.produced(r, rec.qtd);
+              for (let i = 0; i < rec.qtd; i++) this.out.push(outItem);
+              game.economy.produced(outItem, rec.qtd);
               audio.play('assemble', { pos: this.pos, volume: 0.5 });
               puff(new THREE.Vector3(this.pos.x, 1.4, this.pos.z), { color: 0xffe08a, count: 8, size: 0.12, up: 1.6, gravity: 3, additive: true, spread: 0.5, life: 0.8 });
-              return r;
+              return outItem;
             },
           });
         },
@@ -766,8 +769,11 @@ export class Seller extends Machine {
               }
               total = Math.round(total * 10) / 10;
               if (total > 0) {
-                audio.play('sell', { pos: this.pos, volume: 0.7 });
+                const combo = game.economy.comboSale(total);
+                audio.play('sell', { pos: this.pos, volume: 0.7, rate: 1 + Math.min(combo.n - 1, 10) * 0.05 });
                 floatText(new THREE.Vector3(this.pos.x, 2.3, this.pos.z), `+$ ${total}`);
+                if (combo.bonus > 0) floatText(new THREE.Vector3(this.pos.x, 2.9, this.pos.z), `🔥 ×${combo.n} +$ ${combo.bonus}`, '#ff9a4a');
+                total = Math.round((total + combo.bonus) * 10) / 10;
                 puff(new THREE.Vector3(this.pos.x, 1.6, this.pos.z), { color: 0xffd35a, count: 10, size: 0.14, up: 2, gravity: 4, additive: true, life: 0.9 });
                 game.emit('sold', total);
                 game.emit('evento', { tipo: 'venda', fonte: this.name, valor: total });

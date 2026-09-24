@@ -83,7 +83,7 @@ export function updateSky(dt, simulate) {
     if (sky.weatherT <= 0) {
       const r = Math.random();
       if (sky.weather === 'chuva') { sky.weather = r < 0.5 ? 'nublado' : 'limpo'; sky.weatherT = 240 + Math.random() * 360; }
-      else if (sky.weather === 'nublado') { sky.weather = r < 0.55 ? 'chuva' : 'limpo'; sky.weatherT = sky.weather === 'chuva' ? 100 + Math.random() * 120 : 200 + Math.random() * 300; }
+      else if (sky.weather === 'nublado') { sky.weather = r < 0.55 + 0.07 * (game.economy?.satLvl('clima') || 0) ? 'chuva' : 'limpo'; sky.weatherT = sky.weather === 'chuva' ? 100 + Math.random() * 120 : 200 + Math.random() * 300; }
       else { sky.weather = r < 0.5 ? 'nublado' : 'limpo'; sky.weatherT = 200 + Math.random() * 300; }
       game.emit('weather', sky.weather);
     }

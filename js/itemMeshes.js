@@ -163,6 +163,30 @@ function build(type) {
       add(new THREE.OctahedronGeometry(0.14, 0), mat(0xb18cff, { flat: true, r: 0.2, e: 0x8a5aff, ei: 0.9 }), 0, 0.17, 0).scale.set(0.8, 1.3, 0.8);
       add(new THREE.OctahedronGeometry(0.07, 0), mat(0xffd6ff, { flat: true, e: 0xff9aff, ei: 1 }), 0.1, 0.08, 0.04);
       break;
+    // ── itens de ponta ──
+    case 'bateria': {
+      add(new THREE.CylinderGeometry(0.1, 0.1, 0.3, 16), mat(0x2c8a5e, { r: 0.4, m: 0.3 }), 0, 0.15, 0);
+      add(new THREE.CylinderGeometry(0.102, 0.102, 0.08, 16), mat(0xe9f0ff, { r: 0.4 }), 0, 0.24, 0);
+      add(new THREE.CylinderGeometry(0.035, 0.035, 0.04, 10), mat(0xd8dce6, { m: 0.9, r: 0.2 }), 0, 0.32, 0);
+      add(new THREE.BoxGeometry(0.03, 0.07, 0.01), mat(0x5dff9a, { e: 0x3ee67a, ei: 0.9 }), 0, 0.15, 0.1);
+      break;
+    }
+    case 'painel_led': {
+      add(new THREE.BoxGeometry(0.38, 0.04, 0.26), mat(0x1c2230, { r: 0.4 }), 0, 0.03, 0);
+      const cols = [0xff6ec7, 0x3ee6b8, 0xffd35a, 0x6cb8ff];
+      const g2 = new THREE.BoxGeometry(0.06, 0.02, 0.06);
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) { const c = cols[(i + j) % 4]; add(g2, mat(c, { e: c, ei: 0.9 }), -0.13 + i * 0.087, 0.06, -0.08 + j * 0.08); }
+      break;
+    }
+    case 'computador_quantico': {
+      add(new THREE.BoxGeometry(0.3, 0.06, 0.3), mat(0x2a2f45, { m: 0.6, r: 0.3 }), 0, 0.03, 0);
+      add(new THREE.CylinderGeometry(0.09, 0.12, 0.2, 12), mat(0xd8dce6, { m: 0.8, r: 0.2 }), 0, 0.16, 0);
+      const core = add(new THREE.IcosahedronGeometry(0.08, 0), mat(0x6cf5ff, { flat: true, e: 0x3ab8ff, ei: 1.2, t: 0.9 }), 0, 0.34, 0);
+      core.rotation.set(0.4, 0.3, 0);
+      const ring = add(new THREE.TorusGeometry(0.12, 0.012, 6, 24), mat(0xb18cff, { e: 0x8a5aff, ei: 1 }), 0, 0.34, 0);
+      ring.rotation.x = Math.PI / 2.4;
+      break;
+    }
     default:
       add(new THREE.BoxGeometry(0.25, 0.25, 0.25), mat(0xff00ff), 0, 0.13, 0);
   }

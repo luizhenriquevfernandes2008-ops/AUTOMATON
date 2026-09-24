@@ -1,6 +1,6 @@
 // Máquinas novas: laboratório, plataforma do foguete, drones, sinais, sensores, logística, 2º andar e energia.
 import * as THREE from 'three';
-import { CELL, MACHINES, TECHS, PHASES, ITEMS } from './data.js';
+import { CELL, MACHINES, TECHS, PHASES, ITEMS, INF_TECHS, infCost, SATELLITES, missionNeeds, missionPrize } from './data.js';
 import { game } from './state.js';
 import {
   ENTITY_CLASSES, Entity, Machine, Belt, Generator, grid, gridUp, key, cellCenter, DIRS, ELEV,
@@ -10,7 +10,7 @@ import { takeItemMesh, releaseItemMesh } from './itemMeshes.js';
 import { cloneModel } from './assets.js';
 import { Blocking, JiboiaError, JDict, suggest } from './lang/jiboia.js';
 import { audio } from './audio.js';
-import { puff, floatText, makeLabel, setLabel } from './fx.js';
+import { puff, floatText, makeLabel, setLabel, confetti } from './fx.js';
 import { powerRatio, outputOf } from './power.js';
 
 const BELT_Y = 0.4 * CELL;
@@ -31,9 +31,18 @@ export class Lab extends Machine {
     this.progress = {};
   }
   get inputSides() { return [0, 1, 2, 3]; }
+  // custo da pesquisa (as infinitas começam com "inf:" e ficam mais caras a cada nível)
+  static costOf(id) {
+    if (id && id.startsWith('inf:')) return infCost(id.slice(4), game.economy.infLvl(id.slice(4))).itens;
+    return TECHS[id].custo;
+  }
+  static nameOf(id) {
+    if (id && id.startsWith('inf:')) { const k = id.slice(4); return `${INF_TECHS[k].nome} ${game.economy.infLvl(k) + 1}`; }
+    return TECHS[id]?.nome || id;
+  }
   needs(type) {
     if (!this.research) return false;
-    const cost = TECHS[this.research].custo;
+    const cost = Lab.costOf(this.research);
     return (cost[type] || 0) > (this.progress[type] || 0);
   }
   canAccept(type) { return !this.noPower && this.needs(type); }
@@ -45,24 +54,47 @@ export class Lab extends Machine {
   }
   percent() {
     if (!this.research) return 0;
-    const cost = TECHS[this.research].custo;
+    const cost = Lab.costOf(this.research);
     let need = 0, have = 0;
     for (const [k, n] of Object.entries(cost)) { need += n; have += Math.min(n, this.progress[k] || 0); }
     return need ? have / need : 0;
   }
   setResearch(id) {
-    if (this.research === id) return;
+    if (this.research === id) return null;
+    const eco = game.economy;
+    // pesquisas infinitas gastam ⭐ estrelas ao começar (voltam se trocar)
+    if (id && id.startsWith('inf:')) {
+      const k = id.slice(4);
+      if (!INF_TECHS[k]) return 'Pesquisa infinita desconhecida';
+      if (!eco.launched) return 'Pesquisas infinitas liberam depois do lançamento do foguete 🚀';
+      if (game.entities.some((e) => e.type === 'laboratorio' && e !== this && e.research === id)) return 'Essa pesquisa já está em outro laboratório';
+      const stars = infCost(k, eco.infLvl(k)).estrelas;
+      if (eco.stars < stars) return `Precisa de ${stars} ⭐ estrela(s). Ganhe estrelas lançando missões no Programa Espacial`;
+      eco.stars -= stars;
+      this.stars = stars;
+    }
+    if (this.research && this.research.startsWith('inf:') && this.stars) { eco.stars += this.stars; this.stars = 0; }
+    if (!id || !id.startsWith('inf:')) this.stars = 0;
     // itens já entregues voltam como "crédito" só se for a mesma pesquisa; trocar zera
     this.research = id;
     this.progress = {};
     game.emit('research', this);
+    return null;
   }
   checkDone() {
     if (this.percent() < 1) return;
     const id = this.research;
     this.research = null;
     this.progress = {};
-    game.economy.unlockTech(id);
+    if (id.startsWith('inf:')) {
+      const k = id.slice(4);
+      const eco = game.economy;
+      eco.inf[k] = eco.infLvl(k) + 1;
+      this.stars = 0;
+      eco.addXp(300 * eco.inf[k]);
+      game.emit('infDone', k);
+      game.ui?.banner(`${INF_TECHS[k].icone} ${INF_TECHS[k].nome} ${eco.inf[k]}`, 'Pesquisa infinita concluída!', [INF_TECHS[k].desc + ` (total: +${Math.round(eco.infBonus(k) * 100)}%)`]);
+    } else game.economy.unlockTech(id);
     audio.play('levelup', { pos: this.pos, volume: 0.8 });
     puff(new THREE.Vector3(this.pos.x, 1.6, this.pos.z), { color: 0x6cf5ff, count: 18, size: 0.18, up: 2.2, gravity: 2, additive: true, spread: 1, life: 1.2 });
     game.emit('research', this);
@@ -70,7 +102,7 @@ export class Lab extends Machine {
   update(dt) {
     super.update(dt);
     const r = this.research;
-    this.status = this.noPower ? 'Sem energia ⚡' : r ? `Pesquisando ${TECHS[r].nome} (${Math.round(this.percent() * 100)}%)` : 'Escolha uma pesquisa (E)';
+    this.status = this.noPower ? 'Sem energia ⚡' : r ? `Pesquisando ${Lab.nameOf(r)} (${Math.round(this.percent() * 100)}%)` : 'Escolha uma pesquisa (E)';
     if (this.bump > 0) { this.bump -= dt; const k = 1 + this.bump * 0.2; this.model.scale.set(k, k, k); }
     if (r && !this.noPower && Math.random() < dt * 2) puff(new THREE.Vector3(this.pos.x, 1.3, this.pos.z), { color: 0x6cf5ff, count: 1, size: 0.12, up: 0.8, additive: true, spread: 0.8, life: 1 });
   }
@@ -82,13 +114,14 @@ export class Lab extends Machine {
       faltando: {
         fn: () => {
           if (!this.research) return new JDict();
-          const cost = TECHS[this.research].custo;
+          const cost = Lab.costOf(this.research);
           return new JDict(Object.entries(cost).map(([k, n]) => [k, Math.max(0, n - (this.progress[k] || 0))]));
         }, doc: 'Dicionário com quantos itens ainda faltam',
       },
       pesquisar: {
-        min: 1, max: 1, doc: 'Escolhe a pesquisa pelo nome (ex: "logistica")',
+        min: 1, max: 1, doc: 'Escolhe a pesquisa pelo nome (ex: "logistica", ou "inf:mineracao" pras infinitas)',
         fn: ([id]) => {
+          if (typeof id === 'string' && id.startsWith('inf:')) { const why = this.setResearch(id); if (why) throw new JiboiaError(why); return true; }
           if (!TECHS[id]) { const s = suggest(String(id), Object.keys(TECHS)); throw new JiboiaError(`Pesquisa "${id}" não existe` + (s ? `. Você quis dizer "${s}"?` : '')); }
           const why = game.economy.techBlocked(id);
           if (why) throw new JiboiaError(why);
@@ -101,13 +134,19 @@ export class Lab extends Machine {
   infoLines() {
     const l = [`Status: ${this.status}`];
     if (this.research) {
-      const cost = TECHS[this.research].custo;
+      const cost = Lab.costOf(this.research);
       l.push('Falta: ' + Object.entries(cost).map(([k, n]) => `${Math.max(0, n - (this.progress[k] || 0))}× ${itemName(k)}`).join(', '));
     }
     return l.concat(super.infoLines().slice(1));
   }
-  serialize() { return { ...super.serialize(), research: this.research, progress: this.progress }; }
-  load(d) { super.load(d); this.research = d.research && TECHS[d.research] ? d.research : null; this.progress = d.progress || {}; }
+  serialize() { return { ...super.serialize(), research: this.research, progress: this.progress, stars: this.stars || 0 }; }
+  load(d) {
+    super.load(d);
+    const ok = d.research && (TECHS[d.research] || (d.research.startsWith('inf:') && INF_TECHS[d.research.slice(4)]));
+    this.research = ok ? d.research : null;
+    this.progress = d.progress || {};
+    this.stars = d.stars || 0;
+  }
 }
 
 // ───────────────────────── Plataforma de Lançamento (3x3, fixa no mapa) ─────────────────────────
@@ -144,27 +183,49 @@ export class Platform {
   }
   get pos() { return this.obj.position; }
   get phase() { return game.economy.phase; }
-  canAccept(type) {
+  // o que falta agora: fase do Projeto Foguete, ou a missão do Programa Espacial (depois do 1º lançamento)
+  goal() {
+    const eco = game.economy;
+    if (eco.launched) {
+      const m = eco.mission;
+      if (!m.sat) return null;
+      return { itens: missionNeeds(m.n, m.sat), prog: m.progress, final: true };
+    }
     const p = PHASES[this.phase];
-    if (!p || this.launching) return false;
-    return (p.itens[type] || 0) > (game.economy.phaseProgress[type] || 0);
+    return p ? { itens: p.itens, prog: eco.phaseProgress, final: !!p.final } : null;
+  }
+  canAccept(type) {
+    const g = this.goal();
+    if (!g || this.launching) return false;
+    return (g.itens[type] || 0) > (g.prog[type] || 0);
   }
   accept(type, travelDir, mesh) {
     releaseItemMesh(mesh);
-    const eco = game.economy;
-    eco.phaseProgress[type] = (eco.phaseProgress[type] || 0) + 1;
+    const g = this.goal();
+    g.prog[type] = (g.prog[type] || 0) + 1;
     if (Math.random() < 0.3) audio.play('drop', { pos: this.pos, volume: 0.3 });
     game.emit('phase');
-    if (this.percent() >= 1 && !PHASES[this.phase].final) this.completePhase();
+    if (this.percent() >= 1 && !g.final) this.completePhase();
   }
   percent() {
-    const p = PHASES[this.phase];
-    if (!p) return 1;
+    const g = this.goal();
+    if (!g) return game.economy.launched ? 0 : 1;
     let need = 0, have = 0;
-    for (const [k, n] of Object.entries(p.itens)) { need += n; have += Math.min(n, game.economy.phaseProgress[k] || 0); }
+    for (const [k, n] of Object.entries(g.itens)) { need += n; have += Math.min(n, g.prog[k] || 0); }
     return need ? have / need : 0;
   }
-  readyToLaunch() { const p = PHASES[this.phase]; return !!p && p.final && this.percent() >= 1 && !this.launching; }
+  readyToLaunch() { const g = this.goal(); return !!g && g.final && this.percent() >= 1 && !this.launching; }
+  // Programa Espacial: escolhe o satélite da próxima missão
+  chooseMission(sat) {
+    const eco = game.economy;
+    if (!eco.launched || !SATELLITES[sat] || this.launching) return 'Não dá pra escolher agora';
+    if (eco.satLvl(sat) >= 5) return 'Esse satélite já está no máximo (5 em órbita)';
+    eco.mission.sat = sat;
+    eco.mission.progress = {};
+    this.buildRocket();
+    game.emit('phase');
+    return null;
+  }
   completePhase() {
     const eco = game.economy;
     const p = PHASES[this.phase];
@@ -186,13 +247,15 @@ export class Platform {
   }
   buildRocket() {
     this.rocket.clear();
-    const k = Math.min(this.phase, 4);
+    this.rocket.visible = true;
+    this.rocket.position.set(0, 0, 0);
+    const eco = game.economy;
+    const k = eco.launched ? (eco.mission.sat ? 4 : 0) : Math.min(this.phase, 4);
     const parts = [];
     if (k >= 1) parts.push('rocketBase');
     if (k >= 2) parts.push('rocketFuel', 'rocketSides');
     if (k >= 3) parts.push('rocketSides', 'rocketFins');
     if (k >= 4) parts.push('rocketTop');
-    if (game.economy.launched) return; // já foi pro espaço
     let y = 0.15;
     for (const p of parts) {
       const m = cloneModel(p);
@@ -221,15 +284,42 @@ export class Platform {
       this.launching = 0;
       this.rocket.visible = false;
       const eco = game.economy;
-      const p = PHASES[this.phase];
-      eco.launched = true;
-      eco.phase = PHASES.length;
-      eco.phaseProgress = {};
-      eco.addMoney(p.premio);
-      game.emit('launched');
+      if (eco.launched) {
+        // missão do Programa Espacial: o satélite fica em órbita
+        const m = eco.mission;
+        const prize = missionPrize(m.n);
+        const sat = m.sat;
+        eco.sats[sat] = eco.satLvl(sat) + 1;
+        eco.stars += prize.estrelas;
+        eco.addMoney(prize.dinheiro);
+        eco.stats.earned += prize.dinheiro;
+        eco.addXp(prize.dinheiro / 4);
+        m.n++;
+        m.sat = null;
+        m.progress = {};
+        confetti(180);
+        game.emit('missionDone', { sat, prize, n: m.n });
+      } else {
+        const p = PHASES[this.phase];
+        eco.launched = true;
+        eco.phase = PHASES.length;
+        eco.phaseProgress = {};
+        eco.addMoney(p.premio);
+        eco.stars += 2;
+        confetti(220);
+        game.emit('launched');
+      }
+      setTimeout(() => this.buildRocket(), 1500);
     }
   }
   infoLines() {
+    const eco = game.economy;
+    if (eco.launched) {
+      const g = this.goal();
+      if (!g) return [`🛰️ Programa Espacial · missão ${eco.mission.n + 2}`, 'Aperte E pra escolher o satélite da próxima missão'];
+      return [`🛰️ Missão ${eco.mission.n + 2}: ${SATELLITES[eco.mission.sat].nome} (${Math.round(this.percent() * 100)}%)`,
+        'Falta: ' + Object.entries(g.itens).map(([k, n]) => `${Math.max(0, n - (g.prog[k] || 0))}× ${itemName(k)}`).join(', ')];
+    }
     const p = PHASES[this.phase];
     if (!p) return ['🚀 O foguete já foi pro espaço!'];
     return [`Fase ${this.phase + 1}/${PHASES.length}: ${p.nome} (${Math.round(this.percent() * 100)}%)`,
@@ -350,7 +440,7 @@ export class Drone {
         const to = t.to;
         const flat = new THREE.Vector3(to.x - this.p.x, 0, to.z - this.p.z);
         const d = flat.length();
-        const speed = 6 * game.economy.machineSpeed;
+        const speed = 6 * game.economy.machineSpeed * game.economy.logMul;
         if (d > 0.08) {
           this.p.y += (cruise - this.p.y) * Math.min(1, dt * 2.5);
           flat.normalize().multiplyScalar(Math.min(d, speed * dt));
@@ -879,7 +969,11 @@ const powerText2 = (e) => `⚡ Gerando ${Math.round(outputOf(e))}${e.net ? ` · 
 
 // ───────────────────────── Painel Solar ─────────────────────────
 export class SolarPanel extends Generator {
-  powerOutput() { return Math.round(MACHINES[this.type].gera * (game.sunLight ?? 1) * (game.weatherPower ?? 1) * 10) / 10; }
+  powerOutput() {
+    const orb = game.economy.satLvl('energia');
+    const sun = Math.max(game.sunLight ?? 1, orb * 0.08);
+    return Math.round(MACHINES[this.type].gera * sun * (game.weatherPower ?? 1) * (1 + 0.2 * orb) * 10) / 10;
+  }
   get producing() { return this.powerOutput() > 0.5; }
   powerNote() { return `${Math.round((game.sunLight ?? 1) * 100)}% de sol`; }
   update(dt) {

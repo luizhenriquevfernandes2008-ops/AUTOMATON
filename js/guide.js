@@ -191,7 +191,43 @@ while True:
 <li>No editor, aba <b>⚙ Hardware</b>: <b>overclock</b> (até 3×) e <b>memória</b> (variáveis e tamanho das listas) de cada computador.</li>
 </ul>
 
-<h3>17. 🧰 Ferramentas</h3>
+<h3>17. 📋 Contratos e 🎟️ fichas <small>(nível 2)</small></h3>
+<ul>
+<li>No escritório tem o <b>📋 Quadro de Contratos</b> (<kbd>E</kbd> nele, ou <kbd>L</kbd> em qualquer lugar). Clientes pedem itens da sua fábrica: <b>Comum</b>, <b>Raro</b> ou <b>🌟 Lendário</b> (esse dá até um 💾 disco).</li>
+<li>Aceite um pedido e mande os itens <b>por esteira</b> até uma <b>Doca de Entrega</b> (loja, nível 2). Entregar na <b>primeira metade do prazo</b> dá <b>+25%</b> ⚡. Perder o prazo <b>não tira nada</b>: o pedido só some.</li>
+<li>Cada contrato dá dinheiro, XP e <b>🎟️ fichas</b>. Troque fichas na loja, aba <b>🎟️ Fichas</b>: chapéus e cores pro Oopi, decoração exclusiva (astronauta, alien, rover, nave) e mais vagas de contrato.</li>
+<li>No código: <code>contratos()</code> lista os aceitos e <code>maquina("doca_entrega1").faltando()</code> diz o que falta.</li>
+</ul>
+
+<h3>18. 🧩 Desafios de programação</h3>
+<ul>
+<li>Na mesa do escritório tem o <b>🧩 Terminal de Desafios</b>: 10 quebra-cabeças em Jiboia. O programa lê com <code>pegar()</code> e responde com <code>entregar(x)</code>. Quando a entrada acaba, <code>pegar()</code> termina o programa. <code>tem_mais()</code> diz se ainda tem entrada.</li>
+<li>Cada solução ganha 3 notas: <b>⚙️ instruções</b>, <b>📏 linhas</b> e <b>🧠 memória</b> (variáveis ao mesmo tempo), cada uma com 🥉/🥈/🥇. Dá pra melhorar quantas vezes quiser.</li>
+<li>Resolver dá dinheiro, fichas e libera uma <b>função nova</b> pros computadores: <code>anunciar</code>, <code>contar</code>, <code>media</code>, <code>unicos</code>, <code>mais_caro</code>, <code>maior_chave</code>, <code>faltando</code>, <code>relatorio</code>, <code>inverter</code>, <code>chance</code>.</li>
+</ul>
+
+<h3>19. 💾 Discos de dados e receitas alternativas</h3>
+<ul>
+<li>Discos aparecem em <b>📦 caixas perdidas</b> na floresta (8 no mapa, elas brilham em azul · o Oopi dá dicas de onde estão), nas pedrinhas da <b>chuva de meteoros</b>, no <b>correio da manhã</b> e em <b>contratos lendários</b>.</li>
+<li>No Laboratório, clique em <b>🔍 Analisar um disco</b> e escolha 1 de 2 <b>receitas alternativas</b> (ex: <code>fabricar("engrenagem_fundida")</code>: 1 aço → 2 engrenagens; <code>fundir("silicio_puro")</code>: quartzo + carvão → 2 silícios).</li>
+</ul>
+
+<h3>20. 🛰️ Programa Espacial e ♾️ pesquisas infinitas</h3>
+<ul>
+<li>Depois de lançar o foguete, a plataforma vira o <b>Programa Espacial</b>: escolha um <b>satélite</b>, entregue os itens e lance de novo. Cada satélite fica em órbita com um <b>bônus permanente</b> (até 5 de cada): clock dos computadores, preço de venda, esteiras/drones, horta e chuva, meteoros, painéis solares.</li>
+<li>Cada missão dá <b>⭐ estrelas</b>. Elas pagam as <b>♾️ pesquisas infinitas</b> no Laboratório (mineração, fundição, CPU, marketing, esteiras, horta), que ficam mais caras a cada nível.</li>
+<li>Itens novos de ponta: <b>🔋 Bateria</b>, <b>Painel de LED</b> (pesquisa Eletrônica Avançada) e <b>🧿 Computador Quântico</b> (usa fragmentos estelares).</li>
+</ul>
+
+<h3>21. 📬 Correio, 🔥 combo, 📐 projetos e 📖 álbum</h3>
+<ul>
+<li><b>Correio da manhã</b>: uma vez por dia (de verdade), um pacote com presente. Dias seguidos rendem mais (dia 5: 💾, dia 7: 3 🎟️).</li>
+<li><b>Combo de vendas</b>: vendas com menos de 10 s entre elas somam combo, até <b>+20%</b> no dinheiro 🔥.</li>
+<li><b>Projetos</b> (<kbd>J</kbd>): salve o grupo copiado com <kbd>C</kbd> e cole em qualquer fábrica. O botão 🔗 gera um código pra mandar pra amigos (importado, o programa não roda sozinho).</li>
+<li><b>Álbum</b> (<kbd>K</kbd> → Álbum): todos os itens que você já descobriu. <b>Amizade com o Oopi</b>: carinho e tarefas sobem o nível (1 a 5) e dão presentes.</li>
+</ul>
+
+<h3>22. 🧰 Ferramentas</h3>
 <ul>
 <li><kbd>C</kbd> copiar uma área (clique em 2 cantos) · <kbd>V</kbd> colar de novo · <kbd>R</kbd> gira o grupo. Peças que faltarem são compradas.</li>
 <li><kbd>Ctrl+Z</kbd> desfaz (colocar, tirar, cabos, colar, girar).</li>
@@ -200,7 +236,7 @@ while True:
 <li>Menu: <b>3 fábricas</b> (saves separados). Configurações: <b>teclas</b>, <b>modo daltônico</b>, <b>fonte do editor</b> e <b>controle</b> 🎮 (alavancas andam e olham, <kbd>A</kbd> pula, <kbd>X</kbd> usa, <kbd>RT</kbd> coloca, <kbd>Start</kbd> pausa).</li>
 </ul>
 
-<h3>18. Problemas comuns</h3>
+<h3>23. Problemas comuns</h3>
 <table>
 <tr><th>Problema</th><th>Solução</th></tr>
 <tr><td>O item para no fim da esteira</td><td>A próxima peça não aceita por esse lado (seta laranja) ou está cheia.</td></tr>
@@ -210,6 +246,8 @@ while True:
 <tr><td>Tudo lento</td><td>Energia fraca (HUD ⚡ vermelho): mais geradores. Ou compre "Clock da CPU" na loja.</td></tr>
 <tr><td>"Memória cheia" / "Lista cheia"</td><td>Reaproveite variáveis, use <code>.pop(0)</code>, ou melhore a memória no ⚙ Hardware.</td></tr>
 <tr><td>A planta não cresce</td><td>Terra seca, teto que não é de vidro em cima, ou é de noite.</td></tr>
+<tr><td>A Doca de Entrega não aceita o item</td><td>Nenhum contrato aceito pede esse item (ou já chegou tudo dele). Veja o 📋 quadro.</td></tr>
+<tr><td>"função liberada resolvendo o desafio…"</td><td>Resolva o desafio indicado no 🧩 Terminal de Desafios.</td></tr>
 </table>
 </div>`;
 }

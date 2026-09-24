@@ -1,12 +1,15 @@
 // Computador: roda programas Jiboia devagarinho e controla as máquinas.
 import * as THREE from 'three';
 import { Machine, ENTITY_CLASSES, MachineRef, findByName } from './machines.js';
-import { parse, Interpreter, Builtin, Blocking, JiboiaError, JDict, JRange, STEP, WAIT, suggest, str, repr, truthy } from './lang/jiboia.js';
+import { parse, Interpreter, Builtin, Blocking, JiboiaError, JDict, JRange, STEP, WAIT, suggest, str, repr, truthy, jEq } from './lang/jiboia.js';
+const jEqSafe = (a, b) => { try { return jEq(a, b); } catch { return a === b; } };
 import { powerText } from './power.js';
 import { ITEMS, STARTER_CODE, MACHINES, PC_UPGRADES } from './data.js';
 import { PAL } from './palette.js';
 import { game } from './state.js';
 import { audio } from './audio.js';
+import { CHALLENGES } from './challenges.js';
+import { jiboiaContracts, neededTotals, UNLOCK_LEVEL } from './contracts.js';
 
 const SCREEN_W = 512, SCREEN_H = 234;
 // posição da tela em cima do modelo "screen-panel-wide" (coordenadas do modelo já normalizado)
@@ -24,6 +27,14 @@ function copyValue(v) {
   if (v instanceof JRange) return v;
   return v;
 }
+
+// funções liberadas resolvendo desafios no 🧩 Terminal de Desafios
+function needChallenge(fn) {
+  const ch = CHALLENGES.find((c) => c.libera[0] === fn);
+  if (ch && !game.economy.challenges[ch.id]?.solved) throw new JiboiaError(`${fn}() é liberada resolvendo o desafio "${ch.nome}" no 🧩 Terminal de Desafios (mesa do escritório)`);
+}
+const needList = (v, fn) => { if (!Array.isArray(v)) throw new JiboiaError(`${fn}() precisa de uma lista`); return v; };
+const escH = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 // eventos globais (vendas, sensores) chegam em quem estiver ouvindo
 game.on('evento', (ev) => {
@@ -75,7 +86,7 @@ export class Computer extends Machine {
   get clockMul() { return PC_UPGRADES.clock.valores[this.hw.clock]; }
   get limits() { return { vars: PC_UPGRADES.memoria.valores[this.hw.memoria], lista: PC_UPGRADES.memoria.lista[this.hw.memoria] }; }
   get hwEnergy() { return PC_UPGRADES.clock.energia[this.hw.clock] + PC_UPGRADES.memoria.energia[this.hw.memoria]; }
-  get hz() { return game.economy.cpuHz * this.clockMul * (1 + this.decorCpu); }
+  get hz() { return game.economy.cpuHz * this.clockMul * (1 + this.decorCpu) * game.economy.cpuMul; }
   hwUpgrade(k) {
     const u = PC_UPGRADES[k];
     const lvl = this.hw[k];
@@ -339,6 +350,45 @@ export class Computer extends Machine {
           yield WAIT;
         }
       }, 1, 2, true),
+      // ── contratos ──
+      contratos: B('contratos', () => {
+        if (game.economy.level < UNLOCK_LEVEL) throw new JiboiaError(`Contratos liberam no nível ${UNLOCK_LEVEL}`);
+        return jiboiaContracts();
+      }),
+      fichas: B('fichas', () => game.economy.tokens),
+      estrelas: B('estrelas', () => game.economy.stars),
+      // ── funções liberadas pelos desafios ──
+      anunciar: B('anunciar', ([t]) => { needChallenge('anunciar'); game.ui?.toast(`📢 <b>${escH(self.name)}</b>: ${escH(str(t)).slice(0, 140)}`); audio.play('quest', { volume: 0.4 }); return null; }, 1),
+      contar: B('contar', ([l, x]) => { needChallenge('contar'); return needList(l, 'contar').filter((v) => jEqSafe(v, x)).length; }, 2),
+      media: B('media', ([l]) => {
+        needChallenge('media');
+        needList(l, 'media');
+        if (!l.length) return 0;
+        if (l.some((v) => typeof v !== 'number')) throw new JiboiaError('media() precisa de uma lista de números');
+        return l.reduce((a, b) => a + b, 0) / l.length;
+      }, 1),
+      unicos: B('unicos', ([l]) => { needChallenge('unicos'); const out = []; for (const v of needList(l, 'unicos')) if (!out.some((o) => jEqSafe(o, v))) out.push(v); return out; }, 1),
+      mais_caro: B('mais_caro', ([l]) => {
+        needChallenge('mais_caro');
+        const items = needList(l, 'mais_caro').filter((k) => ITEMS[k]);
+        if (!items.length) return null;
+        return items.reduce((a, b) => (game.economy.price(b) > game.economy.price(a) ? b : a));
+      }, 1),
+      maior_chave: B('maior_chave', ([d]) => {
+        needChallenge('maior_chave');
+        if (!(d instanceof JDict)) throw new JiboiaError('maior_chave() precisa de um dicionário');
+        let best = null, bv = -Infinity;
+        for (const [k, v] of d.m) if (typeof v === 'number' && v > bv) { bv = v; best = k; }
+        return best;
+      }, 1),
+      faltando: B('faltando', () => { needChallenge('faltando'); return new JDict(Object.entries(neededTotals())); }),
+      relatorio: B('relatorio', () => {
+        needChallenge('relatorio');
+        const e = game.economy;
+        return new JDict([['dinheiro', e.money], ['nivel', e.level], ['fichas', e.tokens], ['estrelas', e.stars], ['contratos', e.stats.contracts || 0], ['por_minuto', Math.round(e.moneyPerMinute())]]);
+      }),
+      inverter: B('inverter', ([l]) => { needChallenge('inverter'); return [...needList(l, 'inverter')].reverse(); }, 1),
+      chance: B('chance', ([p]) => { needChallenge('chance'); if (typeof p !== 'number') throw new JiboiaError('chance() precisa de um número de 0 a 1'); return Math.random() < p; }, 1),
       // ── bibliotecas ──
       importar: new Builtin('importar', function* ([nome], I) {
         const libs = game.economy.libs;

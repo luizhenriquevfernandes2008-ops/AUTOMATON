@@ -1,6 +1,9 @@
 // Janelas: pesquisa, projeto foguete, estatísticas/placar/conquistas e mapa visto de cima.
 import { game } from './state.js';
-import { TECHS, PHASES, ITEMS, ACHIEVEMENTS, REGIONS, MACHINES, CELL, WORLD_MIN, WORLD_MAX, GRID_MIN, GRID_MAX, ORES } from './data.js';
+import { TECHS, PHASES, ITEMS, ACHIEVEMENTS, REGIONS, MACHINES, CELL, WORLD_MIN, WORLD_MAX, GRID_MIN, GRID_MAX, ORES, INF_TECHS, infCost } from './data.js';
+import { renderSpace } from './space.js';
+import { renderDisks } from './disks.js';
+import { Lab } from './machines2.js';
 import { thumbs } from './thumbs.js';
 import { audio } from './audio.js';
 import { ores, findByName, itemName } from './machines.js';
@@ -14,16 +17,16 @@ const icon = (k) => `<img class="ic" src="${thumbs['item:' + k] || ''}" alt="">`
 // ─────────────── Pesquisa ───────────────
 export function renderResearch(el, lab) {
   const eco = game.economy;
-  const tiers = [0, 1, 2, 3];
+  const tiers = [0, 1, 2, 3, 4, 5];
   const busy = new Set(game.entities.filter((e) => e.type === 'laboratorio' && e !== lab && e.research).map((e) => e.research));
   el.innerHTML = `
     <div class="rs-head">
-      <div><b>${lab.name}</b> · ${lab.research ? `pesquisando <b class="amber">${TECHS[lab.research].nome}</b> (${Math.round(lab.percent() * 100)}%)` : 'escolha uma pesquisa e mande os itens por esteira'}</div>
-      <div class="muted">${eco.techs.length}/${Object.keys(TECHS).length} pesquisas · fase do foguete: ${Math.min(eco.phase, PHASES.length)}/${PHASES.length}</div>
+      <div><b>${lab.name}</b> · ${lab.research ? `pesquisando <b class="amber">${Lab.nameOf(lab.research)}</b> (${Math.round(lab.percent() * 100)}%)` : 'escolha uma pesquisa e mande os itens por esteira'}</div>
+      <div class="muted">${eco.techs.length}/${Object.keys(TECHS).length} pesquisas · fase do foguete: ${Math.min(eco.phase, PHASES.length)}/${PHASES.length} · ⭐ ${eco.stars} · 💾 ${eco.disks}</div>
     </div>
     <div class="rs-tree">${tiers.map((f) => `
       <div class="rs-col">
-        <div class="rs-col-h">${f === 0 ? 'Início' : `Fase ${f} do foguete`}${eco.phase < f ? ' 🔒' : ''}</div>
+        <div class="rs-col-h">${f === 0 ? 'Início' : f === 5 ? 'Depois do lançamento' : `Fase ${f} do foguete`}${eco.phase < f ? ' 🔒' : ''}</div>
         ${Object.entries(TECHS).filter(([, t]) => t.fase === f).map(([id, t]) => {
     const done = eco.hasTech(id);
     const why = eco.techBlocked(id);
@@ -41,13 +44,32 @@ export function renderResearch(el, lab) {
   }).join('')}
       </div>`).join('')}
     </div>
-    <p class="muted" style="margin:10px 4px 0">Os itens entram no laboratório por qualquer lado (setas azuis). Ele só aceita o que a pesquisa pede. Trocar de pesquisa perde o que já foi entregue.</p>`;
+    <h3 class="rec-h">♾️ Pesquisas infinitas <small class="muted">${eco.launched ? `cada nível custa mais itens e ⭐ estrelas · você tem ⭐ ${eco.stars}` : '🔒 liberam depois do lançamento do foguete'}</small></h3>
+    <div class="rs-inf">${Object.entries(INF_TECHS).map(([k, t]) => {
+    const id = 'inf:' + k;
+    const lvl = eco.infLvl(k);
+    const c = infCost(k, lvl);
+    const cur = lab.research === id;
+    const busyInf = busy.has(id);
+    const cls = !eco.launched ? 'locked' : cur ? 'cur' : busyInf ? 'busy' : eco.stars < c.estrelas ? 'locked' : 'avail';
+    const cost = Object.entries(c.itens).map(([i, n]) => `<span class="rs-cost">${icon(i)}${cur ? `${Math.min(n, lab.progress[i] || 0)}/` : ''}${n}</span>`).join('') + `<span class="rs-cost">⭐${c.estrelas}</span>`;
+    return `<button class="rs-node ${cls}" data-id="${id}" ${cls === 'locked' || cls === 'busy' ? 'disabled' : ''}>
+        <div class="rs-top"><span class="rs-ic">${t.icone}</span><b>${t.nome} ${lvl + 1}</b></div>
+        <div class="rs-desc">${t.desc}${lvl ? ` · agora +${Math.round(eco.infBonus(k) * 100)}%` : ''}</div>
+        <div class="rs-costs">${cost}</div>
+        ${cur ? `<div class="rs-bar"><i style="width:${lab.percent() * 100}%"></i></div>` : ''}
+      </button>`;
+  }).join('')}</div>
+    <div id="rs-disks"></div>
+    <p class="muted" style="margin:10px 4px 0">Os itens entram no laboratório por qualquer lado (setas azuis). Ele só aceita o que a pesquisa pede. Trocar de pesquisa perde o que já foi entregue (as ⭐ estrelas voltam).</p>`;
+  renderDisks(el.querySelector('#rs-disks'), () => renderResearch(el, lab));
   el.querySelectorAll('.rs-node.avail, .rs-node.cur').forEach((b) => {
     b.onclick = () => {
       const id = b.dataset.id;
       if (lab.research === id) return;
       if (lab.research && lab.percent() > 0 && !confirm('Trocar de pesquisa? O que já foi entregue será perdido.')) return;
-      lab.setResearch(id);
+      const why = lab.setResearch(id);
+      if (why) { game.ui.toast(why, 'warn'); audio.play('deny'); return; }
       audio.play('select', { volume: 0.6 });
       renderResearch(el, lab);
     };
@@ -58,10 +80,7 @@ export function renderResearch(el, lab) {
 export function renderPlatform(el) {
   const eco = game.economy;
   const pl = game.platform;
-  if (eco.launched) {
-    el.innerHTML = `<div class="pf-done"><div class="pf-big">🚀</div><h2>O foguete foi pro espaço!</h2><p>Parabéns, você terminou o Projeto Foguete. A fábrica continua sua, pra crescer o quanto quiser. ✨</p></div>`;
-    return;
-  }
+  if (eco.launched) { renderSpace(el); return; }
   el.innerHTML = `
     <div class="pf-phases">${PHASES.map((p, i) => {
     const st = i < eco.phase ? 'done' : i === eco.phase ? 'cur' : 'next';
@@ -91,7 +110,8 @@ let statsTab = 'geral';
 export function renderStats(el, tab) {
   if (tab) statsTab = tab;
   const eco = game.economy;
-  const tabs = [['geral', 'Visão geral'], ['placar', 'Placar'], ['conquistas', `Conquistas ${eco.achievements.length}/${ACHIEVEMENTS.length}`], ['producao', 'Produção']];
+  const found = Object.keys(ITEMS).filter((k) => eco.discovered(k)).length;
+  const tabs = [['geral', 'Visão geral'], ['placar', 'Placar'], ['conquistas', `Conquistas ${eco.achievements.length}/${ACHIEVEMENTS.length}`], ['album', `Álbum ${found}/${Object.keys(ITEMS).length}`], ['producao', 'Produção']];
   el.innerHTML = `<div class="st-tabs">${tabs.map(([k, n]) => `<button class="shop-tab ${statsTab === k ? 'active' : ''}" data-t="${k}">${n}</button>`).join('')}</div><div id="st-body"></div>`;
   el.querySelectorAll('.st-tabs button').forEach((b) => { b.onclick = () => { renderStats(el, b.dataset.t); audio.play('click', { volume: 0.4 }); }; });
   const body = el.querySelector('#st-body');
@@ -106,6 +126,9 @@ export function renderStats(el, tab) {
         <div><span>total ganho</span><b>$ ${fmt(eco.stats.earned)}</b></div>
         <div><span>itens vendidos</span><b>${fmt(eco.stats.soldCount)}</b></div>
         <div><span>tempo de jogo</span><b>${Math.floor(game.time / 60)} min</b></div>
+        <div><span>fichas · estrelas</span><b>🎟️ ${eco.tokens} · ⭐ ${eco.stars}</b></div>
+        <div><span>contratos cumpridos</span><b>${eco.stats.contracts || 0}</b></div>
+        <div><span>melhor combo</span><b>🔥 ×${eco.stats.bestCombo || 0}</b></div>
       </div>
       <div class="st-chart"><div class="card-h"><span>// ganhos a cada 10 s (última hora)</span><b>$</b></div><canvas id="ch-money" width="900" height="170"></canvas></div>
       <div class="st-chart"><div class="card-h"><span>// itens produzidos a cada 10 s</span><b>itens</b></div><canvas id="ch-items" width="900" height="140"></canvas></div>
@@ -124,6 +147,12 @@ export function renderStats(el, tab) {
       const ok = eco.achievements.includes(a.id);
       return `<div class="ach ${ok ? 'ok' : ''}"><span class="ach-ic">${ok ? a.icone : '🔒'}</span><b>${a.nome}</b><small>${a.desc}</small></div>`;
     }).join('')}</div>`;
+  } else if (statsTab === 'album') {
+    body.innerHTML = `<p class="muted">Cada item que você fabrica, colhe ou vende entra no álbum. Complete tudo pra ganhar a conquista 📖 <b>Colecionador(a)</b>.</p>
+      <div class="al-grid">${Object.keys(ITEMS).map((k) => {
+    const ok = eco.discovered(k);
+    return `<div class="al-card ${ok ? 'ok' : ''}">${ok ? icon(k) : '<span class="al-q">?</span>'}<b>${ok ? ITEMS[k].nome : '???'}</b><small>${ok ? `feitos ${fmt(eco.stats.produced[k] || 0)} · vendidos ${fmt(eco.stats.sold[k] || 0)}` : 'ainda não descoberto'}</small></div>`;
+  }).join('')}</div>`;
   } else {
     const p = eco.stats.produced;
     body.innerHTML = `<table class="market"><tr><th></th><th>Item</th><th>Produzidos</th><th>Vendidos</th><th>Preço agora</th></tr>

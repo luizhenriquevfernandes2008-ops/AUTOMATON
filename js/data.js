@@ -36,6 +36,10 @@ export const ITEMS = {
   vidro: { nome: 'Vidro', base: 12, cor: '#9fd8ff', material: true },
   // raro: cai com a chuva de meteoros
   fragmento_estelar: { nome: 'Fragmento Estelar', base: 60, cor: '#b18cff' },
+  // itens de ponta (v1.3): contratos lendários e Programa Espacial
+  bateria: { nome: 'Bateria', base: 75, cor: '#5dd39e' },
+  painel_led: { nome: 'Painel de LED', base: 110, cor: '#ff6ec7' },
+  computador_quantico: { nome: 'Computador Quântico', base: 950, cor: '#6cf5ff' },
 };
 
 // Minérios que existem no mapa
@@ -54,6 +58,10 @@ export const SMELT = {
   quartzo: { in: { quartzo: 1 }, out: 'silicio', tempo: 4, nivel: 5 },
   aco: { in: { lingote_ferro: 1, carvao: 1 }, out: 'aco', tempo: 4, nivel: 2, tech: 'metalurgia', escoria: 1 },
   vidro: { in: { quartzo: 2 }, out: 'vidro', tempo: 3, nivel: 5 },
+  // receitas alternativas (liberadas analisando 💾 discos de dados)
+  silicio_puro: { in: { quartzo: 1, carvao: 1 }, out: 'silicio', qtd: 2, tempo: 5, nivel: 5, alt: true },
+  aco_direto: { in: { minerio_ferro: 2, carvao: 1 }, out: 'aco', tempo: 5, nivel: 2, alt: true },
+  vidro_temperado: { in: { quartzo: 1, escoria: 2 }, out: 'vidro', tempo: 3, nivel: 5, alt: true },
 };
 
 // Montadora: receitas
@@ -69,7 +77,21 @@ export const RECIPES = {
   modulo_foguete: { in: { motor: 2, viga: 4, processador: 1 }, qtd: 1, tempo: 12, nivel: 5, tech: 'foguete' },
   satelite: { in: { processador: 2, robozinho: 1, fio: 4 }, qtd: 1, tempo: 14, nivel: 5, tech: 'foguete' },
   concreto: { in: { escoria: 2, quartzo: 1 }, qtd: 2, tempo: 3, nivel: 5 },
+  bateria: { in: { lingote_cobre: 2, carvao: 1, aco: 1 }, qtd: 1, tempo: 5, nivel: 5, tech: 'eletronica' },
+  painel_led: { in: { vidro: 1, chip: 1, fio: 2 }, qtd: 1, tempo: 6, nivel: 5, tech: 'eletronica' },
+  computador_quantico: { in: { processador: 2, fragmento_estelar: 2, bateria: 1 }, qtd: 1, tempo: 16, nivel: 5, tech: 'quantica' },
+  // receitas alternativas (💾 discos de dados). out = item que sai
+  engrenagem_fundida: { in: { aco: 1 }, out: 'engrenagem', qtd: 2, tempo: 3, nivel: 4, alt: true },
+  fio_de_ferro: { in: { lingote_ferro: 2 }, out: 'fio', qtd: 3, tempo: 3, nivel: 4, alt: true },
+  chip_reciclado: { in: { fio: 3, quartzo: 1 }, out: 'chip', qtd: 1, tempo: 5, nivel: 5, alt: true },
+  motor_compacto: { in: { engrenagem: 1, chip: 1 }, out: 'motor', qtd: 1, tempo: 5, nivel: 6, alt: true },
+  tijolo_prensado: { in: { escoria: 2, carvao: 1 }, out: 'tijolo', qtd: 2, tempo: 3, nivel: 4, alt: true },
+  concreto_armado: { in: { escoria: 1, aco: 1 }, out: 'concreto', qtd: 4, tempo: 4, nivel: 5, alt: true },
+  robozinho_simples: { in: { motor: 2, processador: 1 }, out: 'robozinho', qtd: 1, tempo: 9, nivel: 8, alt: true },
+  bateria_de_sal: { in: { lingote_cobre: 1, escoria: 3 }, out: 'bateria', qtd: 1, tempo: 6, nivel: 5, tech: 'eletronica', alt: true },
 };
+// item que uma receita (da fornalha ou da montadora) produz
+export const recipeOut = (k, r) => r.out || k;
 
 // ─── Horta ───
 // tempo = segundos pra ficar pronta (com água e de dia). colheita = itens por colheita. estagios = modelos 3D de cada fase
@@ -239,6 +261,10 @@ export const MACHINES = {
     nome: 'Irrigador', preco: 90, nivel: 2, prefixo: 'irrigador', model: 'sprinkler', energia: 1,
     desc: 'Rega sozinho os canteiros em volta (2 células). .regar() rega na hora, .desligar() para. Gasta 1 ⚡.', solido: true,
   },
+  doca_entrega: {
+    nome: 'Doca de Entrega', preco: 150, nivel: 2, prefixo: 'doca_entrega', model: 'deliveryDock',
+    desc: 'Recebe por esteira (qualquer lado) os itens dos contratos aceitos no 📋 Quadro de Contratos. Não gasta energia.', solido: true,
+  },
   deposito: {
     nome: 'Depósito de Materiais', preco: 120, nivel: 1, prefixo: 'deposito', model: 'depot',
     desc: 'Recebe madeira, tijolo, concreto, vidro e aço por esteira e guarda no seu estoque de construção (🧱). Não gasta energia.', solido: true,
@@ -267,7 +293,45 @@ export const TECHS = {
   drones: { nome: 'Drones', icone: '🚁', desc: 'Doca de Drones: drones voadores programáveis que carregam itens.', custo: { motor: 10, chip: 15 }, fase: 2, requer: ['rede'] },
   mk3: { nome: 'Máquinas Mk3', icone: '⏫', desc: 'Melhore máquinas pra Mk3: 2,2× mais rápidas.', custo: { aco: 30, chip: 20 }, fase: 3, requer: ['mk2', 'metalurgia'] },
   foguete: { nome: 'Engenharia Espacial', icone: '🚀', desc: 'Processador, Módulo de Foguete e Satélite.', custo: { aco: 40, chip: 30, robozinho: 3 }, fase: 3, requer: ['metalurgia'] },
+  eletronica: { nome: 'Eletrônica Avançada', icone: '🔋', desc: 'Bateria e Painel de LED na montadora.', custo: { chip: 30, aco: 30, vidro: 20 }, fase: 4, requer: ['foguete'] },
+  quantica: { nome: 'Computação Quântica', icone: '🧿', desc: 'Computador Quântico (usa fragmentos estelares dos meteoros).', custo: { processador: 15, bateria: 15, fragmento_estelar: 10 }, fase: 5, requer: ['eletronica'] },
 };
+
+// Pesquisas infinitas (depois do lançamento): cada nível custa mais itens e ⭐ Estrelas do Programa Espacial
+export const INF_TECHS = {
+  mineracao: { nome: 'Mineração Profunda', icone: '⛏️', desc: '+8% de velocidade nos mineradores', efeito: 0.08, custo: { lingote_ferro: 60, engrenagem: 20 } },
+  fundicao: { nome: 'Metalurgia Fina', icone: '🔥', desc: '+8% de velocidade nas fornalhas e montadoras', efeito: 0.08, custo: { aco: 30, tijolo: 30 } },
+  cpu: { nome: 'Compilador Otimizado', icone: '🧠', desc: '+6% de clock em todos os computadores', efeito: 0.06, custo: { chip: 25, processador: 5 } },
+  mercado: { nome: 'Marketing', icone: '💵', desc: '+4% no preço de venda de tudo', efeito: 0.04, custo: { robozinho: 3, painel_led: 5 } },
+  logistica: { nome: 'Esteiras Turbo', icone: '🚚', desc: '+5% de velocidade nas esteiras e drones', efeito: 0.05, custo: { motor: 10, bateria: 5 } },
+  horta: { nome: 'Adubo Estelar', icone: '🌱', desc: '+10% de crescimento na horta', efeito: 0.1, custo: { grao_cafe: 30, fragmento_estelar: 5 } },
+};
+export function infCost(id, lvl) {
+  const k = Math.pow(1.45, lvl);
+  return {
+    itens: Object.fromEntries(Object.entries(INF_TECHS[id].custo).map(([i, n]) => [i, Math.round(n * k)])),
+    estrelas: 1 + Math.floor(lvl / 2),
+  };
+}
+
+// Programa Espacial: satélites que ficam em órbita e dão bônus permanentes (até 5 de cada)
+export const SATELLITES = {
+  comunicacao: { nome: 'Satélite de Comunicação', icone: '📡', desc: '+8% de clock nos computadores', extra: { processador: 6 } },
+  mercado: { nome: 'Satélite Financeiro', icone: '💹', desc: '+5% no preço de venda', extra: { robozinho: 3 } },
+  gps: { nome: 'Satélite GPS', icone: '🧭', desc: '+6% nas esteiras e drones', extra: { bateria: 6 } },
+  clima: { nome: 'Satélite Meteorológico', icone: '🌦️', desc: '+12% de crescimento na horta e mais chuva', extra: { painel_led: 4 } },
+  telescopio: { nome: 'Telescópio Espacial', icone: '🔭', desc: 'Mais chuvas de meteoros e veios maiores', extra: { fragmento_estelar: 12 } },
+  energia: { nome: 'Estação Solar Orbital', icone: '🛰️', desc: '+20% nos painéis solares, e eles geram um pouco à noite', extra: { painel_led: 3, bateria: 3 } },
+};
+export const SAT_MAX = 5;
+// o que a missão n (0 = segundo lançamento) pede
+export function missionNeeds(n, sat) {
+  const k = 1 + 0.4 * n;
+  const itens = { modulo_foguete: 2 + n, satelite: 1 + Math.floor(n / 3) };
+  for (const [i, q] of Object.entries(SATELLITES[sat].extra)) itens[i] = (itens[i] || 0) + Math.round(q * k);
+  return itens;
+}
+export const missionPrize = (n) => ({ dinheiro: Math.round(20000 * (1 + 0.5 * n)), estrelas: 2 + Math.floor(n / 2) });
 
 // Projeto Foguete: fases entregues na Plataforma de Lançamento (tipo o Elevador Espacial do Satisfactory)
 export const PHASES = [
@@ -292,6 +356,7 @@ export const DECOR_BONUS = {
   luminaria: { vel: 0.05 }, barris: { vel: 0.03 }, antena: { cpu: 0.05, vel: 0.05 },
   sofa: { cpu: 0.03 }, cafeteira: { vel: 0.04 }, banco: { cpu: 0.02 },
   estatua: { cpu: 0.1, vel: 0.1, raio: 5 },
+  astronauta: { cpu: 0.06 }, alien: { vel: 0.05 }, rover: { cpu: 0.04, vel: 0.04 }, nave: { cpu: 0.08, raio: 4 },
   estante: { cpu: 0.04 }, poltrona: { cpu: 0.03 }, tv: { cpu: 0.02 }, urso: { cpu: 0.03 }, sofa_longo: { cpu: 0.04 },
   mesa_redonda: { cpu: 0.02 }, tapete: { cpu: 0.02 }, luminaria_piso: { vel: 0.04 }, geladeira: { vel: 0.03 }, vaso_flor: { cpu: 0.03 },
 };
@@ -344,6 +409,71 @@ export const ACHIEVEMENTS = [
   { id: 'overclock', nome: 'Overclock', desc: 'Melhore o hardware de um computador.', icone: '⏩' },
   { id: 'recorde', nome: 'Recordista', desc: 'Bata um recorde da fábrica.', icone: '🏆' },
   { id: 'oopi_tarefa', nome: 'Oopi ajudante', desc: 'Peça uma tarefa pro Oopi.', icone: '🤖' },
+  // v1.3
+  { id: 'contrato', nome: 'Negócio fechado', desc: 'Cumpra um contrato.', icone: '📋' },
+  { id: 'contratos_25', nome: 'Fornecedor oficial', desc: 'Cumpra 25 contratos.', icone: '🤝' },
+  { id: 'lendario', nome: 'Lenda do bairro', desc: 'Cumpra um contrato lendário.', icone: '🌟' },
+  { id: 'relampago', nome: 'Entrega relâmpago', desc: 'Cumpra um contrato na primeira metade do prazo.', icone: '⚡' },
+  { id: 'desafio', nome: 'Quebra-cabeça', desc: 'Resolva um desafio de programação.', icone: '🧩' },
+  { id: 'desafio_ouro', nome: 'Perfeccionista', desc: 'Ganhe as 3 medalhas de ouro num desafio.', icone: '🏅' },
+  { id: 'desafios_todos', nome: 'Mestre da Jiboia', desc: 'Resolva todos os desafios.', icone: '🐍' },
+  { id: 'disco', nome: 'Arqueologia de dados', desc: 'Encontre um disco de dados.', icone: '💾' },
+  { id: 'receita_alt', nome: 'Receita da vovó', desc: 'Libere uma receita alternativa.', icone: '📜' },
+  { id: 'satelite2', nome: 'Constelação', desc: 'Lance uma segunda missão espacial.', icone: '🛰️' },
+  { id: 'missao_5', nome: 'Agência espacial', desc: 'Complete 5 missões do Programa Espacial.', icone: '🌌' },
+  { id: 'infinita', nome: 'Sem limites', desc: 'Termine uma pesquisa infinita.', icone: '♾️' },
+  { id: 'quantico', nome: 'Ação fantasmagórica', desc: 'Fabrique um computador quântico.', icone: '🧿' },
+  { id: 'combo_10', nome: 'Combo!', desc: 'Faça um combo de vendas ×10.', icone: '🔥' },
+  { id: 'correio_7', nome: 'Freguesia fiel', desc: 'Abra o correio da manhã 7 dias seguidos.', icone: '📬' },
+  { id: 'projeto', nome: 'Projetista', desc: 'Salve um projeto de máquinas.', icone: '📐' },
+  { id: 'album', nome: 'Colecionador(a)', desc: 'Descubra todos os itens do álbum.', icone: '📖' },
+  { id: 'chapeu', nome: 'Estiloso', desc: 'Coloque um chapéu no Oopi.', icone: '🎩' },
+  { id: 'amizade', nome: 'Amigos pra sempre', desc: 'Chegue à amizade nível 5 com o Oopi.', icone: '💞' },
+];
+
+// Contratos: clientes e o que eles gostam de pedir
+export const CLIENTS = [
+  { nome: 'Padaria da Dona Cida', icone: '🥖', gosta: ['milho', 'cenoura', 'abobora', 'grao_cafe', 'lingote_ferro'] },
+  { nome: 'Oficina do Seu Zé', icone: '🔧', gosta: ['engrenagem', 'motor', 'lingote_ferro', 'aco', 'viga'] },
+  { nome: 'Cafeteria Grão Bom', icone: '☕', gosta: ['grao_cafe', 'melancia', 'milho', 'vidro'] },
+  { nome: 'Construtora Tijolinho', icone: '🧱', gosta: ['tijolo', 'concreto', 'vidro', 'madeira', 'aco', 'viga'] },
+  { nome: 'Robótica Estrela', icone: '🤖', gosta: ['chip', 'motor', 'robozinho', 'processador', 'bateria'] },
+  { nome: 'Escola de Programação da Prof. Ada', icone: '🎓', gosta: ['chip', 'fio', 'silicio', 'processador', 'painel_led'] },
+  { nome: 'Agência Espacial Tupi', icone: '🛰️', gosta: ['modulo_foguete', 'satelite', 'computador_quantico', 'bateria', 'processador'] },
+  { nome: 'Feira do Bairro', icone: '🎪', gosta: ['melancia', 'abobora', 'cenoura', 'milho', 'fio'] },
+  { nome: 'Joalheria Cometa', icone: '💎', gosta: ['fragmento_estelar', 'quartzo', 'lingote_cobre', 'silicio'] },
+  { nome: 'Estúdio de Luz Neon', icone: '💡', gosta: ['painel_led', 'fio', 'vidro', 'bateria', 'lingote_cobre'] },
+];
+export const RARITY = {
+  comum: { nome: 'Comum', mult: 1.6, fichas: 1, cor: '#9fb4d6', prazo: 600 },
+  raro: { nome: 'Raro', mult: 2.2, fichas: 2, cor: '#3ee6b8', prazo: 900 },
+  lendario: { nome: 'Lendário', mult: 3, fichas: 4, cor: '#ffcf5c', prazo: 1500 },
+};
+
+// Loja de fichas 🎟️: chapéus e cores do Oopi
+export const OOPI_HATS = {
+  flor: { nome: 'Florzinha', model: 'hat_flower', fichas: 3, y: 0.02 },
+  cone: { nome: 'Cone de obra', model: 'hat_cone', fichas: 4, y: -0.02 },
+  cogumelo: { nome: 'Cogumelo', model: 'hat_mushroom', fichas: 5, y: -0.03 },
+  engrenagem: { nome: 'Engrenagem', model: 'cog', fichas: 5, y: 0.04, deitado: true },
+  antena: { nome: 'Antena parabólica', model: 'hat_dish', fichas: 7, y: 0 },
+  coroa: { nome: 'Coroa de cristal', model: 'hat_crystal', fichas: 10, y: 0 },
+};
+export const OOPI_COLORS = {
+  padrao: { nome: 'Original', cor: null, fichas: 0 },
+  rosa: { nome: 'Rosa', cor: 0xff8ac7, fichas: 2 },
+  menta: { nome: 'Menta', cor: 0x7ff0c0, fichas: 2 },
+  lavanda: { nome: 'Lavanda', cor: 0xb8a4ff, fichas: 2 },
+  dourado: { nome: 'Dourado', cor: 0xffcf5c, fichas: 4 },
+  grafite: { nome: 'Grafite', cor: 0x555a6a, fichas: 3 },
+};
+// amizade do Oopi: pontos pra cada nível (carinho +1, tarefa +3)
+export const FRIEND_LEVELS = [0, 10, 30, 60, 100];
+export const FRIEND_PERKS = ['', 'Ganha a florzinha de presente 🌼', 'Pega as pedrinhas de meteoro sozinho quando está perto', 'Ganha a coroa de cristal de presente 👑', 'Oopi sortudo: +1 ficha a cada contrato raro ou lendário'];
+
+// Correio da manhã: presente de cada dia da sequência (repete a cada 7)
+export const DAILY = [
+  { dinheiro: 1 }, { dinheiro: 1.5 }, { fichas: 1 }, { dinheiro: 2 }, { disco: 1 }, { dinheiro: 2.5 }, { fichas: 3, dinheiro: 3 },
 ];
 
 // ferramentas que ficam sempre na barra
@@ -375,6 +505,11 @@ export const DECOR = {
   barris: { nome: 'Barris', preco: 30, nivel: 4, model: 'd_barrels', bonus: '+3% velocidade nas máquinas perto' },
   antena: { nome: 'Antena Parabólica', preco: 150, nivel: 5, model: 'd_dish', bonus: '+5% CPU e velocidade perto' },
   estatua: { nome: 'Estátua do Oopi', preco: 1500, nivel: 8, model: 'd_statue', bonus: '+10% CPU e velocidade num raio grande' },
+  // exclusivos da loja de fichas 🎟️
+  astronauta: { nome: 'Astronauta', preco: 0, fichas: 6, nivel: 1, model: 'd_astronaut', bonus: '+6% CPU nos computadores perto' },
+  alien: { nome: 'Alienzinho', preco: 0, fichas: 6, nivel: 1, model: 'd_alien', bonus: '+5% velocidade nas máquinas perto' },
+  rover: { nome: 'Rover Lunar', preco: 0, fichas: 8, nivel: 1, model: 'd_rover', bonus: '+4% CPU e velocidade perto' },
+  nave: { nome: 'Nave Estelar', preco: 0, fichas: 12, nivel: 1, model: 'd_ship', bonus: '+8% CPU num raio de 4 células' },
   // móveis do escritório (podem ficar dentro do escritório)
   estante: { nome: 'Estante de Livros', preco: 70, nivel: 1, model: 'o_bookcase', casa: true, bonus: '+4% CPU perto' },
   poltrona: { nome: 'Poltrona', preco: 60, nivel: 1, model: 'o_armchair', casa: true, bonus: '+3% CPU perto' },
@@ -414,8 +549,8 @@ export function xpForLevel(level) { // xp necessário pra passar do nível `leve
 export function unlocksAt(level) {
   const out = [];
   for (const m of Object.values(MACHINES)) if (m.nivel === level && !m.tech) out.push(m.nome);
-  for (const [k, r] of Object.entries(RECIPES)) if (r.nivel === level && !r.tech) out.push('Receita: ' + ITEMS[k].nome);
-  for (const [k, s] of Object.entries(SMELT)) if (s.nivel === level && level > 2 && !s.tech) out.push('Fundir: ' + ITEMS[k].nome);
+  for (const [k, r] of Object.entries(RECIPES)) if (r.nivel === level && !r.tech && !r.alt) out.push('Receita: ' + ITEMS[recipeOut(k, r)].nome);
+  for (const [k, s] of Object.entries(SMELT)) if (s.nivel === level && level > 2 && !s.tech && !s.alt) out.push('Fundir: ' + ITEMS[s.out].nome);
   for (const [k, u] of Object.entries(UPGRADES)) u.niveis.forEach((n) => { if (n === level) out.push('Melhoria: ' + u.nome); });
   for (const d of Object.values(DECOR)) if (d.nivel === level) out.push('Decoração: ' + d.nome);
   return out;
@@ -645,5 +780,10 @@ export const OBJECTIVES = [
   { id: 'chip', texto: 'Fabrique um Chip (quartzo → silício + fios).', premio: 300 },
   { id: 'motor', texto: 'Fabrique um Motor.', premio: 500 },
   { id: 'robot', texto: 'Fabrique um Robozinho 🤖', premio: 2000 },
-  { id: 'rich', texto: 'Junte $ 20.000. Você é o(a) dev da fábrica mais chill do mundo!', premio: 0 },
+  { id: 'rich', texto: 'Junte $ 20.000. Você é o(a) dev da fábrica mais chill do mundo!', premio: 500 },
+  { id: 'contract', texto: 'Aceite um pedido no 📋 Quadro de Contratos (no escritório), coloque uma Doca de Entrega e cumpra o contrato.', premio: 800 },
+  { id: 'challenge', texto: 'Resolva um desafio no 🧩 Terminal de Desafios (na mesa do escritório).', premio: 600 },
+  { id: 'disk', texto: 'Ache um 💾 disco de dados (caixas perdidas na floresta, meteoros ou correio) e analise no Laboratório.', premio: 1000 },
+  { id: 'launch', texto: 'Lance o foguete do Projeto Foguete 🚀', premio: 0 },
+  { id: 'mission', texto: 'Programa Espacial: escolha um satélite na plataforma e lance a missão 2.', premio: 5000 },
 ];

@@ -35,7 +35,7 @@
   <div id="menu" class="hidden">
     <div class="menu-bg"></div>
     <aside class="menu-left">
-      <div class="sys-tag"><span class="led"></span>sistema de automação · v1.2</div>
+      <div class="sys-tag"><span class="led"></span>sistema de automação · v1.3</div>
       <div class="title-row">
         <svg><use href="#gear" /></svg>
         <h1 class="title">AUTO<span class="t-accent">MATON</span></h1>
@@ -113,6 +113,7 @@
             <kbd>C</kbd><span>copiar grupo</span><kbd>V</kbd><span>colar grupo</span>
             <kbd>Ctrl+Z</kbd><span>desfazer</span><kbd>P</kbd><span>modo foto</span>
             <kbd>G</kbd><span>trocar rádio</span><kbd>F10</kbd><span>passo (depurador)</span>
+            <kbd>L</kbd><span>📋 contratos</span><kbd>J</kbd><span>📐 projetos salvos</span>
             <kbd>F</kbd><span>no Oopi: tarefas</span><kbd>🎮</kbd><span>controle funciona também</span>
           </div>
           <div class="muted" style="margin-top:8px;font-size:12.5px">Dá pra trocar as teclas em <b>Configurações</b>.</div>
@@ -183,8 +184,10 @@
         <div id="money">$ 0</div>
         <div class="xp-track"><div id="xpbar"></div><span id="xptext"></span></div>
         <div id="cpu">⚡ 2 instr/s</div>
+        <div id="tokens">🎟️ 0</div>
       </div>
     </div>
+    <div id="combo" class="hidden"></div>
     <div id="tutorial" class="hidden"></div>
     <div id="music">
       <span id="clock">☀️ 08:00</span>
@@ -266,6 +269,7 @@
           <button class="shop-tab" data-tab="decoracao">Decoração</button>
           <button class="shop-tab" data-tab="escritorio">Escritório</button>
           <button class="shop-tab" data-tab="quadros">Quadros</button>
+          <button class="shop-tab" data-tab="fichas">🎟️ Fichas</button>
           <button class="shop-tab" data-tab="materiais">Materiais</button>
           <button class="shop-tab" data-tab="mercado">Mercado</button>
           <button class="shop-tab" data-tab="receitas">Receitas</button>
@@ -326,6 +330,7 @@
           <button id="btn-guide">📖 Guia</button>
           <button id="btn-stats">📊 Estatísticas</button>
           <button id="btn-map">🗺️ Mapa</button>
+          <button id="btn-projects">📐 Projetos</button>
           <button id="btn-menu">⌂ Menu</button>
           <button id="btn-reset" class="danger">Recomeçar</button>
         </div>

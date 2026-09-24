@@ -1,10 +1,10 @@
 # Créditos e licenças
 
 ## Modelos 3D, Kenney (CC0 1.0, domínio público)
-- **Factory Kit**: esteiras, divisor, juntador, máquinas, scanner, funil, computador, piso, engrenagem, Oopi, válvula do irrigador. https://kenney.nl/assets/factory-kit
-- **Space Kit**: cristais dos veios, antena, barris, geradores, laboratório (cúpula), doca de drones (hangar), torres, plataforma, peças do foguete, meteoritos, cratera e o barril do depósito. https://kenney.nl/assets/space-kit
-- **Nature Kit**: árvores, pedras, flores, placas, barraca, fogueira, canteiros e plantações (milho, cenoura, abóbora, melancia, bambu, folhas), arbusto do café e cerca. https://kenney.nl/assets/nature-kit
-- **Furniture Kit**: mesa, cadeira, sofá, luminárias, rádio, cafeteira, plantas, alto-falante, lixeira, **paredes, janela, porta e piso** da construção, e os móveis do escritório (estante, poltrona, sofá grande, TV e rack, tapete, mesa redonda, mesinha e abajur, frigobar, cabideiro, ursinho, ventilador de teto). https://kenney.nl/assets/furniture-kit
+- **Factory Kit**: esteiras, divisor, juntador, máquinas, scanner, funil, computador, piso, engrenagem, Oopi, válvula do irrigador, cone (chapéu do Oopi). https://kenney.nl/assets/factory-kit
+- **Space Kit**: cristais dos veios, antena, barris, geradores, laboratório (cúpula), doca de drones (hangar), torres, plataforma, peças do foguete, meteoritos, cratera, o barril do depósito, a plataforma da Doca de Entrega, o terminal de desafios (mesa e cadeira), a nave de carga, e a decoração exclusiva (astronauta, alienzinho, rover e nave). https://kenney.nl/assets/space-kit
+- **Nature Kit**: árvores, pedras, flores, placas, barraca, fogueira, canteiros e plantações (milho, cenoura, abóbora, melancia, bambu, folhas), arbusto do café, cerca, e os chapéus do Oopi (florzinha e cogumelo). https://kenney.nl/assets/nature-kit
+- **Furniture Kit**: mesa, cadeira, sofá, luminárias, rádio, cafeteira, plantas, alto-falante, lixeira, **paredes, janela, porta e piso** da construção, e os móveis do escritório (estante, poltrona, sofá grande, TV e rack, tapete, mesa redonda, mesinha e abajur, frigobar, cabideiro, ursinho, ventilador de teto), caixas de papelão (Doca de Entrega, caixas perdidas) e livros do terminal. https://kenney.nl/assets/furniture-kit
 
 ## Quadros (domínio público), Wikimedia Commons
 - **A Noite Estrelada**, Vincent van Gogh (1889): https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg

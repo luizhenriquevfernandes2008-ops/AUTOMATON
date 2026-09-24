@@ -8,6 +8,7 @@ import { audio } from './audio.js';
 import { puff } from './fx.js';
 import { grid, ores, key, cellCenter } from './machines.js';
 import { isBuildableCell, colliders } from './world.js';
+import { gainDisk } from './disks.js';
 
 const VEIN_SIZE = 40;         // fragmentos em cada veio de meteorito
 const state = {
@@ -29,9 +30,9 @@ export function updateEvents(dt) {
   } else {
     state.next -= dt;
     if (state.next <= 0) {
-      state.next = 260 + Math.random() * 280;
+      state.next = (260 + Math.random() * 280) / (1 + 0.2 * (game.economy?.satLvl('telescopio') || 0));
       const r = Math.random();
-      if (game.isNight) { if (r < 0.45) startEvent('meteoros'); else if (r < 0.85) startEvent('aurora'); }
+      if (game.isNight) { if (r < 0.45 + 0.05 * (game.economy?.satLvl('telescopio') || 0)) startEvent('meteoros'); else if (r < 0.85) startEvent('aurora'); }
       else if (r < 0.6) startEvent('feira');
     }
   }
@@ -130,7 +131,7 @@ function land(f) {
   audio.play('meteor', { pos: f.to, volume: 0.9 });
   puff(new THREE.Vector3(f.to.x, 0.6, f.to.z), { color: 0xffa060, count: 22, size: 0.8, up: 2.5, spread: 2.5, life: 1.6, additive: true });
   puff(new THREE.Vector3(f.to.x, 0.4, f.to.z), { color: 0x9a8a7a, count: 14, size: 1.1, up: 1.2, spread: 3, life: 2.4, opacity: 0.6 });
-  if (!grid.has(key(f.cell.x, f.cell.z)) && !ores.has(key(f.cell.x, f.cell.z))) addVein(f.cell.x, f.cell.z, VEIN_SIZE);
+  if (!grid.has(key(f.cell.x, f.cell.z)) && !ores.has(key(f.cell.x, f.cell.z))) addVein(f.cell.x, f.cell.z, VEIN_SIZE + 15 * (game.economy?.satLvl('telescopio') || 0));
   // pedrinhas em volta
   const n = 3 + Math.floor(Math.random() * 3);
   for (let i = 0; i < n; i++) {
@@ -212,6 +213,7 @@ export function collectPickup(p, by = 'jogador') {
   audio.play('coins', { volume: 0.6 });
   puff(new THREE.Vector3(p.x, 0.6, p.z), { color: 0xb18cff, count: 12, size: 0.18, up: 1.6, gravity: 3, additive: true, life: 0.9 });
   game.ui?.toast(`☄️ Fragmento estelar${by === 'oopi' ? ' (o Oopi trouxe!)' : ''}: +$ ${v}`, 'good');
+  if (Math.random() < 0.15) { gainDisk('meteoro'); game.ui?.toast('💾 Tinha um <b>disco de dados</b> grudado na pedrinha! Analise no Laboratório.', 'ach'); }
   return v;
 }
 

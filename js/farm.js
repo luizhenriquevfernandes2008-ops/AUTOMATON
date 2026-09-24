@@ -47,7 +47,7 @@ export class Plot extends Machine {
   growRate() {
     if (!this.crop) return 0;
     const wet = this.water > 0.02 ? 1 : 0.1;
-    return wet * this.lightFactor * (1 + this.decorVel);
+    return wet * this.lightFactor * (1 + this.decorVel) * game.economy.farmMul;
   }
   secondsLeft() {
     const r = this.growRate();
