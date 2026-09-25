@@ -86,6 +86,7 @@ export function bindSettingInputs() {
   };
   seg.querySelectorAll('button').forEach((b) => {
     b.onclick = () => { settings.quality = b.dataset.q; paintQ(); applyQuality(); saveSettings(); audio.play('click', { volume: 0.5 }); };
+    game.applyQualityUI = () => { paintQ(); applyQuality(); saveSettings(); };
   });
   paintQ();
   // rádio

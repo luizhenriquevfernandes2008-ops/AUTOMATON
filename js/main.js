@@ -37,6 +37,7 @@ import { updateOrbit } from './space.js';
 import { updateLights } from './lights.js';
 import { flushStatic } from './staticBatch.js';
 import { settings as userSettings } from './settings.js';
+import { detectGpu, warnGpuOnStart, watchFps, shortGpu } from './gpu.js';
 import { checkDaily, openMail } from './mail.js';
 
 const $ = (s) => document.querySelector(s);
@@ -55,6 +56,8 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 900);
 camera.rotation.order = 'YXZ';
 Object.assign(game, { scene, camera, renderer });
+detectGpu(renderer);
+console.info('AUTOMATON · placa de vídeo do WebGL:', shortGpu());
 window.automaton = game; // útil pra depurar no console (F12)
 addEventListener('resize', () => {
   if (!innerWidth || !innerHeight) return; // janela minimizada/escondida
@@ -190,6 +193,7 @@ function restoreView() {
 function startPlay() {
   audio.start();
   restoreView();
+  warnGpuOnStart();
   $('#menu').classList.add('hidden');
   game.gesture = true;
   game.setMode('play');
@@ -389,7 +393,9 @@ function simStep(dt) {
 game.simStep = simStep;
 function loop(now) {
   requestAnimationFrame(loop);
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const rawDt = (now - last) / 1000;
+  const dt = Math.min(0.05, rawDt);
+  if (rawDt < 1) watchFps(rawDt);
   last = now;
   const simulate = (game.mode === 'play' || game.mode === 'ui') && !(photo.on && photo.freeze);
   if (simulate) simStep(dt);
@@ -422,7 +428,7 @@ function loop(now) {
   // contador de FPS (Configurações → Mostrar FPS)
   fpsN++;
   if (now - fpsT >= 1000) {
-    if (userSettings.fps) { const i = renderer.info.render; $('#fps').textContent = `${Math.round((fpsN * 1000) / (now - fpsT))} fps · ${i.calls} draws`; }
+    if (userSettings.fps) { const i = renderer.info.render; $('#fps').textContent = `${Math.round((fpsN * 1000) / (now - fpsT))} fps · ${i.calls} draws · ${shortGpu()}`; }
     fpsN = 0; fpsT = now;
   }
 }

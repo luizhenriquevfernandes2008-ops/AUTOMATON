@@ -21,7 +21,7 @@ O objetivo grande é o **Projeto Foguete**: juntar peças cada vez mais complexa
 - 🔥 **Combo de vendas** (até +20%), confete nos marcos e dinheiro que pula no HUD.
 - 📐 **Projetos**: salve grupos copiados e troque com amigos por um código de texto.
 - 19 conquistas e 5 objetivos novos.
-- ⚡ **Desempenho**: árvores, pedras, cristais e gramadinhos desenhados em lote (~75% menos chamadas de desenho), **orçamento fixo de luzes** (no máximo 8 luzes pontuais, sem travadinhas ao colocar luminárias), painéis sem desfoque de fundo (pesado no Firefox) e opção **Mostrar FPS** nas Configurações.
+- ⚡ **Desempenho**: árvores, pedras, cristais e gramadinhos desenhados em lote (~75% menos chamadas de desenho), **orçamento fixo de luzes** (no máximo 8 luzes pontuais, sem travadinhas ao colocar luminárias), painéis sem desfoque de fundo (pesado no Firefox), opção **Mostrar FPS** (com a placa de vídeo usada) e **diagnóstico de GPU**: o jogo avisa, com o passo a passo, quando o navegador está sem aceleração de hardware ou usando a placa integrada.
 
 **v1.2**
 - 🧱 **Construção com materiais** (madeira, tijolo, concreto, vidro, aço): paredes, janelas, portas, pisos, tetos, cercas, pintura e quadros de domínio público. **Depósito de Materiais** pra receber por esteira.
@@ -271,6 +271,7 @@ AUTOMATON/
 │   ├── audio.js           # efeitos, estações de rádio, notas sintetizadas
 │   ├── itemMeshes.js      # visual dos itens, desenhados em lote (InstancedMesh)
 │   ├── lights.js          # orçamento de luzes (só as N mais perto da câmera)
+│   ├── gpu.js             # detecta a placa de vídeo do WebGL e avisa quando o FPS fica baixo
 │   ├── staticBatch.js     # cenário parado desenhado em lote (InstancedMesh)
 │   ├── fx.js · thumbs.js · save.js (3 fábricas)
 │   └── lang/jiboia.js     # a linguagem: lexer → parser (AST) → interpretador

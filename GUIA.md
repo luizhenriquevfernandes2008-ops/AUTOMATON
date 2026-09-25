@@ -557,7 +557,7 @@ Depois do primeiro lançamento, a plataforma vira o **Programa Espacial** (+2 �
 | Tela do computador "SEM ENERGIA" | Ligue um cabo nele. |
 | Erro "Não achei a máquina" | O nome no código tem que ser igual à plaquinha em cima da máquina. |
 | Tudo lento | Energia fraca (HUD ⚡ vermelho): coloque mais geradores. Ou compre "Clock da CPU" na loja. |
-| O jogo está travando (FPS baixo) | Ligue **Configurações → Mostrar FPS** pra ver. Baixe a **Qualidade** pra Média ou Baixa. No Firefox, confira se a aceleração de hardware está ligada (Configurações do Firefox → Desempenho). |
+| O jogo está travando (FPS baixo) | Ligue **Configurações → Mostrar FPS**: ele mostra o FPS e **qual placa de vídeo o navegador está usando**. Se aparecer “sem placa de vídeo”, ligue a aceleração: no Chrome/Edge, `chrome://settings/system` → **Usar aceleração de gráficos quando disponível** → Reiniciar (no Firefox: `about:preferences` → Desempenho). Se aparecer uma placa Intel/AMD integrada num PC com NVIDIA/AMD dedicada: Windows → **Configurações → Sistema → Tela → Gráficos** → escolha o navegador → **Alto desempenho**. O jogo também avisa sozinho quando detecta isso. |
 | Programa parado na linha amarela | Ele está **esperando** a máquina. Veja o status dela (mire e leia, ou `E` → detalhes). |
 | "Memória cheia" / "Lista cheia" | Reaproveite variáveis, tire itens velhos com `.pop(0)`, ou melhore a memória no ⚙ Hardware. |
 | A planta não cresce | Terra seca (💧), teto que não é de vidro em cima, ou é de noite. |
