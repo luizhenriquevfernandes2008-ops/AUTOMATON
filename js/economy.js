@@ -187,7 +187,7 @@ export class Economy {
     has('biblioteca', (s.libsImported || 0) > 0);
     has('depurador', (s.breakpoints || 0) > 0);
     has('musico', (s.notes || 0) >= 8);
-    has('esteiras_100', game.entities.filter((e) => e.type === 'esteira').length >= 100);
+    has('esteiras_100', game.entities.filter((e) => e.type.startsWith('esteira') && e.items).length >= 100);
     has('noite', !!s.nightSeen);
     has('chuva', !!s.rainSeen);
     has('foto', (s.photos || 0) > 0);
@@ -228,6 +228,12 @@ export class Economy {
     has('album', Object.keys(ITEMS).every((k) => this.discovered(k)));
     has('chapeu', !!this.oopi.hat);
     has('amizade', this.friendLevel >= 5);
+    has('semanal', (s.weeklies || 0) > 0);
+    has('placar', (s.friendScores || 0) > 0);
+    has('visita', (s.visits || 0) > 0);
+    has('parceria', (s.partnerships || 0) > 0);
+    has('braco', (s.armMoves || 0) >= 50);
+    has('oopi_prog', (s.oopiCmds || 0) > 0);
   }
 
   // ─── histórico pros gráficos ───
@@ -398,6 +404,7 @@ export class Economy {
       series: this.series.slice(-120), lastSeen: Date.now(), tutorialStep: this.tutorialStep,
       materials: this.materials, records: this.records,
       tokens: this.tokens, stars: this.stars, contracts: this.contracts, challenges: this.challenges, disks: this.disks,
+      weekly: this.weekly || null, partners: this.partners || [],
       altRecipes: this.altRecipes, diskChoice: this.diskChoice || null, crates: this.crates, inf: this.inf, sats: this.sats, mission: this.mission, daily: this.daily, oopi: this.oopi,
       sat: Object.fromEntries(Object.entries(this.market).map(([k, m]) => [k, m.sat])),
     };
@@ -428,6 +435,8 @@ export class Economy {
     this.disks = d.disks || 0;
     this.altRecipes = (d.altRecipes || []).filter((k) => RECIPES[k]?.alt || SMELT[k]?.alt);
     this.crates = d.crates || [];
+    this.weekly = d.weekly || null;
+    this.partners = d.partners || [];
     this.diskChoice = (d.diskChoice || []).filter((k) => (RECIPES[k]?.alt || SMELT[k]?.alt) && !this.altRecipes.includes(k));
     if (!this.diskChoice.length) this.diskChoice = null;
     this.inf = Object.fromEntries(Object.entries(d.inf || {}).filter(([k]) => INF_TECHS[k]));

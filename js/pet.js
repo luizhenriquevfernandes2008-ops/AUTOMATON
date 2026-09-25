@@ -11,6 +11,8 @@ import { takeItemMesh, releaseItemMesh } from './itemMeshes.js';
 import { collectPickup } from './events.js';
 import { OOPI_HATS, OOPI_COLORS, FRIEND_PERKS } from './data.js';
 import { crateHint } from './disks.js';
+import { Blocking, JiboiaError, suggest } from './lang/jiboia.js';
+import { CELL, ITEMS } from './data.js';
 
 const IDLE_LINES = [
   'Que dia bonito pra automatizar 😊', 'Bip bop! 🤖', 'Já tomou um cafezinho hoje? ☕', 'Essa esteira tá linda!',
@@ -46,6 +48,12 @@ export class Pet {
     this.origMats = new Map();
     this.body.traverse((o) => { if (o.isMesh) this.origMats.set(o, o.material); });
     this.lastPetT = -99;
+    // programável: maquina("oopi")
+    this.name = 'oopi';
+    this.type = 'oopi';
+    this.removed = false;
+    this.cmd = null;      // ordem de um programa: { pos, b }
+    this.acts = [];       // ações curtas esperando terminar: { until, b, v }
     this.autoT = 5;
     game.scene.add(this.obj);
     const cam = game.camera.position;
@@ -67,7 +75,8 @@ export class Pet {
       if (t === 'arcoiris') this.say('Arco-íris! 🌈', 4);
     });
   }
-  setVisible(v) { this.obj.visible = v; if (!v && this.bubble) this.bubble.visible = false; if (!v) this.cancelTask(); }
+  setVisible(v) { this.obj.visible = v; if (!v && this.bubble) this.bubble.visible = false; if (!v) { this.cancelTask(); if (this.cmd) this.cmd.b.fail('O Oopi foi desligado'); this.cmd = null; } }
+  get pos() { return this.p; }
   say(text, secs = 4) {
     if (!this.obj.visible) return;
     if (!this.bubble) {
@@ -236,8 +245,18 @@ export class Pet {
     this.mood = Math.max(0.1, this.mood - dt / 1800);
     const cam = game.camera.position;
     let goal = null;
+    // ações curtas de programas terminando
+    for (let i = this.acts.length - 1; i >= 0; i--) if (game.time >= this.acts[i].until) { this.acts[i].b.resolve(this.acts[i].v); this.acts.splice(i, 1); }
+    // ordem de um programa (maquina("oopi").ir_para(...)) tem prioridade
+    if (this.cmd) {
+      if (this.cmd.b.cancelled || this.cmd.b.done) this.cmd = null;
+      else {
+        goal = this.cmd.pos;
+        if (Math.hypot(goal.x - this.p.x, goal.z - this.p.z) < 0.35) { this.cmd.b.resolve(true); this.cmd = null; this.hop = 0.2; }
+      }
+    }
     // tarefa?
-    if (this.task) {
+    if (this.task && !goal) {
       if (this.task.wait > 0) this.task.wait -= dt;
       else {
         const tg = this.taskTarget();
@@ -307,6 +326,91 @@ export class Pet {
       if (this.bubbleT <= 0) this.bubble.visible = false;
     }
   }
+  // ─── API da Jiboia: o = maquina("oopi") ───
+  obey() {
+    if (!this.obj.visible) throw new JiboiaError('O Oopi está desligado nas Configurações');
+    if (game.economy.friendLevel < 2) throw new JiboiaError('O Oopi só obedece programas de quem é amigo dele: chegue à amizade nível 2 (carinho e tarefas) 💜');
+    game.economy.stats.oopiCmds = (game.economy.stats.oopiCmds || 0) + 1;
+    if (this.task) this.cancelTask();
+  }
+  goTo(pos, label) {
+    this.obey();
+    if (this.cmd) this.cmd.b.cancelled = true;
+    const b = new Blocking();
+    b.label = label;
+    this.cmd = { pos: new THREE.Vector3(pos.x, 0, pos.z), b };
+    return b;
+  }
+  after(v, secs = 0.45, label = 'Oopi') { const b = new Blocking(); b.label = label; this.acts.push({ until: game.time + secs, b, v }); this.hop = 0.25; return b; }
+  // máquina/esteira mais perto do Oopi (até ~2 m)
+  nearest(filter) {
+    let best = null, bd = 2.1;
+    for (const e of game.entities) {
+      if (!filter(e)) continue;
+      const d = Math.hypot(e.pos.x - this.p.x, e.pos.z - this.p.z);
+      if (d < bd) { bd = d; best = e; }
+    }
+    return best;
+  }
+  api() {
+    const target = (nome) => {
+      const e = game.entities.find((m) => m.name === nome);
+      if (!e) { const s = suggest(String(nome), game.entities.filter((m) => m.name).map((m) => m.name)); throw new JiboiaError(`Não achei a máquina "${nome}"` + (s ? `. Você quis dizer "${s}"?` : '')); }
+      // para do lado da máquina que está virado pro Oopi
+      const dx = this.p.x - e.pos.x, dz = this.p.z - e.pos.z, d = Math.hypot(dx, dz) || 1;
+      return { x: e.pos.x + (dx / d) * CELL * 0.85, z: e.pos.z + (dz / d) * CELL * 0.85 };
+    };
+    const item = (w, fn) => { if (w != null && !ITEMS[w]) throw new JiboiaError(`${fn}(): o item "${w}" não existe`); return w ?? null; };
+    return {
+      ir_para: { min: 1, max: 1, doc: 'Anda até ficar do lado de uma máquina: .ir_para("bau1")', fn: ([n]) => this.goTo(target(n), 'Oopi andando') },
+      ir: { min: 2, max: 2, doc: 'Anda até a célula (x, z) do mapa', fn: ([x, z]) => { if (typeof x !== 'number' || typeof z !== 'number') throw new JiboiaError('ir(x, z) precisa de dois números'); return this.goTo({ x: (Math.round(x) + 0.5) * CELL, z: (Math.round(z) + 0.5) * CELL }, 'Oopi andando'); } },
+      voltar: { doc: 'Volta pra perto de você', fn: () => { const c = game.camera.position; return this.goTo({ x: c.x + 1.2, z: c.z + 1.2 }, 'Oopi voltando'); } },
+      pegar: {
+        max: 1, doc: 'Pega 1 item da máquina/esteira mais perto dele (do tipo pedido, ou qualquer)',
+        fn: (a) => {
+          this.obey();
+          const want = item(a[0], 'pegar');
+          if (this.cargo) throw new JiboiaError('O Oopi já está carregando algo. Use .soltar() antes');
+          const e = this.nearest((m) => !!(m.items?.length || m.out?.length || m.held || (m.inv && (m.type === 'bau' || m.type === 'venda'))));
+          const got = e && takeFrom(e, want);
+          if (!got) return this.after(null);
+          const mesh = got.mesh || takeItemMesh(got.type);
+          if (mesh.parent !== game.scene) game.scene.add(mesh);
+          this.cargo = { type: got.type, mesh };
+          return this.after(got.type, 0.45, 'Oopi pegando');
+        },
+      },
+      soltar: {
+        doc: 'Entrega o item na máquina mais perto que aceitar. Retorna True/False',
+        fn: () => {
+          this.obey();
+          if (!this.cargo) throw new JiboiaError('O Oopi não está carregando nada');
+          const c = this.cargo;
+          const e = this.nearest((m) => m.canAccept && m.canAccept(c.type, -1));
+          if (!e) return this.after(false);
+          this.cargo = null;
+          e.accept(c.type, -1, c.mesh);
+          audio.play('drop', { pos: this.p, volume: 0.4 });
+          return this.after(true, 0.45, 'Oopi soltando');
+        },
+      },
+      colher: {
+        doc: 'Colhe o canteiro pronto mais perto dele. Retorna True/False',
+        fn: () => { this.obey(); const e = this.nearest((m) => m.type === 'canteiro' && m.ready); return this.after(!!(e && e.harvest()), 0.6, 'Oopi colhendo'); },
+      },
+      dizer: { min: 1, max: 1, doc: 'Mostra um balãozinho de fala', fn: ([t]) => { this.obey(); this.say(String(t).slice(0, 60), 4); return null; } },
+      pular: { doc: 'Comemora (pulinho e confete)', fn: () => { this.obey(); this.celebrate(); return this.after(null, 0.5); } },
+      seguir: { doc: 'Volta a te seguir', fn: () => { this.obey(); this.mode = 'seguir'; return null; } },
+      ficar: { doc: 'Fica parado onde está', fn: () => { this.obey(); this.mode = 'ficar'; this.home.copy(this.p); return null; } },
+      carga: { fn: () => (this.cargo ? this.cargo.type : null), doc: 'O item que ele está carregando (ou None)' },
+      humor: { fn: () => Math.round(this.mood * 100), doc: 'Humor de 0 a 100' },
+      amizade: { fn: () => game.economy.friendLevel, doc: 'Nível de amizade (1 a 5)' },
+      posicao: { fn: () => [Math.floor(this.p.x / CELL), Math.floor(this.p.z / CELL)], doc: 'Célula [x, z] onde ele está' },
+      ocupado: { fn: () => !!this.cmd || this.acts.length > 0, doc: 'True se estiver andando ou fazendo algo' },
+    };
+  }
+  infoLines() { return [`Humor: ${this.moodText}`, `Amizade nível ${game.economy.friendLevel}`]; }
+
   // dicas de coisas pra fazer (misturadas com as falas normais)
   tip() {
     const eco = game.economy;

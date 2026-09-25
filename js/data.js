@@ -156,6 +156,14 @@ export const MACHINES = {
     nome: 'Esteira', preco: 5, nivel: 1, prefixo: 'esteira', model: 'belt',
     desc: 'Leva itens na direção das setinhas. Não precisa de energia nem de código.', solido: false,
   },
+  esteira_rapida: {
+    nome: 'Esteira Rápida', preco: 12, nivel: 1, tech: 'esteiras_rapidas', prefixo: 'esteira', model: 'belt',
+    desc: '2× mais rápida que a comum (carrega o dobro de itens por minuto). Coloque em cima de uma esteira comum pra trocar.', solido: false,
+  },
+  esteira_expressa: {
+    nome: 'Esteira Expressa', preco: 30, nivel: 1, tech: 'esteiras_expressas', prefixo: 'esteira', model: 'belt',
+    desc: '3× mais rápida que a comum. Coloque em cima de outra esteira pra trocar (mantém a direção e os itens).', solido: false,
+  },
   gerador: {
     nome: 'Gerador', preco: 150, nivel: 1, prefixo: 'gerador', model: 'generator', gera: 20,
     desc: 'Produz 20 ⚡. Ligue cabos (🔌) dele até as máquinas ou postes.', solido: true,
@@ -261,6 +269,10 @@ export const MACHINES = {
     nome: 'Irrigador', preco: 90, nivel: 2, prefixo: 'irrigador', model: 'sprinkler', energia: 1,
     desc: 'Rega sozinho os canteiros em volta (2 células). .regar() rega na hora, .desligar() para. Gasta 1 ⚡.', solido: true,
   },
+  braco: {
+    nome: 'Braço Robótico', preco: 150, nivel: 3, prefixo: 'braco', model: 'robotArm', energia: 2,
+    desc: 'Pega itens de trás (seta azul: esteira, baú, saída de máquina) e solta na frente (seta laranja). Use .mover(), .pegar(), .soltar(). Gasta 2 ⚡.', solido: true,
+  },
   doca_entrega: {
     nome: 'Doca de Entrega', preco: 150, nivel: 2, prefixo: 'doca_entrega', model: 'deliveryDock',
     desc: 'Recebe por esteira (qualquer lado) os itens dos contratos aceitos no 📋 Quadro de Contratos. Não gasta energia.', solido: true,
@@ -271,19 +283,31 @@ export const MACHINES = {
   },
 };
 
+// esteiras: velocidade de cada tipo (multiplica o Motor das Esteiras da loja)
+export const BELT_TIERS = { esteira: 1, esteira_rapida: 2, esteira_expressa: 3 };
+export const isBeltTier = (t) => BELT_TIERS[t] !== undefined;
+// pureza dos veios (como no Satisfactory): multiplica a velocidade do minerador
+export const PURITY = {
+  impuro: { nome: 'impuro', mult: 0.5, icone: '▫️', escala: 0.75 },
+  normal: { nome: 'normal', mult: 1, icone: '◽', escala: 0.95 },
+  puro: { nome: 'puro', mult: 2, icone: '⭐', escala: 1.2 },
+};
+
 // Máquinas que podem ser melhoradas pra Mk2 / Mk3
 export const TIERS = [
   { nome: 'Mk1', vel: 1, energia: 1 },
   { nome: 'Mk2', vel: 1.5, energia: 1.5, tech: 'mk2', preco: 0.8 },
   { nome: 'Mk3', vel: 2.2, energia: 2.2, tech: 'mk3', preco: 2 },
 ];
-export const TIERABLE = ['minerador', 'fornalha', 'montadora', 'separador', 'laboratorio', 'doca_drones'];
+export const TIERABLE = ['minerador', 'fornalha', 'montadora', 'separador', 'laboratorio', 'doca_drones', 'braco'];
 
 // Pesquisas do Laboratório. fase = fases do foguete que precisam estar prontas
 export const TECHS = {
   logistica: { nome: 'Logística', icone: '🔀', desc: 'Divisor e Juntador de esteiras (automáticos, sem código).', custo: { lingote_ferro: 20 }, fase: 0 },
   sinais: { nome: 'Sinais e Telas', icone: '💡', desc: 'Lâmpada, Tela e Alto-falante programáveis.', custo: { lingote_cobre: 15, lingote_ferro: 10 }, fase: 0 },
   sensores: { nome: 'Sensores e Eventos', icone: '📡', desc: 'Esteira com Sensor, ouvir(), esperar_evento() e esperar_ate().', custo: { lingote_cobre: 20, lingote_ferro: 20 }, fase: 0 },
+  esteiras_rapidas: { nome: 'Esteiras Rápidas', icone: '⏩', desc: 'Esteira Rápida: 2× mais itens por minuto. Coloque por cima das comuns pra trocar.', custo: { engrenagem: 25, lingote_ferro: 40 }, fase: 1, requer: ['logistica'] },
+  esteiras_expressas: { nome: 'Esteiras Expressas', icone: '🚄', desc: 'Esteira Expressa: 3× mais itens por minuto.', custo: { motor: 15, aco: 30 }, fase: 3, requer: ['esteiras_rapidas'] },
   rampas: { nome: 'Esteiras Elevadas', icone: '🌉', desc: 'Rampas e esteiras no 2º andar pra cruzar linhas.', custo: { lingote_ferro: 40, lingote_cobre: 10 }, fase: 1, requer: ['logistica'] },
   rede: { nome: 'Rede de Computadores', icone: '🛰️', desc: 'enviar(), receber(), compartilhar() e ler() entre computadores.', custo: { fio: 30, engrenagem: 10 }, fase: 1, requer: ['sensores'] },
   carvao: { nome: 'Energia a Carvão', icone: '🔥', desc: 'Minerar carvão e o Gerador a Carvão (75 ⚡, precisa de combustível).', custo: { lingote_ferro: 30, engrenagem: 15 }, fase: 1 },
@@ -429,6 +453,13 @@ export const ACHIEVEMENTS = [
   { id: 'album', nome: 'Colecionador(a)', desc: 'Descubra todos os itens do álbum.', icone: '📖' },
   { id: 'chapeu', nome: 'Estiloso', desc: 'Coloque um chapéu no Oopi.', icone: '🎩' },
   { id: 'amizade', nome: 'Amigos pra sempre', desc: 'Chegue à amizade nível 5 com o Oopi.', icone: '💞' },
+  // v1.4
+  { id: 'semanal', nome: 'Toda semana tem', desc: 'Resolva um desafio da semana.', icone: '📅' },
+  { id: 'placar', nome: 'Competição saudável', desc: 'Coloque a nota de um amigo no placar da semana.', icone: '🏁' },
+  { id: 'visita', nome: 'Visita de cortesia', desc: 'Visite a fábrica de um amigo.', icone: '👀' },
+  { id: 'parceria', nome: 'Juntos somos mais', desc: 'Conclua uma parceria com um amigo.', icone: '🤝' },
+  { id: 'braco', nome: 'Mão na massa', desc: 'Mova 50 itens com braços robóticos.', icone: '🦾' },
+  { id: 'oopi_prog', nome: 'Oopi, obedeça!', desc: 'Dê uma ordem pro Oopi por código.', icone: '📟' },
 ];
 
 // Contratos: clientes e o que eles gostam de pedir

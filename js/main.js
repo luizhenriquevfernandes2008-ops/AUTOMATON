@@ -9,12 +9,13 @@ import { Player } from './player.js';
 import { Builder } from './build.js';
 import { UI } from './ui.js';
 import { generateThumbs } from './thumbs.js';
-import { saveGame, loadGame, hasSave, deleteSave } from './save.js';
+import { saveGame, loadGame, hasSave, deleteSave, VISITING } from './save.js';
 import { loadSettings, applySettings, bindSettingInputs, syncStation, settings } from './settings.js';
 import { initMenu, openMenu, updateMenuCamera } from './menu.js';
 import { updateFx, puff } from './fx.js';
 import './computer.js';
 import './farm.js';
+import './arm.js';
 import { animateBelts, updateDecorBonus, setTechNamer, flushBelts, markBeltsDirty } from './machines.js';
 import { flushItems } from './itemMeshes.js';
 import { updateEvents, collectPickup } from './events.js';
@@ -34,6 +35,11 @@ import { buildContractBoard, updateContracts, updateShips } from './contracts.js
 import { buildTerminal } from './challengeUI.js';
 import { buildCrates, openCrate } from './disks.js';
 import { updateOrbit } from './space.js';
+import { updateLights } from './lights.js';
+import { flushStatic } from './staticBatch.js';
+import { settings as userSettings } from './settings.js';
+import { detectGpu, warnGpuOnStart, watchFps, shortGpu } from './gpu.js';
+import { mp } from './mp.js';
 import { checkDaily, openMail } from './mail.js';
 
 const $ = (s) => document.querySelector(s);
@@ -52,6 +58,8 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 900);
 camera.rotation.order = 'YXZ';
 Object.assign(game, { scene, camera, renderer });
+detectGpu(renderer);
+console.info('AUTOMATON · placa de vídeo do WebGL:', shortGpu());
 window.automaton = game; // útil pra depurar no console (F12)
 addEventListener('resize', () => {
   if (!innerWidth || !innerHeight) return; // janela minimizada/escondida
@@ -114,7 +122,7 @@ function bootLog(text, state = 'ok') {
 }
 async function boot() {
   const bar = $('#load-bar'), txt = $('#load-text');
-  bootLog('AUTOMATON v1.3 · kernel jiboia 🐍');
+  bootLog('AUTOMATON v1.5 · kernel jiboia 🐍');
   const l1 = bootLog('carregando modelos 3D, texturas e céu…', 'run');
   await loadAll(renderer, (p) => { bar.style.width = Math.round(p * 80) + '%'; txt.textContent = `modelos ${Math.round(p * 100)}%`; });
   l1.innerHTML = '<span class="ok">[ ok ]</span> modelos 3D, texturas e céu';
@@ -145,6 +153,13 @@ async function boot() {
 
   game.player.teleport(game.spawn, 0);
   const had = hasSave() && loadGame();
+  if (VISITING) {
+    document.body.classList.add('visiting');
+    $('#visit-name').textContent = game.visitDe || 'um amigo';
+    $('#btn-menu').textContent = '⌂ Voltar pra minha fábrica';
+    $('#btn-reset').textContent = 'Sair da visita';
+    $('#play-label').textContent = 'Visitar';
+  }
   if (!had) game.player.teleport(game.spawn, 0);
   game.hadSave = had;
   for (const r of game.economy.regions) clearRegion(r);
@@ -187,9 +202,14 @@ function restoreView() {
 function startPlay() {
   audio.start();
   restoreView();
+  warnGpuOnStart();
   $('#menu').classList.add('hidden');
   game.gesture = true;
   game.setMode('play');
+  if (!game.welcomed && VISITING) {
+    game.welcomed = true;
+    game.ui.toast(`👀 Você está visitando a fábrica de <b>${(game.visitDe || 'um amigo').replace(/[<>&]/g, '')}</b>. Ande à vontade, leia os programas e copie grupos com <kbd>C</kbd> pra salvar em 📐 Projetos. Nada aqui é salvo.`, 'ach');
+  }
   if (!game.welcomed) {
     game.welcomed = true;
     const eco = game.economy;
@@ -218,12 +238,20 @@ $('#btn-resume').onclick = () => { game.gesture = true; game.setMode('play'); };
 $('#btn-guide').onclick = () => game.ui.openOverlay('guide');
 $('#btn-save').onclick = () => { if (saveGame()) game.ui.toast('Jogo salvo 💾', 'good'); };
 $('#btn-reset').onclick = () => {
+  if (VISITING) { goHome(); return; }
   if (!confirm('Apagar TUDO e começar do zero?')) return;
   deleteSave();
   game.skipSave = true;
-  location.reload();
+  location.replace(location.pathname);
 };
+// modo visita: voltar pra sua própria fábrica (a visita não é salva)
+function goHome() { game.skipSave = true; location.replace(location.pathname); }
+$('#visit-home').onclick = goHome;
+$('#btn-friends').onclick = () => game.ui.openOverlay('friends');
+$('#btn-mp').onclick = () => game.ui.openOverlay('multiplayer');
+$('#mp-hud').onclick = () => game.ui.openOverlay('multiplayer');
 $('#btn-menu').onclick = () => {
+  if (VISITING) { goHome(); return; }
   saveGame();
   rememberView();
   game.setMode('menu');
@@ -259,6 +287,8 @@ addEventListener('keydown', (e) => {
     case 'foto': togglePhoto(true); break;
     case 'projetos': game.ui.openOverlay('projects'); break;
     case 'contratos': game.ui.openOverlay('contracts'); break;
+    case 'amigos': game.ui.openOverlay('friends'); break;
+    case 'multiplayer': game.ui.openOverlay('multiplayer'); break;
     case 'peca': actions.piece(e.shiftKey ? -1 : 1); break;
     case 'material': actions.material(e.shiftKey ? -1 : 1); break;
   }
@@ -356,10 +386,12 @@ function interact() {
 game.on('region', (id) => clearRegion(id));
 
 // ─── loop ───
-let last = performance.now();
+let last = performance.now(), fpsT = performance.now(), fpsN = 0;
 let objTimer = 0, saveTimer = 30, powerTimer = 0, decorTimer = 0, achTimer = 3, recordTimer = 30;
 game.on('moved', (e) => { if (e.instanced) markBeltsDirty(); });
 function simStep(dt) {
+  // multiplayer: o convidado não simula (quem manda é o anfitrião), só anima o que chega
+  if (mp.isGuest) { if (mp.ready) mp.guestStep(dt); return; }
   game.time += dt;
   game.economy.update(dt);
   const ents = game.entities;
@@ -386,9 +418,13 @@ function simStep(dt) {
 game.simStep = simStep;
 function loop(now) {
   requestAnimationFrame(loop);
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const rawDt = (now - last) / 1000;
+  const dt = Math.min(0.05, rawDt);
+  if (rawDt < 1) watchFps(rawDt);
   last = now;
-  const simulate = (game.mode === 'play' || game.mode === 'ui') && !(photo.on && photo.freeze);
+  // multiplayer: com gente na sala, a fábrica do anfitrião não pausa (nem no menu de pausa)
+  const hostingLive = mp.role === 'host' && mp.peers.size > 0;
+  const simulate = (game.mode === 'play' || game.mode === 'ui' || (hostingLive && game.mode !== 'menu')) && !(photo.on && photo.freeze && !hostingLive);
   if (simulate) simStep(dt);
   updateSky(dt, simulate || game.mode === 'menu');
   updateFx(dt);
@@ -411,9 +447,18 @@ function loop(now) {
   game.sun.target.position.set(Math.round(p.x), 0, Math.round(p.z));
   if (game.campfire) game.campfire.intensity = 7 + Math.sin(now * 0.013) * 1.2 + Math.sin(now * 0.031) * 0.8;
   updateGamepad(dt, actions);
+  mp.update(dt);
   flushBelts();
   flushItems();
+  flushStatic();
+  updateLights(dt);
   renderer.render(scene, camera);
+  // contador de FPS (Configurações → Mostrar FPS)
+  fpsN++;
+  if (now - fpsT >= 1000) {
+    if (userSettings.fps) { const i = renderer.info.render; $('#fps').textContent = `${Math.round((fpsN * 1000) / (now - fpsT))} fps · ${i.calls} draws · ${shortGpu()}`; }
+    fpsN = 0; fpsT = now;
+  }
 }
 addEventListener('beforeunload', () => { if (!game.skipSave && game.economy) saveGame(); });
 

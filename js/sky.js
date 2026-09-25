@@ -1,6 +1,7 @@
 // Ciclo de dia e noite, clima (chuva leve), estrelas e postes de luz.
 import * as THREE from 'three';
 import { game } from './state.js';
+import { virtualLight } from './lights.js';
 import { cloneModel } from './assets.js';
 import { audio } from './audio.js';
 
@@ -55,7 +56,7 @@ export function initSky() {
     m.scale.setScalar(1.7);
     m.position.set(x, 0, z);
     game.scene.add(m);
-    const l = new THREE.PointLight(0xffc98a, 0, 16, 1.4);
+    const l = virtualLight(new THREE.PointLight(0xffc98a, 0, 16, 1.4));
     l.position.set(x, 3, z);
     game.scene.add(l);
     lamps.push(l);

@@ -125,7 +125,7 @@ code { font-family: var(--mono); font-size: .88em; background: rgba(255,255,255,
 .mpanel { width: min(560px, 100%); display: none; flex-direction: column; gap: 14px; animation: panelIn .35s ease-out; }
 .mpanel.show { display: flex; }
 @keyframes panelIn { from { opacity: 0; transform: translateX(16px); } }
-.card-x { background: var(--panel); border: 1px solid var(--line); clip-path: var(--cut); padding: 18px 20px; backdrop-filter: blur(6px); position: relative; }
+.card-x { background: var(--panel); border: 1px solid var(--line); clip-path: var(--cut); padding: 18px 20px; position: relative; }
 .card-x::before { content: ''; position: absolute; left: 0; top: 0; width: 60px; height: 2px; background: var(--accent); }
 .card-h { display: flex; align-items: center; justify-content: space-between; font: 11.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin-bottom: 12px; }
 .card-h b { color: var(--accent); font-weight: 400; }
@@ -191,7 +191,7 @@ input[type=range]::-moz-range-thumb { width: 12px; height: 12px; background: var
 #coffee-status { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); line-height: 1.6; }
 #movement.boosted #coffee-status { color: var(--accent2); }
 @media (max-width: 800px) { #movement { left: 8px; width: 220px; bottom: 150px; padding: 8px; } }
-.hud-box { background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(4px); }
+.hud-box { background: var(--panel); border: 1px solid var(--line); }
 #stats { position: absolute; top: 16px; left: 16px; display: flex; gap: 12px; align-items: center; background: var(--panel); border: 1px solid var(--line); clip-path: var(--cut); padding: 10px 16px 10px 10px; }
 .lvl-badge { width: 58px; height: 58px; background: var(--accent); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
 .lvl-badge span { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; }
@@ -242,7 +242,7 @@ input[type=range]::-moz-range-thumb { width: 12px; height: 12px; background: var
 #cpu .bad { color: var(--bad); font-weight: 700; }
 
 /* ═══════════════ janelas ═══════════════ */
-.overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgba(4,6,10,.55); backdrop-filter: blur(3px); }
+.overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgba(4,6,10,.7); }
 #guide { z-index: 60; }
 .win { background: var(--bg); border: 1px solid var(--line-hi); clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); box-shadow: 0 20px 60px rgba(0,0,0,.6); display: flex; flex-direction: column; overflow: hidden; }
 .win-head, .ed-head, .shop-head, .panel-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg2); border-bottom: 1px solid var(--line); box-shadow: inset 0 2px 0 var(--accent); }
@@ -680,3 +680,35 @@ button.on { background: var(--accent); color: var(--ink); border-color: var(--ac
 .bp-list { display: flex; flex-direction: column; gap: 8px; }
 .bp-card { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--bg2); border: 1px solid var(--line); padding: 10px 12px; }
 .bp-card small { display: block; font-size: 12px; margin-top: 2px; }
+
+/* sem backdrop-filter: no Firefox, desfocar a tela 3D atrás do HUD a cada quadro derruba o FPS */
+#fps { position: absolute; bottom: 8px; right: 12px; font: 12px var(--mono); color: var(--good); background: var(--panel); border: 1px solid var(--line); padding: 3px 8px; pointer-events: none; }
+
+/* ═══════════════ v1.4: amigos ═══════════════ */
+#visit-banner { display: none; position: absolute; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(40, 20, 70, .92); border: 1px solid #b18cff; color: var(--text); padding: 6px 12px; font-size: 13px; z-index: 5; }
+body.visiting #visit-banner { display: block; }
+#visit-banner button { margin-left: 8px; }
+.fr-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.fr-name { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.fr-name input, .fr-cols textarea { background: var(--code-bg); color: var(--text); border: 1px solid var(--line); padding: 6px 8px; font: 12.5px var(--mono); }
+.fr-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.fr-cols textarea { width: 100%; resize: vertical; flex: 1; min-width: 0; }
+.fr-table { margin-top: 12px; }
+.fr-table td.fr-best { color: var(--accent2); font-weight: 700; }
+.fr-table tr.fr-me td { background: rgba(255, 176, 32, .06); }
+.fr-file { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; border: 1px solid var(--line-hi); background: var(--bg3); font-size: 13px; }
+.fr-file input { display: none; }
+.chx-item.week { border-color: rgba(177, 140, 255, .5); }
+
+/* ═══════════════ v1.5: multiplayer ═══════════════ */
+#mp-hud { display: none; position: absolute; top: 132px; left: 16px; }
+body.mp-host #mp-hud, body.mp-guest #mp-hud { display: block; }
+body.mp-host #mp-hud::after { content: ' anfitrião'; }
+body.mp-guest #mp-hud::after { content: ' convidado'; }
+.mp-win { display: flex; flex-direction: column; gap: 12px; }
+.mp-code { font: 700 40px var(--mono); letter-spacing: .3em; color: var(--accent2); }
+.mp-players div { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.mp-chat { max-height: 180px; overflow: auto; font-size: 13.5px; display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.mp-win input { background: var(--code-bg); color: var(--text); border: 1px solid var(--line); padding: 7px 9px; font: 13px var(--mono); }
+.mp-win #mp-say { flex: 1; }
+.mp-win details summary { cursor: pointer; color: var(--muted); }

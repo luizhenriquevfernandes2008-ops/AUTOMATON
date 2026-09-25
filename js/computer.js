@@ -88,6 +88,7 @@ export class Computer extends Machine {
   get hwEnergy() { return PC_UPGRADES.clock.energia[this.hw.clock] + PC_UPGRADES.memoria.energia[this.hw.memoria]; }
   get hz() { return game.economy.cpuHz * this.clockMul * (1 + this.decorCpu) * game.economy.cpuMul; }
   hwUpgrade(k) {
+    if (game.mp?.guestRpc('hw', { a: this.addr, k })) return null;
     const u = PC_UPGRADES[k];
     const lvl = this.hw[k];
     if (lvl >= u.precos.length) return 'Já está no máximo';
@@ -153,10 +154,11 @@ export class Computer extends Machine {
     if (this.listening.has('rede')) this.pushEvent({ tipo: 'mensagem', fonte: msg.de, msg: msg.msg });
   }
   // depurador
-  pause() { if (this.running) { this.paused = true; this.dirty = true; game.emit('computer', this); } }
+  pause() { if (game.mp?.blocked('Depurador')) return; if (this.running) { this.paused = true; this.dirty = true; game.emit('computer', this); } }
   resume() { this.paused = false; this.skipBreak = true; this.stepOnce = false; game.emit('computer', this); }
-  step() { if (this.running) { this.paused = true; this.stepOnce = true; this.skipBreak = true; } }
+  step() { if (game.mp?.blocked('Depurador')) return; if (this.running) { this.paused = true; this.stepOnce = true; this.skipBreak = true; } }
   toggleBreak(line) {
+    if (game.mp?.guestRpc('bp', { a: this.addr, line })) return;
     if (this.breakpoints.has(line)) this.breakpoints.delete(line); else this.breakpoints.add(line);
     game.emit('computer', this);
   }
@@ -193,7 +195,9 @@ export class Computer extends Machine {
     game.emit('console', this);
   }
 
+  get addr() { return `${this.x},${this.z},${this.layer || 0}`; }
   run() {
+    if (game.mp?.guestRpc('run', { a: this.addr, code: this.code })) return true; // multiplayer: roda no anfitrião
     this.stop(true);
     this.console = [];
     this.error = null; this.errorLine = null;
@@ -224,6 +228,7 @@ export class Computer extends Machine {
   }
 
   stop(silent) {
+    if (!silent && game.mp?.guestRpc('stop', { a: this.addr })) return;
     if (this.interp && this.interp.currentBlocking) this.interp.currentBlocking.cancelled = true;
     for (const t of this.timers) t.b.cancelled = true;
     this.timers = [];
@@ -580,7 +585,7 @@ export class Computer extends Machine {
     if (d.hw) this.hw = { clock: Math.min(3, d.hw.clock || 0), memoria: Math.min(3, d.hw.memoria || 0) };
     this.breakpoints = new Set(d.breakpoints || []);
     this.dirty = true;
-    if (d.running) setTimeout(() => { if (!this.removed) this.run(); }, 500);
+    if (d.running && !game.mp?.isGuest) setTimeout(() => { if (!this.removed) this.run(); }, 500);
   }
   onRemove() { this.stop(true); super.onRemove(); }
 }

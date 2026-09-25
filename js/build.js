@@ -2,7 +2,7 @@
 // copiar e colar grupos (C / V) e desfazer (Ctrl+Z).
 import * as THREE from 'three';
 import { game } from './state.js';
-import { CELL, WORLD_MIN, WORLD_MAX, MACHINES, DECOR, TOOLS, REGIONS, PIECES, MATERIALS, PAINTS, PAINT_PRICE, PAINTINGS } from './data.js';
+import { CELL, WORLD_MIN, WORLD_MAX, MACHINES, DECOR, TOOLS, REGIONS, PIECES, MATERIALS, PAINTS, PAINT_PRICE, PAINTINGS, isBeltTier } from './data.js';
 import {
   grid, gridUp, ores, key, cellCenter, worldToCell, createEntity, addEntity, removeEntity, MODEL_YAW, DIRS, groundArrow, ELEV,
 } from './machines.js';
@@ -132,6 +132,8 @@ export class Builder {
       if (g && (g.static || g.isPlatform || TALL.has(g.type))) return 'Tem algo alto demais embaixo';
       return null;
     }
+    const g0 = grid.get(k);
+    if (g0 && isBeltTier(t) && isBeltTier(g0.type) && g0.type !== t) return null; // troca a esteira (rápida/expressa por cima)
     if (grid.has(k)) return 'Lugar ocupado';
     if ((t === 'rampa_sobe' || t === 'rampa_desce') && gridUp.has(k)) return 'Tem uma esteira elevada em cima';
     const ore = ores.get(k);
@@ -389,6 +391,8 @@ export class Builder {
 
   // ─── colocar / tirar (com histórico pro Ctrl+Z) ───
   spawn(t, x, z, dir, data) {
+    // multiplayer: convidado pede pro anfitrião (e usa uma peça de mentirinha até a confirmação chegar)
+    if (game.mp?.intercept('spawn', { t, x, z, dir, d: data || null })) return game.mp.fake(t, x, z, dir);
     const e = createEntity(t, x, z, dir);
     if (data) {
       const d = { ...data };
@@ -399,12 +403,16 @@ export class Builder {
     if (t === 'minerador') setOreVisible(x, z, false);
     const c = cellCenter(x, z);
     for (const tf of game.tufts || []) if (Math.hypot(tf.position.x - c.x, tf.position.z - c.z) < CELL * 0.8) tf.visible = false;
+    game.mp?.op('spawn', { t, x, z, dir, d: e.serialize() });
     return e;
   }
   despawn(e) {
+    const a = `${e.x},${e.z},${e.layer || 0}`;
+    if (game.mp?.intercept('despawn', { a })) return;
     if (e.type === 'computador') this.codeStash.push({ name: e.name, code: e.code });
     removeEntity(e);
     if (e.type === 'minerador') setOreVisible(e.x, e.z, true);
+    game.mp?.op('despawn', { a });
   }
   pushUndo(entry) {
     this.undoStack.push(entry);
@@ -421,6 +429,8 @@ export class Builder {
     const { x, z, reason } = this.target;
     if (reason) { game.ui.toast(reason, 'warn'); audio.play('deny', { volume: 0.5 }); return; }
     const t = this.selected;
+    const old = grid.get(key(x, z));
+    if (old && isBeltTier(t) && isBeltTier(old.type) && old.type !== t) return this.replaceBelt(old, t);
     if (!game.economy.takeItem(t)) return;
     let data = null;
     if (t === 'computador' && this.codeStash.length) {
@@ -438,6 +448,20 @@ export class Builder {
     if (!game.economy.inventory[t]) { this.selected = null; game.gridMesh.visible = false; this.refreshGhost(); }
     game.emit('hotbar');
     game.emit('built', e);
+  }
+
+  // esteira por cima de esteira: troca o tipo, mantendo a direção e os itens (e devolve a antiga)
+  replaceBelt(old, t) {
+    if (!game.economy.takeItem(t)) return;
+    const snap = this.snapshot(old);
+    const items = old.items.map((i) => [i.type, i.p, i.entry]);
+    this.despawn(old);
+    game.economy.addItem(old.type);
+    const e = this.spawn(t, old.x, old.z, old.dir, { items });
+    this.pushUndo({ kind: 'replace', e, snap });
+    audio.play('place', { pos: e.pos, volume: 0.7, rate: 1.2 });
+    if (!game.economy.inventory[t]) { this.selected = null; game.gridMesh.visible = false; this.refreshGhost(); }
+    game.emit('hotbar');
   }
 
   cableClick() {
@@ -506,10 +530,12 @@ export class Builder {
   }
 
   rotateEntity(e) {
+    if (game.mp?.intercept('rotate', { a: `${e.x},${e.z},${e.layer || 0}` })) return;
     this.pushUndo({ kind: 'rotate', e, dir: e.dir });
     e.dir = (e.dir + 1) % 4;
     e.obj.rotation.y = -e.dir * Math.PI / 2;
     game.emit('moved', e);
+    game.mp?.op('rotate', { a: `${e.x},${e.z},${e.layer || 0}`, dir: e.dir });
   }
 
   undo() {
@@ -518,6 +544,9 @@ export class Builder {
     switch (u.kind) {
       case 'place':
         if (!u.e.removed) { this.despawn(u.e); game.economy.addItem(u.e.type); }
+        break;
+      case 'replace':
+        if (!u.e.removed) { this.despawn(u.e); game.economy.addItem(u.e.type); this.restore(u.snap); }
         break;
       case 'group':
         for (const e of u.ents) if (!e.removed) { this.despawn(e); game.economy.addItem(e.type); }

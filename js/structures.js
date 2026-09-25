@@ -117,6 +117,8 @@ function placeObject(holder, pieceId, info) {
 export function addStructure(d) {
   const p = PIECES[d.piece];
   if (!p) return null;
+  // multiplayer: convidado pede pro anfitrião (devolve uma peça de mentirinha pro som/desfazer)
+  if (game.mp?.intercept('struct', { d })) return { key: d.key, kind: 'peca', piece: d.piece, mat: d.mat, obj: { position: new THREE.Vector3((d.x + 0.5) * CELL, 1, (d.z + 0.5) * CELL) } };
   const info = p.borda ? parseEdge(d.key) : { x: d.x, z: d.z };
   if (!info) return null;
   const obj = buildPieceObject(d.piece, d.mat, d.paint, info);
@@ -126,11 +128,13 @@ export function addStructure(d) {
   structRoot.add(obj);
   structures.set(d.key, s);
   game.emit('structures');
+  game.mp?.op('struct', { d: { key: d.key, piece: d.piece, mat: s.mat, paint: s.paint, x: s.x, z: s.z } });
   return s;
 }
 export function removeStructure(key) {
   const s = structures.get(key);
   if (!s) return null;
+  if (game.mp?.intercept('unstruct', { k: key })) return s;
   structRoot.remove(s.obj);
   structures.delete(key);
   // quadros presos nessa parede caem junto (voltam pro inventário)
@@ -139,11 +143,14 @@ export function removeStructure(key) {
     if (q) { removeStructure(q.key); game.economy.addItem(q.painting); }
   }
   game.emit('structures');
+  game.mp?.op('unstruct', { k: key });
   return s;
 }
 export function paintStructure(s, paint) {
+  if (game.mp?.intercept('paint', { k: s.key, paint })) return;
   s.paint = paint;
   applyLook(s.obj.children[0], s.mat, paint);
+  game.mp?.op('paint', { k: s.key, paint });
 }
 
 // ─── quadros ───
@@ -175,6 +182,7 @@ export function buildPaintingObject(id) {
   return g;
 }
 export function addPainting(d) {
+  if (game.mp?.intercept('painting', { d })) return null;
   const [, edge, side] = /^p:(e:[^:]+):(-?1)$/.exec(d.key) || [];
   const wall = structures.get(edge);
   if (!wall || !PAINTINGS[d.painting]) return null;
@@ -190,6 +198,7 @@ export function addPainting(d) {
   structRoot.add(obj);
   structures.set(d.key, s);
   game.emit('structures');
+  game.mp?.op('painting', { d: { key: d.key, painting: d.painting } });
   return s;
 }
 

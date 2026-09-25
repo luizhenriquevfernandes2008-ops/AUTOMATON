@@ -10,6 +10,7 @@ import { takeItemMesh, releaseItemMesh } from './itemMeshes.js';
 import { cloneModel } from './assets.js';
 import { Blocking, JiboiaError, JDict, suggest } from './lang/jiboia.js';
 import { audio } from './audio.js';
+import { virtualLight } from './lights.js';
 import { puff, floatText, makeLabel, setLabel, confetti } from './fx.js';
 import { powerRatio, outputOf } from './power.js';
 
@@ -61,6 +62,7 @@ export class Lab extends Machine {
   }
   setResearch(id) {
     if (this.research === id) return null;
+    if (game.mp?.guestRpc('research', { a: `${this.x},${this.z},0`, id })) return null;
     const eco = game.economy;
     // pesquisas infinitas gastam ⭐ estrelas ao começar (voltam se trocar)
     if (id && id.startsWith('inf:')) {
@@ -217,6 +219,7 @@ export class Platform {
   readyToLaunch() { const g = this.goal(); return !!g && g.final && this.percent() >= 1 && !this.launching; }
   // Programa Espacial: escolhe o satélite da próxima missão
   chooseMission(sat) {
+    if (game.mp?.guestRpc('mission', { sat })) return null;
     const eco = game.economy;
     if (!eco.launched || !SATELLITES[sat] || this.launching) return 'Não dá pra escolher agora';
     if (eco.satLvl(sat) >= 5) return 'Esse satélite já está no máximo (5 em órbita)';
@@ -240,6 +243,7 @@ export class Platform {
     game.emit('phaseDone', eco.phase);
   }
   launch() {
+    if (game.mp?.guestRpc('launch', {})) return;
     if (!this.readyToLaunch()) return;
     this.launching = 0.001;
     audio.play('launch', { volume: 1 });
@@ -573,7 +577,7 @@ export class Lamp extends Machine {
     this.bulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 10), new THREE.MeshStandardMaterial({ color: 0x555566, emissive: 0x000000 }));
     this.bulb.position.y = (this.model.userData.size?.y || 1.2) + 0.12;
     this.obj.add(this.bulb);
-    this.light = new THREE.PointLight(this.color, 0, 9, 1.6);
+    this.light = virtualLight(new THREE.PointLight(this.color, 0, 9, 1.6));
     this.light.position.y = this.bulb.position.y;
     this.obj.add(this.light);
     this.lamp.visible = false;

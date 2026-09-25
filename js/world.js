@@ -1,10 +1,12 @@
 // Monta o cenário: céu, chão, floresta, veios de minério, escritório, loja e painel do mercado.
 import * as THREE from 'three';
-import { assets, cloneModel, tint, TREE_KEYS, PROP_KEYS } from './assets.js';
-import { CELL, GRID_MIN, GRID_MAX, ORES, ITEMS, REGIONS } from './data.js';
-import { grid, ores, key, cellCenter } from './machines.js';
+import { assets, cloneModel, TREE_KEYS, PROP_KEYS } from './assets.js';
+import { CELL, GRID_MIN, GRID_MAX, ORES, ITEMS, REGIONS, PURITY } from './data.js';
+import { grid, ores, purity, key, cellCenter } from './machines.js';
 import { Platform } from './machines2.js';
 import { makeLabel } from './fx.js';
+import { addStatic, removeStatic, setStaticScale, setStaticVisible } from './staticBatch.js';
+import { virtualLight } from './lights.js';
 import { game } from './state.js';
 
 export const colliders = []; // círculos {x, z, r}
@@ -39,7 +41,7 @@ export function isBuildableCell(x, z) {
 export function clearRegion(id) {
   const list = game.regionDecor?.[id] || [];
   for (const d of list) {
-    game.scene.remove(d.obj);
+    if (d.batch) removeStatic(d.batch); else game.scene.remove(d.obj);
     if (d.col) { const i = colliders.indexOf(d.col); if (i >= 0) colliders.splice(i, 1); }
   }
   if (game.regionDecor) game.regionDecor[id] = [];
@@ -192,34 +194,50 @@ function buildRegionSigns() {
   }
 }
 
+// pureza de cada veio (sempre a mesma pro mesmo lugar): ~25% impuro, ~50% normal, ~25% puro.
+// Os veios do começo (tutorial) são normais.
+const START_NODES = new Set(['-4,-4', '-5,-6', '5,-5', '7,-7']);
+export function purityAt(x, z) {
+  if (START_NODES.has(key(x, z))) return 'normal';
+  const h = (Math.imul(x, 73856093) ^ Math.imul(z, 19349663)) >>> 0;
+  const r = h % 100;
+  return r < 25 ? 'impuro' : r < 75 ? 'normal' : 'puro';
+}
+// veios: cristais e manchinhas desenhados em lote (um por tipo de minério)
+const spotGeo = new THREE.CircleGeometry(CELL * 0.62, 20).rotateX(-Math.PI / 2);
 function buildOres() {
+  game.oreModels = game.oreModels || new Map();
   for (const [type, cells] of Object.entries(ORE_NODES)) {
     const ore = ORES[type];
+    const spots = new THREE.InstancedMesh(spotGeo, new THREE.MeshStandardMaterial({ color: ore.cor, roughness: 1, transparent: true, opacity: 0.35, depthWrite: false }), cells.length);
     cells.forEach(([x, z], i) => {
       ores.set(key(x, z), type);
+      const pu = purityAt(x, z);
+      purity.set(key(x, z), pu);
       const c = cellCenter(x, z);
-      const m = cloneModel(i % 2 ? 'crystalA' : 'crystalB');
-      tint(m, ore.cor, ore.cor, 0.12);
-      m.position.copy(c);
-      m.rotation.y = rnd() * Math.PI * 2;
-      m.scale.setScalar(0.95);
-      m.userData.ore = type;
-      game.scene.add(m);
-      // manchinha no chão
-      const spot = new THREE.Mesh(new THREE.CircleGeometry(CELL * 0.62, 20), new THREE.MeshStandardMaterial({ color: ore.cor, roughness: 1, transparent: true, opacity: 0.35, depthWrite: false }));
-      spot.rotation.x = -Math.PI / 2;
-      spot.position.set(c.x, 0.02, c.z);
-      game.scene.add(spot);
-      ores.set(key(x, z), type);
-      game.oreModels = game.oreModels || new Map();
-      game.oreModels.set(key(x, z), m);
+      const scale = PURITY[pu].escala;
+      const batch = addStatic(i % 2 ? 'crystalA' : 'crystalB', c.x, c.z, rnd() * Math.PI * 2, scale, 0, { cor: ore.cor, emissivo: ore.cor, forca: pu === 'puro' ? 0.35 : 0.12 });
+      spots.setMatrixAt(i, new THREE.Matrix4().makeScale(scale, 1, scale).premultiply(new THREE.Matrix4().makeTranslation(c.x, 0.02, c.z)));
+      game.oreModels.set(key(x, z), { batch, scale });
     });
+    spots.receiveShadow = true;
+    spots.computeBoundingSphere();
+    game.scene.add(spots);
   }
 }
 
 export function setOreVisible(x, z, v) {
   const m = game.oreModels?.get(key(x, z));
-  if (m) m.scale.setScalar(v ? 0.95 : 0.45);
+  if (!m) return;
+  if (m.batch) setStaticScale(m.batch, v ? m.scale : 0.45);
+  else m.scale.setScalar(v ? 0.95 : 0.45); // veio de meteorito (objeto comum)
+}
+
+// gramadinho em lote: some quando uma máquina é colocada em cima (tf.visible = false)
+class Tuft {
+  constructor(batch, x, z) { this.batch = batch; this.position = new THREE.Vector3(x, 0, z); this.v = true; }
+  get visible() { return this.v; }
+  set visible(v) { this.v = v; setStaticVisible(this.batch, v); }
 }
 
 function buildNature() {
@@ -227,17 +245,18 @@ function buildNature() {
   game.regionDecor = {};
   const nearOre = (x, z) => { const c = { x: Math.floor(x / CELL), z: Math.floor(z / CELL) }; for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) if (ores.has(key(c.x + dx, c.z + dz))) return true; return false; };
   // árvore/pedra dentro de uma região comprável fica anotada pra sumir quando comprar
-  const tag = (x, z, obj, col) => {
+  const tag = (x, z, batch, col) => {
     const id = regionAt(Math.floor(x / CELL), Math.floor(z / CELL));
-    if (id) (game.regionDecor[id] || (game.regionDecor[id] = [])).push({ obj, col });
+    if (id) (game.regionDecor[id] || (game.regionDecor[id] = [])).push({ batch, col });
   };
+  // árvores e pedras vão pro lote instanciado (staticBatch.js). A ordem dos rnd() é a mesma de antes: o mapa não muda
   const addTree = (x, z) => {
     const k = TREE_KEYS[Math.floor(rnd() * TREE_KEYS.length)];
-    const m = place(k, x, z, rnd() * Math.PI * 2);
-    m.scale.setScalar(1.1 + rnd() * 0.9);
+    const rot = rnd() * Math.PI * 2;
+    const b = addStatic(k, x, z, rot, 1.1 + rnd() * 0.9);
     const col = { x, z, r: 0.7 };
     colliders.push(col);
-    tag(x, z, m, col);
+    tag(x, z, b, col);
   };
   // anel de floresta
   let n = 0;
@@ -258,12 +277,12 @@ function buildNature() {
     if (Math.max(Math.abs(x), Math.abs(z)) < half + 1) continue;
     if (nearOre(x, z)) continue;
     const k = PROP_KEYS[Math.floor(rnd() * PROP_KEYS.length)];
-    const m = place(k, x, z, rnd() * Math.PI * 2);
+    const rot = rnd() * Math.PI * 2;
     const small = /flower|grass|mushroom/.test(k);
-    m.scale.setScalar(small ? 0.6 + rnd() * 0.3 : 0.7 + rnd() * 0.7);
+    const b = addStatic(k, x, z, rot, small ? 0.6 + rnd() * 0.3 : 0.7 + rnd() * 0.7);
     let col = null;
     if (/rock_large|rock_tall|log|stump/.test(k)) { col = { x, z, r: 0.9 }; colliders.push(col); }
-    tag(x, z, m, col);
+    tag(x, z, b, col);
   }
   // gramadinhos dentro da área (só na grama, fora do piso)
   for (let i = 0; i < 90; i++) {
@@ -271,18 +290,16 @@ function buildNature() {
     const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
     if (cx >= PAD.min - 1 && cx <= PAD.max + 1 && cz >= PAD.min - 1 && cz <= PAD.max + 1) continue;
     const k = ['n_grass', 'n_grass_large', 'n_flower_yellowA', 'n_flower_purpleA', 'n_flower_redA', 'n_grass_leafs'][Math.floor(rnd() * 6)];
-    const m = place(k, x, z, rnd() * 6);
-    m.scale.setScalar(0.5);
-    m.userData.tuft = true;
+    const batch = addStatic(k, x, z, rnd() * 6, 0.5);
     game.tufts = game.tufts || [];
-    game.tufts.push(m);
+    game.tufts.push(new Tuft(batch, x, z));
   }
   // acampamento chill fora da área
   const cx = -half - 10, cz = 14;
   place('tent', cx, cz, Math.PI / 2.5); colliders.push({ x: cx, z: cz, r: 1.6 });
   place('campfire', cx + 4, cz + 1, 0); colliders.push({ x: cx + 4, z: cz + 1, r: 0.7 });
   place('logStack', cx + 3, cz + 4.5, 0.4); colliders.push({ x: cx + 3, z: cz + 4.5, r: 1 });
-  const fire = new THREE.PointLight(0xff9a4a, 8, 10, 1.6);
+  const fire = virtualLight(new THREE.PointLight(0xff9a4a, 8, 10, 1.6));
   fire.position.set(cx + 4, 0.8, cz + 1);
   game.scene.add(fire);
   game.campfire = fire;
@@ -311,7 +328,7 @@ function buildOffice() {
   place('d_plant', 5.2, z0 + 3.2, 0); colliders.push({ x: 5.2, z: z0 + 3.2, r: 0.4 });
   place('d_plant', -5.6, z0 + 3.0, 1); colliders.push({ x: -5.6, z: z0 + 3, r: 0.4 });
   const lamp = place('d_lamp', -1.4, z0 + 3.2, 0); colliders.push({ x: -1.4, z: z0 + 3.2, r: 0.3 });
-  const l = new THREE.PointLight(0xffc98a, 5, 8, 1.5); l.position.set(-1.4, 1.7, z0 + 3.2); game.scene.add(l);
+  const l = virtualLight(new THREE.PointLight(0xffc98a, 5, 8, 1.5)); l.position.set(-1.4, 1.7, z0 + 3.2); game.scene.add(l);
   void lamp;
   place('bookcase', -6.4, z0 + 4.2, 0); colliders.push({ x: -6.4, z: z0 + 4.2, r: 0.7 });
   place('plantSmall', -6.4, z0 + 4.4, 0).position.y = 0.72;

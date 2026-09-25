@@ -5,6 +5,8 @@ import { renderContracts, contractState } from './contracts.js';
 import { renderChallenges } from './challengeUI.js';
 import { renderBlueprints } from './blueprints.js';
 import { renderMail } from './mail.js';
+import { renderFriends } from './friends.js';
+import { renderMultiplayer } from './mp.js';
 import { confetti } from './fx.js';
 import { thumbs } from './thumbs.js';
 import { audio } from './audio.js';
@@ -22,9 +24,9 @@ const $ = (s) => document.querySelector(s);
 const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
 // máquinas sem painel de detalhes
 export const NO_PANEL = new Set(['esteira', 'poste', 'divisor', 'juntador', 'esteira_alta', 'rampa_sobe', 'rampa_desce']);
-const XWIN = { research: '🔬 Laboratório · Pesquisas', platform: '🚀 Projeto Foguete', stats: '📊 Estatísticas', map: '🗺️ Mapa', pet: '🤖 Oopi', contracts: '📋 Quadro de Contratos', challenges: '🧩 Terminal de Desafios', projects: '📐 Projetos', mail: '📬 Correio da Manhã' };
+const XWIN = { research: '🔬 Laboratório · Pesquisas', platform: '🚀 Projeto Foguete', stats: '📊 Estatísticas', map: '🗺️ Mapa', pet: '🤖 Oopi', contracts: '📋 Quadro de Contratos', challenges: '🧩 Terminal de Desafios', projects: '📐 Projetos', mail: '📬 Correio da Manhã', friends: '🤝 Amigos', multiplayer: '🌐 Jogar junto' };
 // janelas que não se redesenham sozinhas (têm campos de texto)
-const NO_AUTO = new Set(['pet', 'challenges', 'projects', 'mail']);
+const NO_AUTO = new Set(['pet', 'challenges', 'projects', 'mail', 'friends', 'multiplayer']);
 const CONTRACT_SLOTS = [{ vagas: 3, fichas: 8 }, { vagas: 4, fichas: 15 }];
 
 export class UI {
@@ -79,6 +81,8 @@ export class UI {
     game.on('achievement', () => { if (Math.random() < 0.5) confetti(40); });
     game.on('research', () => { if (this.overlay === 'research') this.renderX(); });
     game.on('materials', () => { if (game.builder?.selected === 'construir') this.renderHotbar(); if (this.overlay === 'shop') this.renderShop(); });
+    game.on('mp', () => { if (this.overlay === 'multiplayer') this.renderX(); this.updateStats(); });
+    game.on('mpChat', () => { if (this.overlay === 'multiplayer') this.renderX(); });
     game.on('record', (r) => this.toast(`🏆 <b>Recorde da fábrica!</b> ${r.texto}`, 'ach'));
     audio.onTrackChange = (t) => { $('#track').textContent = `${audio.stationObj.icone} ${t.nome}`; };
 
@@ -97,7 +101,9 @@ export class UI {
       if (performance.now() - this.openTime < 200 || e.repeat) return; // a mesma tecla que abriu não fecha
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
       const o = this.overlay;
-      if (e.key === 'Escape' && ['shop', 'panel', 'guide', 'research', 'platform', 'stats', 'map', 'pet', 'contracts', 'challenges', 'projects', 'mail'].includes(o)) { e.preventDefault(); this.closeOverlay(); }
+      if (e.key === 'Escape' && ['shop', 'panel', 'guide', 'research', 'platform', 'stats', 'map', 'pet', 'contracts', 'challenges', 'projects', 'mail', 'friends', 'multiplayer'].includes(o)) { e.preventDefault(); this.closeOverlay(); }
+      if (e.code === keyOf('multiplayer') && o === 'multiplayer') this.closeOverlay();
+      if (e.code === keyOf('amigos') && o === 'friends') this.closeOverlay();
       if (e.code === keyOf('projetos') && o === 'projects') this.closeOverlay();
       if (e.code === keyOf('contratos') && o === 'contracts') this.closeOverlay();
       if (e.code === keyOf('loja') && o === 'shop') this.closeOverlay();
@@ -162,8 +168,8 @@ export class UI {
     if (cs.length) {
       html += `<div class="obj-rocket"><div class="obj-title">📋 Contratos</div>${cs.map((c) => {
         const need = Object.entries(c.itens).reduce((a, [, n]) => a + n, 0), have = Object.entries(c.itens).reduce((a, [k, n]) => a + Math.min(n, c.progresso[k] || 0), 0);
-        const left = Math.max(0, c.ate - game.time);
-        return `<div class="obj-need"><span style="grid-column:1/3">${c.icone} ${c.cliente}</span><i><b style="width:${(have / need) * 100}%"></b></i><em>${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}</em></div>`;
+        const left = c.parceria ? 0 : Math.max(0, c.ate - game.time);
+        return `<div class="obj-need"><span style="grid-column:1/3">${c.icone} ${c.cliente}</span><i><b style="width:${(have / need) * 100}%"></b></i><em>${c.parceria ? '🤝' : `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`}</em></div>`;
       }).join('')}</div>`;
     }
     if (!html) html = '<div class="obj-title">🌟 Todos os objetivos completos!</div><div>Continue construindo com calma.</div>';
@@ -296,6 +302,7 @@ export class UI {
 
   // ─── janelas ───
   openOverlay(name, arg) {
+    if (['friends', 'mail', 'challenges'].includes(name) && game.mp?.blocked({ friends: 'Amigos', mail: 'Correio', challenges: 'Desafios' }[name])) return;
     if (this.overlay) this.closeOverlay(true);
     this.overlay = name;
     this.openTime = performance.now();
@@ -315,7 +322,7 @@ export class UI {
       $('#xwin').classList.remove('hidden');
       $('#xwin').dataset.kind = name;
       $('#xwin-title').textContent = name === 'platform' && game.economy.launched ? '🛰️ Programa Espacial' : XWIN[name];
-      $('#xwin-hint').textContent = name === 'map' ? 'Tab ou Esc fecha' : name === 'stats' ? 'K ou Esc fecha' : name === 'pet' ? 'E ou Esc fecha' : name === 'projects' ? 'J ou Esc fecha' : name === 'contracts' ? 'L ou Esc fecha' : 'Esc fecha';
+      $('#xwin-hint').textContent = name === 'map' ? 'Tab ou Esc fecha' : name === 'stats' ? 'K ou Esc fecha' : name === 'pet' ? 'E ou Esc fecha' : name === 'projects' ? 'J ou Esc fecha' : name === 'contracts' ? 'L ou Esc fecha' : name === 'friends' ? 'N ou Esc fecha' : name === 'multiplayer' ? 'O ou Esc fecha' : 'Esc fecha';
       $('#xwin-body').innerHTML = '';
       this.renderX(arg);
     }
@@ -331,6 +338,8 @@ export class UI {
     if (this.overlay === 'challenges') renderChallenges(body);
     if (this.overlay === 'projects') renderBlueprints(body);
     if (this.overlay === 'mail') renderMail(body);
+    if (this.overlay === 'friends') renderFriends(body, arg);
+    if (this.overlay === 'multiplayer') renderMultiplayer(body);
   }
 
   closeOverlay(silent) {
@@ -392,6 +401,7 @@ export class UI {
       body.querySelectorAll('.buy-m').forEach((b) => {
         b.onclick = () => {
           const it = b.dataset.k, n = +b.dataset.n;
+          if (game.mp?.guestRpc('buyMat', { item: it, n })) { audio.play('buy', { volume: 0.5 }); return; }
           const mk = Object.keys(MATERIALS).find((m) => MATERIALS[m].item === it);
           if (!eco.spend(MATERIAL_SHOP[mk] * n)) { audio.play('deny'); return; }
           eco.materials[it] = (eco.materials[it] || 0) + n;
@@ -440,6 +450,7 @@ export class UI {
   // loja de fichas 🎟️: chapéus e cores do Oopi, decoração exclusiva e vagas de contrato
   renderTokenShop(body, card) {
     const eco = game.economy;
+    if (game.mp?.isGuest) { body.innerHTML = '<p class="muted">No multiplayer, a loja de fichas fica com o anfitrião 🙂</p>'; return; }
     const o = eco.oopi;
     const tk = (n) => `<span class="price">🎟️ ${n}</span>`;
     const hats = Object.entries(OOPI_HATS).map(([k, h]) => {
@@ -489,6 +500,7 @@ export class UI {
   }
 
   buy(k, n) {
+    if (game.mp?.guestRpc('buy', { k, n })) { audio.play('buy', { volume: 0.5 }); return; }
     const d = MACHINES[k] || DECOR[k] || PAINTINGS[k];
     if (d.nivel && this.lockReason(d)) return;
     if (d.fichas) { if (!game.economy.spendTokens(d.fichas * n)) { audio.play('deny'); return; } }
@@ -500,6 +512,7 @@ export class UI {
   }
 
   upgrade(k) {
+    if (game.mp?.guestRpc('upgrade', { k })) { audio.play('buy', { volume: 0.5 }); return; }
     const u = UPGRADES[k];
     const lvl = game.economy.upgrades[k];
     if (!game.economy.spend(u.precos[lvl])) { audio.play('deny'); return; }
@@ -516,6 +529,7 @@ export class UI {
     if (eco.hasRegion(id)) return;
     if (eco.level < r.nivel) { this.toast(`${r.nome} precisa do nível ${r.nivel}`, 'warn'); audio.play('deny'); return; }
     this.confirm(`Comprar ${r.nome}?`, `<p>${r.desc}</p><p>Preço: <b class="amber">$ ${fmt(r.preco)}</b> · você tem $ ${fmt(eco.money)}</p><p class="muted">As árvores da região somem e você pode construir lá.</p>`, () => {
+      if (game.mp?.guestRpc('region', { id })) return;
       if (!eco.spend(r.preco)) { this.toast('Dinheiro insuficiente', 'warn'); audio.play('deny'); return; }
       eco.regions.push(id);
       game.emit('region', id);
@@ -552,6 +566,7 @@ export class UI {
         const v = inp.value.trim();
         if (!/^[\wÀ-ɏ-]+$/.test(v)) { this.toast('Use só letras, números e _ no nome', 'warn'); inp.value = e.name; return; }
         if (game.entities.some((o) => o !== e && o.name === v) || (game.drones || []).some((o) => o.name === v)) { this.toast('Já existe uma máquina com esse nome', 'warn'); inp.value = e.name; return; }
+        if (game.mp?.guestRpc('rename', { a: `${e.x},${e.z},${e.layer || 0}`, name: v })) return;
         e.rename(v);
         this.toast(`Renomeado para "${v}". Lembre de usar maquina("${v}") no código!`);
       };
@@ -563,6 +578,7 @@ export class UI {
         const b = ev.target.closest('button[data-i]');
         if (!b || b.disabled || !this.panelActs) return;
         const a = this.panelActs[+b.dataset.i];
+        if (a && game.mp?.guestRpc('panelAct', { a: `${e.x},${e.z},${e.layer || 0}`, i: +b.dataset.i })) { audio.play('click', { volume: 0.5 }); return; }
         if (a) { a.fn(); audio.play('click', { volume: 0.5 }); this.panelActsHtml = ''; this.renderPanel(false); }
       };
       $('#panel-pick').onclick = () => { game.builder.hover = { entity: e }; game.builder.removeHovered(); this.closeOverlay(); };
@@ -577,6 +593,7 @@ export class UI {
       up.disabled = !ok || eco.money < cost;
       up.textContent = ok ? `⬆ ${next.nome} ($ ${fmt(cost)}): ${next.vel}× mais rápida` : `🔬 ${next.nome}: pesquise “${TECHS[next.tech].nome}”`;
       up.onclick = () => {
+        if (game.mp?.guestRpc('tier', { a: `${e.x},${e.z},${e.layer || 0}` })) return;
         if (!eco.spend(cost)) return;
         e.setTier((e.tier || 0) + 1);
         audio.play('levelup', { volume: 0.6 });

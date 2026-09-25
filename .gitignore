@@ -8,3 +8,4 @@ desktop.ini
 .idea/
 .claude/
 *.log
+servidor-online/node_modules/
