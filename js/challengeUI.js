@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { game } from './state.js';
 import { CHALLENGES, byId, evaluate, medal, MEDAL_ICON } from './challenges.js';
+import { weeklyChallenge, weekKey } from './weekly.js';
 import { highlight } from './editor.js';
 import { cloneModel } from './assets.js';
 import { audio } from './audio.js';
@@ -41,7 +42,16 @@ export function challengeSolved(fn) {
 }
 export function challengeFor(fn) { return CHALLENGES.find((c) => c.libera[0] === fn); }
 
+// desafio da semana: guardado em eco.weekly (zera quando a semana muda)
+export function weeklyRec() {
+  const eco = game.economy;
+  const wk = weekKey();
+  if (!eco.weekly || eco.weekly.week !== wk) eco.weekly = { week: wk, code: weeklyChallenge(wk).inicial, best: {}, medals: {}, solved: false, friends: [] };
+  return eco.weekly;
+}
+const chOf = (id) => (id.startsWith('semana:') ? weeklyChallenge() : byId(id));
 function recOf(id) {
+  if (id.startsWith('semana:')) return weeklyRec();
   const all = game.economy.challenges;
   if (!all[id]) all[id] = { code: byId(id).inicial || '# pegar() lê a entrada · entregar(x) responde\n\nwhile True:\n    x = pegar()\n', best: {}, solved: false, medals: {} };
   return all[id];
@@ -58,7 +68,8 @@ function applyResult(ch, res) {
     eco.stats.earned += ch.premio.dinheiro;
     eco.addTokens(ch.premio.fichas);
     eco.addXp(ch.premio.dinheiro / 2);
-    msgs.push(`+$ ${ch.premio.dinheiro}`, `+${ch.premio.fichas} 🎟️`, `Nova função na Jiboia: ${ch.libera[1]}`);
+    msgs.push(`+$ ${ch.premio.dinheiro}`, `+${ch.premio.fichas} 🎟️`, ch.libera ? `Nova função na Jiboia: ${ch.libera[1]}` : 'Mande sua nota pros amigos: 🤝 Amigos → Desafio da semana');
+    if (ch.week) eco.stats.weeklies = (eco.stats.weeklies || 0) + 1;
   }
   let newGold = 0;
   for (const [k] of METRICS) {
@@ -82,9 +93,13 @@ function applyResult(ch, res) {
 export function renderChallenges(el) {
   const eco = game.economy;
   const open = unlockedIndex();
-  if (!current || CHALLENGES.findIndex((c) => c.id === current) > open) current = CHALLENGES[Math.min(open, CHALLENGES.length - 1)].id;
-  const ch = byId(current);
+  const wk = weeklyChallenge();
+  if (!current || (!current.startsWith('semana:') && CHALLENGES.findIndex((c) => c.id === current) > open)) current = CHALLENGES[Math.min(open, CHALLENGES.length - 1)].id;
+  if (current.startsWith('semana:')) current = wk.id;
+  const ch = chOf(current);
   const rec = recOf(ch.id);
+  const wr = weeklyRec();
+  const weekItem = `<button class="chx-item week ${current === wk.id ? 'on' : ''}" data-ch="${wk.id}"><span class="chx-ic">📅</span><span><b>Desafio da semana</b><small>${wr.solved ? METRICS.map(([k]) => MEDAL_ICON[wr.medals[k]] || '').join('') + ` · ${wr.friends.length} amigo(s)` : `✨ ${wk.nome}`}</small></span></button>`;
   const list = CHALLENGES.map((c, i) => {
     const r = eco.challenges[c.id];
     const locked = i > open;
@@ -101,12 +116,12 @@ export function renderChallenges(el) {
   }).join('');
   el.innerHTML = `
   <div class="chx">
-    <div class="chx-list">${list}
+    <div class="chx-list">${weekItem}${list}
       <p class="muted" style="font-size:12px;margin-top:8px">Resolver libera o próximo desafio, dá dinheiro, 🎟️ fichas e uma <b>função nova</b> pros computadores da fábrica. Cada 🥇 nova dá +1 ficha.</p>
     </div>
     <div class="chx-main">
       <div class="chx-head"><span class="chx-big">${ch.icone}</span><div><h2>${ch.nome}</h2><div class="chx-desc">${ch.desc}</div></div></div>
-      <div class="chx-ex"><span>exemplo:</span> entrada <code>${escH(ch.exemplo[0])}</code> → saída <code>${escH(ch.exemplo[1])}</code> · <span class="muted">prêmio: $ ${ch.premio.dinheiro} + ${ch.premio.fichas} 🎟️ + <code>${ch.libera[0]}()</code></span></div>
+      <div class="chx-ex"><span>exemplo:</span> entrada <code>${escH(ch.exemplo[0])}</code> → saída <code>${escH(ch.exemplo[1])}</code> · <span class="muted">prêmio: $ ${ch.premio.dinheiro} + ${ch.premio.fichas} 🎟️${ch.libera ? ` + <code>${ch.libera[0]}()</code>` : ` · semana ${ch.week} · igual pra todo mundo`}</span>${ch.week && rec.solved ? ' <button id="chx-share" class="mini">🤝 placar com amigos</button>' : ''}</div>
       <div class="chx-ed"><pre class="chx-hl" aria-hidden="true"></pre><textarea class="chx-ta" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea></div>
       <div class="row"><button id="chx-run" class="primary">▶ Testar (Ctrl+Enter)</button><button id="chx-reset">↺ Recomeçar código</button><span class="muted" style="font-size:12px"><code>pegar()</code> · <code>tem_mais()</code> · <code>entregar(x${ch.lados ? ', "esquerda"' : ''})</code> · quando a entrada acaba, <code>pegar()</code> termina o programa</span></div>
       <div id="chx-out" class="chx-out">${rec.last ? rec.last : '<span class="muted">Escreva o programa e clique em Testar. Ele roda em 3 entradas diferentes.</span>'}</div>
@@ -157,6 +172,8 @@ export function renderChallenges(el) {
   };
   el.querySelector('#chx-run').onclick = run;
   el.querySelector('#chx-reset').onclick = () => { if (!confirm('Apagar o código deste desafio e começar de novo?')) return; rec.code = ch.inicial || '# pegar() lê a entrada · entregar(x) responde\n\nwhile True:\n    x = pegar()\n'; rec.last = ''; renderChallenges(el); };
+  const sh = el.querySelector('#chx-share');
+  if (sh) sh.onclick = () => game.ui.openOverlay('friends', 'semana');
   el.querySelectorAll('[data-ch]').forEach((b) => { b.onclick = () => { current = b.dataset.ch; audio.play('click', { volume: 0.4 }); renderChallenges(el); }; });
   setTimeout(() => ta.focus(), 30);
 }

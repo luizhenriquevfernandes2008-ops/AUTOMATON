@@ -957,6 +957,7 @@ export function refreshBeltsAround(x, z) {
 }
 
 export function findByName(name) {
+  if (name === 'oopi' && game.pet?.obj.visible) return game.pet; // o Oopi também obedece programas (amizade nível 2)
   return game.entities.find((e) => e.name === name && e.isMachine) || (game.drones || []).find((d) => d.name === name && !d.removed);
 }
 

@@ -227,7 +227,17 @@ while True:
 <li><b>Álbum</b> (<kbd>K</kbd> → Álbum): todos os itens que você já descobriu. <b>Amizade com o Oopi</b>: carinho e tarefas sobem o nível (1 a 5) e dão presentes.</li>
 </ul>
 
-<h3>22. 🧰 Ferramentas</h3>
+<h3>22. 🤝 Amigos, 🦾 braço robótico e 🤖 Oopi programável</h3>
+<ul>
+<li><kbd>N</kbd> abre <b>🤝 Amigos</b>. Tudo funciona trocando <b>códigos de texto</b> (WhatsApp, Discord…), sem servidor. Ponha seu nome lá em cima.</li>
+<li><b>📅 Desafio da semana</b>: um quebra-cabeça novo toda semana, igual pra todo mundo, no 🧩 Terminal de Desafios. Mande seu código pros amigos e cole o deles: o placar confere a solução de cada um de verdade. Depois de resolver, dá pra ver o código dos amigos.</li>
+<li><b>👀 Visitar fábrica</b>: baixe um arquivo (ou código) com a sua fábrica e mande. Quem abre passeia por ela sem salvar nada, lê os programas e pode copiar grupos com <kbd>C</kbd> pra 📐 Projetos.</li>
+<li><b>🤝 Parceria</b>: um contrato grande que cada um cumpre na sua fábrica. No fim, troquem os comprovantes: +5 🎟️ e 1 💾 pra cada.</li>
+<li><b>🦾 Braço Robótico</b> (nível 3): pega atrás (seta azul) e solta na frente (seta laranja): <code>maquina("braco1").mover()</code>.</li>
+<li><b>🤖 Oopi programável</b> (amizade nível 2): <code>o = maquina("oopi")</code>, <code>o.ir_para("bau1")</code>, <code>o.pegar()</code>, <code>o.soltar()</code>, <code>o.dizer("oi")</code>.</li>
+</ul>
+
+<h3>23. 🧰 Ferramentas</h3>
 <ul>
 <li><kbd>C</kbd> copiar uma área (clique em 2 cantos) · <kbd>V</kbd> colar de novo · <kbd>R</kbd> gira o grupo. Peças que faltarem são compradas.</li>
 <li><kbd>Ctrl+Z</kbd> desfaz (colocar, tirar, cabos, colar, girar).</li>
@@ -236,7 +246,7 @@ while True:
 <li>Menu: <b>3 fábricas</b> (saves separados). Configurações: <b>teclas</b>, <b>modo daltônico</b>, <b>fonte do editor</b> e <b>controle</b> 🎮 (alavancas andam e olham, <kbd>A</kbd> pula, <kbd>X</kbd> usa, <kbd>RT</kbd> coloca, <kbd>Start</kbd> pausa).</li>
 </ul>
 
-<h3>23. Problemas comuns</h3>
+<h3>24. Problemas comuns</h3>
 <table>
 <tr><th>Problema</th><th>Solução</th></tr>
 <tr><td>O item para no fim da esteira</td><td>A próxima peça não aceita por esse lado (seta laranja) ou está cheia.</td></tr>

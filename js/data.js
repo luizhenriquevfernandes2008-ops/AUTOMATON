@@ -261,6 +261,10 @@ export const MACHINES = {
     nome: 'Irrigador', preco: 90, nivel: 2, prefixo: 'irrigador', model: 'sprinkler', energia: 1,
     desc: 'Rega sozinho os canteiros em volta (2 células). .regar() rega na hora, .desligar() para. Gasta 1 ⚡.', solido: true,
   },
+  braco: {
+    nome: 'Braço Robótico', preco: 150, nivel: 3, prefixo: 'braco', model: 'robotArm', energia: 2,
+    desc: 'Pega itens de trás (seta azul: esteira, baú, saída de máquina) e solta na frente (seta laranja). Use .mover(), .pegar(), .soltar(). Gasta 2 ⚡.', solido: true,
+  },
   doca_entrega: {
     nome: 'Doca de Entrega', preco: 150, nivel: 2, prefixo: 'doca_entrega', model: 'deliveryDock',
     desc: 'Recebe por esteira (qualquer lado) os itens dos contratos aceitos no 📋 Quadro de Contratos. Não gasta energia.', solido: true,
@@ -277,7 +281,7 @@ export const TIERS = [
   { nome: 'Mk2', vel: 1.5, energia: 1.5, tech: 'mk2', preco: 0.8 },
   { nome: 'Mk3', vel: 2.2, energia: 2.2, tech: 'mk3', preco: 2 },
 ];
-export const TIERABLE = ['minerador', 'fornalha', 'montadora', 'separador', 'laboratorio', 'doca_drones'];
+export const TIERABLE = ['minerador', 'fornalha', 'montadora', 'separador', 'laboratorio', 'doca_drones', 'braco'];
 
 // Pesquisas do Laboratório. fase = fases do foguete que precisam estar prontas
 export const TECHS = {
@@ -429,6 +433,13 @@ export const ACHIEVEMENTS = [
   { id: 'album', nome: 'Colecionador(a)', desc: 'Descubra todos os itens do álbum.', icone: '📖' },
   { id: 'chapeu', nome: 'Estiloso', desc: 'Coloque um chapéu no Oopi.', icone: '🎩' },
   { id: 'amizade', nome: 'Amigos pra sempre', desc: 'Chegue à amizade nível 5 com o Oopi.', icone: '💞' },
+  // v1.4
+  { id: 'semanal', nome: 'Toda semana tem', desc: 'Resolva um desafio da semana.', icone: '📅' },
+  { id: 'placar', nome: 'Competição saudável', desc: 'Coloque a nota de um amigo no placar da semana.', icone: '🏁' },
+  { id: 'visita', nome: 'Visita de cortesia', desc: 'Visite a fábrica de um amigo.', icone: '👀' },
+  { id: 'parceria', nome: 'Juntos somos mais', desc: 'Conclua uma parceria com um amigo.', icone: '🤝' },
+  { id: 'braco', nome: 'Mão na massa', desc: 'Mova 50 itens com braços robóticos.', icone: '🦾' },
+  { id: 'oopi_prog', nome: 'Oopi, obedeça!', desc: 'Dê uma ordem pro Oopi por código.', icone: '📟' },
 ];
 
 // Contratos: clientes e o que eles gostam de pedir

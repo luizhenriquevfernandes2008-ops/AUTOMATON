@@ -16,7 +16,10 @@ export function currentSlot() {
   try { const n = +localStorage.getItem('automaton_slot'); return SLOTS.includes(n) ? n : 1; } catch { return 1; }
 }
 export function setSlot(n) { try { localStorage.setItem('automaton_slot', String(n)); } catch { /* ignora */ } }
-const KEY = slotKey(currentSlot());
+// visitando a fábrica de um amigo (?visita=1): carrega de outra chave e nunca salva
+export const VISITING = typeof location !== 'undefined' && new URLSearchParams(location.search).has('visita');
+export const VISIT_KEY = 'automaton_visit';
+const KEY = VISITING ? VISIT_KEY : slotKey(currentSlot());
 // o jogo se chamava "Fabriquinha": traz o save antigo, se existir
 try {
   const old = localStorage.getItem('fabriquinha_save_v1');
@@ -54,25 +57,30 @@ export function renameSlot(slot, name) {
   } catch { /* ignora */ }
 }
 
+// tudo que vai no save (também usado pra mandar a fábrica pra um amigo)
+export function saveData() {
+  const p = game.camera.position;
+  return {
+    v: 1,
+    time: game.time,
+    economy: game.economy.serialize(),
+    entities: game.entities.map((e) => e.serialize()),
+    wires: serializeWires(),
+    sky: serializeSky(),
+    player: { x: p.x, z: p.z, yaw: game.camera.rotation.y, pitch: game.camera.rotation.x },
+    stash: game.builder.codeStash,
+    settings: { ...audio.settings, sens: game.player.controls.pointerSpeed, musicOn: audio.musicOn },
+    structures: serializeStructures(),
+    events: serializeEvents(),
+    pet: game.pet?.serialize(),
+    name: game.slotName || '',
+    savedAt: Date.now(),
+  };
+}
 export function saveGame() {
+  if (VISITING) return false;
   try {
-    const p = game.camera.position;
-    const data = {
-      v: 1,
-      time: game.time,
-      economy: game.economy.serialize(),
-      entities: game.entities.map((e) => e.serialize()),
-      wires: serializeWires(),
-      sky: serializeSky(),
-      player: { x: p.x, z: p.z, yaw: game.camera.rotation.y, pitch: game.camera.rotation.x },
-      stash: game.builder.codeStash,
-      settings: { ...audio.settings, sens: game.player.controls.pointerSpeed, musicOn: audio.musicOn },
-      structures: serializeStructures(),
-      events: serializeEvents(),
-      pet: game.pet?.serialize(),
-      name: game.slotName || '',
-      savedAt: Date.now(),
-    };
+    const data = saveData();
     localStorage.setItem(KEY, JSON.stringify(data));
     return true;
   } catch (e) {
@@ -94,6 +102,7 @@ export function loadGame() {
   if (!d) return false;
   game.time = d.time || 0;
   game.slotName = d.name || '';
+  game.visitDe = VISITING ? String(d.visitDe || '').replace(/[<>&"']/g, '').slice(0, 24) : '';
   game.economy.load(d.economy);
   loadEvents(d.events); // antes das máquinas: o minerador precisa achar o veio de meteorito
   loadStructures(d.structures);

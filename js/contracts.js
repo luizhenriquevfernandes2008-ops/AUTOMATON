@@ -87,7 +87,7 @@ export function acceptContract(id) {
   const s = st();
   const i = s.offers.findIndex((o) => o.id === id);
   if (i < 0) return 'Esse pedido não existe mais';
-  if (s.active.length >= s.slots) return `Você já tem ${s.slots} contratos em andamento`;
+  if (usedSlots() >= s.slots) return `Você já tem ${s.slots} contratos em andamento`;
   const o = s.offers.splice(i, 1)[0];
   o.t0 = game.time;
   o.ate = game.time + o.prazo;
@@ -119,11 +119,20 @@ export function deliver(item, dock) {
   else game.emit('contractProgress', o);
   return true;
 }
+// parcerias (contrato em dupla com um amigo) não ocupam vaga e não têm prazo
+export const usedSlots = () => st().active.filter((o) => !o.parceria).length;
+export function addPartnerContract(o) {
+  const s = st();
+  if (s.active.some((c) => c.parceria === o.parceria)) return false;
+  s.active.push({ ...o, id: s.seq++, progresso: {}, t0: game.time, ate: game.time + 1e8, prazo: 1e8 });
+  game.emit('contracts');
+  return true;
+}
 function complete(o, dock) {
   const s = st();
   const eco = game.economy;
   s.active = s.active.filter((c) => c !== o);
-  const fast = game.time - o.t0 <= o.prazo / 2;
+  const fast = !o.parceria && game.time - o.t0 <= o.prazo / 2;
   let money = o.premio;
   if (fast) { money = Math.round(money * 1.25); eco.stats.fastContracts = (eco.stats.fastContracts || 0) + 1; }
   let fichas = o.fichas;
@@ -157,7 +166,7 @@ export function updateContracts(dt) {
   s.tick = 1;
   let changed = false;
   for (const o of [...s.active]) {
-    if (game.time > o.ate) {
+    if (!o.parceria && game.time > o.ate) {
       s.active = s.active.filter((c) => c !== o);
       game.ui?.toast(`${o.icone} O prazo do pedido de <b>${o.cliente}</b> acabou. Sem problemas: outros clientes vão aparecer 😊`);
       changed = true;
@@ -348,6 +357,7 @@ export function renderContracts(el) {
   const icon = (k) => `<img class="ic" src="${thumbs['item:' + k] || ''}" alt="">`;
   const card = (o, on) => {
     const left = on ? Math.max(0, o.ate - game.time) : o.prazo;
+    const timeTxt = o.parceria ? '🤝 sem prazo' : null;
     const mm = Math.floor(left / 60), ss = Math.floor(left % 60);
     const rows = Object.entries(o.itens).map(([k, n]) => {
       const h = Math.min(n, o.progresso[k] || 0);
@@ -356,14 +366,14 @@ export function renderContracts(el) {
     return `<div class="ct-card ${o.raridade} ${on ? 'on' : ''}">
       <div class="ct-head"><span class="ct-cli">${o.icone} ${o.cliente}</span><span class="ct-rar">${RARITY[o.raridade].nome}</span></div>
       ${rows}
-      <div class="ct-foot"><span class="amber">$ ${fmt(o.premio)}</span><span>🎟️ ${o.fichas}</span>${o.disco ? '<span>💾 1</span>' : ''}<span class="muted">⏱ ${mm}:${String(ss).padStart(2, '0')}${on ? '' : ' de prazo'}</span></div>
+      <div class="ct-foot"><span class="amber">$ ${fmt(o.premio)}</span><span>🎟️ ${o.fichas}</span>${o.disco ? '<span>💾 1</span>' : ''}<span class="muted">${timeTxt || `⏱ ${mm}:${String(ss).padStart(2, '0')}${on ? '' : ' de prazo'}`}</span></div>
       ${on ? `<div class="ct-bar"><i style="width:${contractPercent(o) * 100}%"></i></div><button class="mini" data-cancel="${o.id}">desistir</button>`
-    : `<button class="primary" data-accept="${o.id}" ${s.active.length >= s.slots ? 'disabled' : ''}>Aceitar</button>`}
+    : `<button class="primary" data-accept="${o.id}" ${usedSlots() >= s.slots ? 'disabled' : ''}>Aceitar</button>`}
     </div>`;
   };
   const docks = game.entities.filter((e) => e.type === 'doca_entrega').length;
   el.innerHTML = `
-    <div class="ct-top"><div>🎟️ <b>${eco.tokens}</b> fichas · contratos cumpridos: <b>${eco.stats.contracts || 0}</b> · vagas: <b>${s.active.length}/${s.slots}</b></div>
+    <div class="ct-top"><div>🎟️ <b>${eco.tokens}</b> fichas · contratos cumpridos: <b>${eco.stats.contracts || 0}</b> · vagas: <b>${usedSlots()}/${s.slots}</b></div>
     <div class="muted">${docks ? `${docks} doca(s) de entrega` : '⚠️ Coloque uma <b>Doca de Entrega</b> (loja) e mande os itens por esteira até ela'}</div></div>
     <h3 class="rec-h">Em andamento</h3>
     <div class="ct-grid">${s.active.map((o) => card(o, true)).join('') || '<p class="muted">Nenhum. Aceite um pedido abaixo.</p>'}</div>

@@ -194,7 +194,7 @@ const TYPE_COLOR = {
   divisor: '#3ee6b8', juntador: '#ffcf5c', minerador: '#6cb8ff', fornalha: '#ff8a3a', montadora: '#b39bff', separador: '#ff6ec7',
   venda: '#ffb020', bau: '#c0643c', computador: '#3ee6b8', gerador: '#ffd84a', gerador_grande: '#ffd84a', gerador_carvao: '#ffd84a',
   painel_solar: '#8fb8ff', poste: '#ffa640', laboratorio: '#6cf5ff', doca_drones: '#9fd8ff', lampada: '#fff4a0', tela: '#9fa8c0',
-  altofalante: '#9fa8c0', lixeira: '#7a6a5a', canteiro: '#6aa84a', irrigador: '#6cb8ff', deposito: '#b98352',
+  altofalante: '#9fa8c0', lixeira: '#7a6a5a', canteiro: '#6aa84a', irrigador: '#6cb8ff', deposito: '#b98352', braco: '#ff9a4a', doca_entrega: '#c9a77a',
 };
 const ORE_COLOR = { ferro: '#9fb4d6', cobre: '#e8844a', quartzo: '#f3c4ff', carvao: '#555566', estelar: '#b18cff' };
 const mapView = { zoom: 1, cx: 0, cz: 0, drag: null };

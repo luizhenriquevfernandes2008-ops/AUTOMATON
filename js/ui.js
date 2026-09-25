@@ -5,6 +5,7 @@ import { renderContracts, contractState } from './contracts.js';
 import { renderChallenges } from './challengeUI.js';
 import { renderBlueprints } from './blueprints.js';
 import { renderMail } from './mail.js';
+import { renderFriends } from './friends.js';
 import { confetti } from './fx.js';
 import { thumbs } from './thumbs.js';
 import { audio } from './audio.js';
@@ -22,9 +23,9 @@ const $ = (s) => document.querySelector(s);
 const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
 // máquinas sem painel de detalhes
 export const NO_PANEL = new Set(['esteira', 'poste', 'divisor', 'juntador', 'esteira_alta', 'rampa_sobe', 'rampa_desce']);
-const XWIN = { research: '🔬 Laboratório · Pesquisas', platform: '🚀 Projeto Foguete', stats: '📊 Estatísticas', map: '🗺️ Mapa', pet: '🤖 Oopi', contracts: '📋 Quadro de Contratos', challenges: '🧩 Terminal de Desafios', projects: '📐 Projetos', mail: '📬 Correio da Manhã' };
+const XWIN = { research: '🔬 Laboratório · Pesquisas', platform: '🚀 Projeto Foguete', stats: '📊 Estatísticas', map: '🗺️ Mapa', pet: '🤖 Oopi', contracts: '📋 Quadro de Contratos', challenges: '🧩 Terminal de Desafios', projects: '📐 Projetos', mail: '📬 Correio da Manhã', friends: '🤝 Amigos' };
 // janelas que não se redesenham sozinhas (têm campos de texto)
-const NO_AUTO = new Set(['pet', 'challenges', 'projects', 'mail']);
+const NO_AUTO = new Set(['pet', 'challenges', 'projects', 'mail', 'friends']);
 const CONTRACT_SLOTS = [{ vagas: 3, fichas: 8 }, { vagas: 4, fichas: 15 }];
 
 export class UI {
@@ -97,7 +98,8 @@ export class UI {
       if (performance.now() - this.openTime < 200 || e.repeat) return; // a mesma tecla que abriu não fecha
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
       const o = this.overlay;
-      if (e.key === 'Escape' && ['shop', 'panel', 'guide', 'research', 'platform', 'stats', 'map', 'pet', 'contracts', 'challenges', 'projects', 'mail'].includes(o)) { e.preventDefault(); this.closeOverlay(); }
+      if (e.key === 'Escape' && ['shop', 'panel', 'guide', 'research', 'platform', 'stats', 'map', 'pet', 'contracts', 'challenges', 'projects', 'mail', 'friends'].includes(o)) { e.preventDefault(); this.closeOverlay(); }
+      if (e.code === keyOf('amigos') && o === 'friends') this.closeOverlay();
       if (e.code === keyOf('projetos') && o === 'projects') this.closeOverlay();
       if (e.code === keyOf('contratos') && o === 'contracts') this.closeOverlay();
       if (e.code === keyOf('loja') && o === 'shop') this.closeOverlay();
@@ -162,8 +164,8 @@ export class UI {
     if (cs.length) {
       html += `<div class="obj-rocket"><div class="obj-title">📋 Contratos</div>${cs.map((c) => {
         const need = Object.entries(c.itens).reduce((a, [, n]) => a + n, 0), have = Object.entries(c.itens).reduce((a, [k, n]) => a + Math.min(n, c.progresso[k] || 0), 0);
-        const left = Math.max(0, c.ate - game.time);
-        return `<div class="obj-need"><span style="grid-column:1/3">${c.icone} ${c.cliente}</span><i><b style="width:${(have / need) * 100}%"></b></i><em>${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}</em></div>`;
+        const left = c.parceria ? 0 : Math.max(0, c.ate - game.time);
+        return `<div class="obj-need"><span style="grid-column:1/3">${c.icone} ${c.cliente}</span><i><b style="width:${(have / need) * 100}%"></b></i><em>${c.parceria ? '🤝' : `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`}</em></div>`;
       }).join('')}</div>`;
     }
     if (!html) html = '<div class="obj-title">🌟 Todos os objetivos completos!</div><div>Continue construindo com calma.</div>';
@@ -315,7 +317,7 @@ export class UI {
       $('#xwin').classList.remove('hidden');
       $('#xwin').dataset.kind = name;
       $('#xwin-title').textContent = name === 'platform' && game.economy.launched ? '🛰️ Programa Espacial' : XWIN[name];
-      $('#xwin-hint').textContent = name === 'map' ? 'Tab ou Esc fecha' : name === 'stats' ? 'K ou Esc fecha' : name === 'pet' ? 'E ou Esc fecha' : name === 'projects' ? 'J ou Esc fecha' : name === 'contracts' ? 'L ou Esc fecha' : 'Esc fecha';
+      $('#xwin-hint').textContent = name === 'map' ? 'Tab ou Esc fecha' : name === 'stats' ? 'K ou Esc fecha' : name === 'pet' ? 'E ou Esc fecha' : name === 'projects' ? 'J ou Esc fecha' : name === 'contracts' ? 'L ou Esc fecha' : name === 'friends' ? 'N ou Esc fecha' : 'Esc fecha';
       $('#xwin-body').innerHTML = '';
       this.renderX(arg);
     }
@@ -331,6 +333,7 @@ export class UI {
     if (this.overlay === 'challenges') renderChallenges(body);
     if (this.overlay === 'projects') renderBlueprints(body);
     if (this.overlay === 'mail') renderMail(body);
+    if (this.overlay === 'friends') renderFriends(body, arg);
   }
 
   closeOverlay(silent) {

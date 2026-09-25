@@ -120,6 +120,33 @@ while True:
     else:
         sep.enviar("direita")    # caixa de venda`)}
 
+<h3>Braço Robótico 🦾 <small>(nível 3)</small></h3>
+<p>Pega do que está <b>atrás</b> dele (seta azul: esteira, baú, caixa de venda, saída de máquina, canteiro) e solta <b>na frente</b> (seta laranja).</p>
+<table>
+<tr><td><code>b.mover()</code> / <code>b.mover("chip")</code></td><td>Pega atrás e solta na frente (espera ter item e espaço)</td></tr>
+<tr><td><code>b.pegar("item")</code>, <code>b.soltar()</code></td><td>As duas metades separadas</td></tr>
+<tr><td><code>b.segurando()</code>, <code>b.atras()</code>, <code>b.frente()</code>, <code>b.movidos()</code></td><td>O que segura, o que tem atrás e na frente, quantos já moveu</td></tr>
+</table>
+${code(`b = maquina("braco1")      # baú atrás, esteira na frente
+while True:
+    b.mover("motor")          # tira só os motores do baú`)}
+
+<h3>Oopi programável 🤖 <small>(amizade nível 2)</small></h3>
+<table>
+<tr><td><code>o = maquina("oopi")</code></td><td>O Oopi obedece programas de quem é amigo dele</td></tr>
+<tr><td><code>o.ir_para("bau1")</code>, <code>o.ir(x, z)</code>, <code>o.voltar()</code></td><td>Anda até uma máquina, uma célula ou até você (espera chegar)</td></tr>
+<tr><td><code>o.pegar("item")</code>, <code>o.soltar()</code>, <code>o.colher()</code></td><td>Pega/entrega na máquina mais perto dele, colhe o canteiro mais perto</td></tr>
+<tr><td><code>o.dizer("oi!")</code>, <code>o.pular()</code></td><td>Balãozinho de fala e comemoração 🎉</td></tr>
+<tr><td><code>o.seguir()</code>, <code>o.ficar()</code>, <code>o.carga()</code>, <code>o.humor()</code>, <code>o.amizade()</code></td><td>Modo, o que carrega, humor (0 a 100) e amizade (1 a 5)</td></tr>
+</table>
+${code(`o = maquina("oopi")
+while True:
+    o.ir_para("bau1")
+    o.pegar("chip")
+    o.ir_para("doca_entrega1")
+    o.soltar()
+    o.dizer("entreguei! 📦")`)}
+
 <h3>Bibliotecas 📚</h3>
 <p>Na aba <b>Bibliotecas</b> você escreve funções uma vez. Em qualquer computador: <code>importar("util")</code> e as funções ficam disponíveis.</p>
 

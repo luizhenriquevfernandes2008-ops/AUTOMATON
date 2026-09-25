@@ -548,7 +548,41 @@ Depois do primeiro lançamento, a plataforma vira o **Programa Espacial** (+2 �
 - **Álbum** (`K` → Álbum): todo item que você fabrica, colhe ou vende aparece lá.
 - **Amizade com o Oopi**: carinho (+1, no máximo a cada 20 s) e tarefas (+3). Nível 2 ganha a florzinha, nível 3 ele pega as pedrinhas de meteoro sozinho, nível 4 ganha a coroa de cristal, nível 5 dá +1 ficha nos contratos raros e lendários.
 
-## 25. Problemas comuns
+## 25. 🤝 Jogar com amigos (tecla `N`)
+
+Tudo funciona trocando **códigos de texto** (pelo WhatsApp, Discord…), sem servidor. Ponha **seu nome** no topo da janela.
+
+- **📅 Desafio da semana**: toda segunda-feira chega um quebra-cabeça novo, **igual pra todo mundo**, no 🧩 Terminal de Desafios (primeiro item da lista). Resolva, copie o **seu código** e mande pros amigos; cole o código deles em **Adicionar**. O jogo roda a solução de cada amigo pra conferir a nota (não dá pra trapacear editando o código). O melhor de cada nota ganha 👑. Depois de resolver, dá pra **ver o código** dos amigos e aprender com eles.
+- **👀 Visitar fábrica**: **💾 Baixar arquivo** gera um `.automaton` com a sua fábrica inteira. O amigo abre em **📂 Abrir arquivo** e passeia por ela. Na visita **nada é salvo** (a fábrica dele fica guardada, esperando), os computadores começam desligados, e dá pra copiar grupos com `C` e salvar em 📐 Projetos pra usar em casa. Pra voltar: botão **⌂ Voltar pra minha fábrica** no topo da tela.
+- **🤝 Parceria**: quem cria manda o código; o outro cola. Os dois recebem o mesmo contrato grande no Quadro de Contratos (sem prazo e sem ocupar vaga) e cada um cumpre **na sua fábrica**. Quando terminar, clique em **📄 Comprovante** e mande pro amigo. Com os dois comprovantes trocados, cada um ganha **+5 🎟️ e 1 💾**, além do prêmio.
+
+## 26. 🦾 Braço Robótico e 🤖 Oopi programável
+
+**Braço Robótico** (nível 3, $ 150, 2 ⚡): pega do que está **atrás** (seta azul: esteira, baú, caixa de venda, saída de máquina, canteiro) e solta **na frente** (seta laranja).
+
+```python
+b = maquina("braco1")
+while True:
+    b.mover("motor")      # pega um motor atrás e solta na frente
+```
+
+Também tem `.pegar("item")`, `.soltar()`, `.segurando()`, `.atras()`, `.frente()` e `.movidos()`.
+
+**Oopi programável** (precisa de **amizade nível 2**: faça carinho e peça tarefas):
+
+```python
+o = maquina("oopi")
+while True:
+    o.ir_para("bau1")
+    o.pegar("chip")          # pega da máquina mais perto dele
+    o.ir_para("doca_entrega1")
+    o.soltar()
+    o.dizer("entreguei! 📦")
+```
+
+Outros: `.ir(x, z)`, `.voltar()`, `.colher()`, `.pular()`, `.seguir()`, `.ficar()`, `.carga()`, `.humor()`, `.amizade()`.
+
+## 27. Problemas comuns
 
 | Problema | Solução |
 |---|---|
@@ -565,6 +599,8 @@ Depois do primeiro lançamento, a plataforma vira o **Programa Espacial** (+2 �
 | Não consigo colocar máquina no escritório | Lá só vão móveis e construção. |
 | A Doca de Entrega não aceita o item | Nenhum contrato aceito pede esse item (ou já chegou tudo dele). Veja o 📋 quadro. |
 | "função liberada resolvendo o desafio…" | Resolva o desafio indicado no 🧩 Terminal de Desafios. |
+| "O Oopi só obedece programas de quem é amigo dele" | Faça carinho (`E`) e peça tarefas (`F`) até a amizade nível 2. |
+| O código do amigo "é de outra semana" | Os desafios da semana mudam toda segunda; peça o código da semana atual. |
 | Não acho as caixas perdidas | Elas brilham em azul na floresta, fora do piso. Olhe o mapa com calma e escute as dicas do Oopi. |
 
 ---
@@ -597,6 +633,7 @@ Aperte **E na cafeteira do escritório** pra tomar um cafezinho: **+30% de veloc
 | `B` | loja |
 | `Tab` | mapa |
 | `L` | 📋 contratos |
+| `N` | 🤝 amigos |
 | `J` | 📐 projetos |
 | `K` | estatísticas, placar e conquistas |
 | `P` | modo foto |

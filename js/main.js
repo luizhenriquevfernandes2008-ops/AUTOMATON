@@ -9,12 +9,13 @@ import { Player } from './player.js';
 import { Builder } from './build.js';
 import { UI } from './ui.js';
 import { generateThumbs } from './thumbs.js';
-import { saveGame, loadGame, hasSave, deleteSave } from './save.js';
+import { saveGame, loadGame, hasSave, deleteSave, VISITING } from './save.js';
 import { loadSettings, applySettings, bindSettingInputs, syncStation, settings } from './settings.js';
 import { initMenu, openMenu, updateMenuCamera } from './menu.js';
 import { updateFx, puff } from './fx.js';
 import './computer.js';
 import './farm.js';
+import './arm.js';
 import { animateBelts, updateDecorBonus, setTechNamer, flushBelts, markBeltsDirty } from './machines.js';
 import { flushItems } from './itemMeshes.js';
 import { updateEvents, collectPickup } from './events.js';
@@ -120,7 +121,7 @@ function bootLog(text, state = 'ok') {
 }
 async function boot() {
   const bar = $('#load-bar'), txt = $('#load-text');
-  bootLog('AUTOMATON v1.3 · kernel jiboia 🐍');
+  bootLog('AUTOMATON v1.4 · kernel jiboia 🐍');
   const l1 = bootLog('carregando modelos 3D, texturas e céu…', 'run');
   await loadAll(renderer, (p) => { bar.style.width = Math.round(p * 80) + '%'; txt.textContent = `modelos ${Math.round(p * 100)}%`; });
   l1.innerHTML = '<span class="ok">[ ok ]</span> modelos 3D, texturas e céu';
@@ -151,6 +152,13 @@ async function boot() {
 
   game.player.teleport(game.spawn, 0);
   const had = hasSave() && loadGame();
+  if (VISITING) {
+    document.body.classList.add('visiting');
+    $('#visit-name').textContent = game.visitDe || 'um amigo';
+    $('#btn-menu').textContent = '⌂ Voltar pra minha fábrica';
+    $('#btn-reset').textContent = 'Sair da visita';
+    $('#play-label').textContent = 'Visitar';
+  }
   if (!had) game.player.teleport(game.spawn, 0);
   game.hadSave = had;
   for (const r of game.economy.regions) clearRegion(r);
@@ -197,6 +205,10 @@ function startPlay() {
   $('#menu').classList.add('hidden');
   game.gesture = true;
   game.setMode('play');
+  if (!game.welcomed && VISITING) {
+    game.welcomed = true;
+    game.ui.toast(`👀 Você está visitando a fábrica de <b>${(game.visitDe || 'um amigo').replace(/[<>&]/g, '')}</b>. Ande à vontade, leia os programas e copie grupos com <kbd>C</kbd> pra salvar em 📐 Projetos. Nada aqui é salvo.`, 'ach');
+  }
   if (!game.welcomed) {
     game.welcomed = true;
     const eco = game.economy;
@@ -225,12 +237,18 @@ $('#btn-resume').onclick = () => { game.gesture = true; game.setMode('play'); };
 $('#btn-guide').onclick = () => game.ui.openOverlay('guide');
 $('#btn-save').onclick = () => { if (saveGame()) game.ui.toast('Jogo salvo 💾', 'good'); };
 $('#btn-reset').onclick = () => {
+  if (VISITING) { goHome(); return; }
   if (!confirm('Apagar TUDO e começar do zero?')) return;
   deleteSave();
   game.skipSave = true;
-  location.reload();
+  location.replace(location.pathname);
 };
+// modo visita: voltar pra sua própria fábrica (a visita não é salva)
+function goHome() { game.skipSave = true; location.replace(location.pathname); }
+$('#visit-home').onclick = goHome;
+$('#btn-friends').onclick = () => game.ui.openOverlay('friends');
 $('#btn-menu').onclick = () => {
+  if (VISITING) { goHome(); return; }
   saveGame();
   rememberView();
   game.setMode('menu');
@@ -266,6 +284,7 @@ addEventListener('keydown', (e) => {
     case 'foto': togglePhoto(true); break;
     case 'projetos': game.ui.openOverlay('projects'); break;
     case 'contratos': game.ui.openOverlay('contracts'); break;
+    case 'amigos': game.ui.openOverlay('friends'); break;
     case 'peca': actions.piece(e.shiftKey ? -1 : 1); break;
     case 'material': actions.material(e.shiftKey ? -1 : 1); break;
   }

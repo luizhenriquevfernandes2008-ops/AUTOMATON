@@ -61,7 +61,7 @@ export function initMenu(onPlay) {
     b.addEventListener('click', () => activate(i));
   });
   $('#new-cancel').onclick = () => { showPanel('home'); focus(0, false); };
-  $('#new-confirm').onclick = () => { deleteSave(); game.skipSave = true; location.reload(); };
+  $('#new-confirm').onclick = () => { deleteSave(); game.skipSave = true; location.replace(location.pathname); };
   $('#menu-guide').onclick = () => game.ui.openOverlay('guide');
   // começa a música no primeiro clique no menu
   $('#menu').addEventListener('pointerdown', () => audio.start(), { once: true });
@@ -164,7 +164,7 @@ function renderSlots() {
     return `<div class="slot-card ${n === cur ? 'cur' : ''}"><b>Fábrica ${n}</b><div>${desc}</div><div class="row">${btns}</div></div>`;
   }).join('');
   $('#slots').querySelectorAll('[data-open]').forEach((b) => {
-    b.onclick = () => { game.skipSave = false; import('./save.js').then((m) => { m.saveGame(); setSlot(+b.dataset.open); game.skipSave = true; location.reload(); }); };
+    b.onclick = () => { game.skipSave = false; import('./save.js').then((m) => { m.saveGame(); setSlot(+b.dataset.open); game.skipSave = true; location.replace(location.pathname); }); };
   });
   $('#slots').querySelectorAll('[data-del]').forEach((b) => {
     b.onclick = () => { if (confirm(`Apagar a Fábrica ${b.dataset.del}? Não dá pra desfazer.`)) { deleteSave(+b.dataset.del); renderSlots(); audio.play('remove', { volume: 0.5 }); } };

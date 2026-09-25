@@ -6,7 +6,7 @@ import { setPalette, MODES } from './palette.js';
 
 const KEY = 'automaton_settings';
 export const settings = {
-  music: 0.45, sfx: 0.7, ambience: 0.35, sens: 0.8, fov: 72, quality: 'alta', musicOn: true, station: 0, pet: true, autocomplete: true, fps: false,
+  music: 0.45, sfx: 0.7, ambience: 0.35, sens: 0.8, fov: 72, quality: 'alta', musicOn: true, station: 0, pet: true, autocomplete: true, fps: false, nome: '',
   colorblind: 'normal', edFont: 14, padSens: 1, keys: {},
 };
 

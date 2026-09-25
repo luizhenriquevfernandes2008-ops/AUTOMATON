@@ -7,7 +7,7 @@ import { parse, Interpreter, Builtin, Blocking, JiboiaError, STEP, WAIT, repr, j
 const MAX_INSTR = 20000;
 const SEEDS = [11, 22, 33];
 
-function rng(seed) {
+export function rng(seed) {
   let a = seed >>> 0;
   return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
@@ -166,7 +166,8 @@ const show = (v) => (Array.isArray(v) ? `[${v.map(show).join(', ')}]` : repr(v))
 export function evaluate(code, ch) {
   const results = [];
   let instr = 0, vars = 0;
-  for (const seed of SEEDS) {
+  const seeds = ch.seeds || SEEDS;
+  for (const seed of seeds) {
     const input = ch.gen(rng(seed));
     const want = ch.solve(input);
     const r = runCase(code, ch, input);
@@ -179,7 +180,7 @@ export function evaluate(code, ch) {
     instr += r.instr; vars = Math.max(vars, r.vars);
     results.push(r);
   }
-  return { ok: true, score: { instr: Math.round(instr / SEEDS.length), linhas: countLines(code), vars } };
+  return { ok: true, score: { instr: Math.round(instr / seeds.length), linhas: countLines(code), vars } };
 }
 export function medal(ch, k, v) {
   const [prata, ouro] = ch.metas[k];

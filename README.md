@@ -8,6 +8,15 @@ O objetivo grande é o **Projeto Foguete**: juntar peças cada vez mais complexa
 
 ### 🆕 Novidades
 
+**v1.4: jogar com amigos**
+- 🤝 **Amigos** (tecla `N`), tudo por **código de texto**, sem servidor:
+  - 📅 **Desafio da semana**: um quebra-cabeça novo toda segunda, igual pra todo mundo. Troque códigos de nota com os amigos e monte um **placar**; o jogo roda a solução de cada um pra conferir. Depois de resolver, dá pra ver o código dos amigos.
+  - 👀 **Visitar fábrica**: mande sua fábrica (arquivo `.automaton` ou código) e visite a dos amigos, sem salvar nada lá. Dá pra copiar grupos com `C` e levar pra 📐 Projetos.
+  - 🤝 **Parceria**: um contrato em dupla; cada um cumpre na sua fábrica e, trocando os comprovantes, os dois ganham +5 🎟️ e 1 💾.
+- 🦾 **Braço Robótico** (nível 3): pega atrás e solta na frente, programável (`.mover()`, `.pegar()`, `.soltar()`).
+- 🤖 **Oopi programável** (amizade nível 2): `maquina("oopi").ir_para("bau1")`, `.pegar()`, `.soltar()`, `.colher()`, `.dizer()`.
+- 6 conquistas novas.
+
 **v1.3: motivos pra voltar todo dia**
 - 📋 **Quadro de Contratos** (nível 2): clientes pedem itens (comum, raro e 🌟 lendário) com prazo. Entregue por esteira na **Doca de Entrega** e ganhe dinheiro, XP e **🎟️ fichas**. Entrega rápida dá +25%; perder o prazo não tira nada.
 - 🧩 **Terminal de Desafios**: 10 quebra-cabeças de programação estilo Zachtronics, com notas de **instruções, linhas e memória** (🥉🥈🥇). Cada um libera uma **função nova** da Jiboia.
@@ -69,6 +78,7 @@ O progresso é **salvo automaticamente** a cada 30 segundos, e a fábrica **cont
 | `Tab` | mapa visto de cima |
 | `L` | 📋 quadro de contratos |
 | `J` | 📐 projetos salvos |
+| `N` | 🤝 amigos (desafio da semana, visitas, parcerias) |
 | `K` | estatísticas, placar e conquistas |
 | `H` | guia |
 | `P` | modo foto |
@@ -118,7 +128,7 @@ No editor de código: `Ctrl+Enter` executa, `Tab`/`Shift+Tab` indentam, `Ctrl+Es
 - **Árvore de pesquisa** no Laboratório (14 tecnologias + 6 infinitas).
 - **Projeto Foguete** em 5 fases, com o foguete sendo montado de verdade na plataforma e **lançamento** no final.
 - **Expansão do mapa:** 4 regiões pra comprar, com veios novos (inclusive carvão).
-- **65 conquistas**, **estatísticas com gráficos** e **placar de eficiência** (🥉🥈🥇) pra cada computador.
+- **71 conquistas**, **estatísticas com gráficos** e **placar de eficiência** (🥉🥈🥇) pra cada computador.
 - **Mercado** com preços que sobem e descem.
 - **Recordes da fábrica** ($/min, itens/min, maior venda): o Oopi comemora quando você bate um.
 
@@ -174,6 +184,7 @@ Minerador ─▶ Fornalha ─▶ Montadora ─▶ Plataforma do Foguete / Caixa 
 | Irrigador | nível 2 | 1 | Rega os canteiros em volta |
 | Depósito de Materiais | nível 1 | – | Guarda materiais de construção no estoque 🧱 |
 | Doca de Entrega | nível 2 | – | Recebe os itens dos contratos aceitos 📋 |
+| Braço Robótico | nível 3 | 2 | `.mover()`: pega atrás e solta na frente 🦾 |
 
 Itens: minério de ferro/cobre, quartzo, carvão, escória, lingotes, silício, aço, tijolo, engrenagem, fio, chip, viga, motor, processador, robozinho, **módulo de foguete**, **satélite**, os da horta (**grão de café**, milho, cenoura, abóbora, melancia), os materiais (**madeira**, **concreto**, **vidro**), o raro **fragmento estelar** e os de ponta (**bateria**, **painel de LED**, **computador quântico**). A tabela completa fica na loja (aba Receitas) e no manual do editor.
 
@@ -253,6 +264,9 @@ AUTOMATON/
 │   ├── disks.js           # discos de dados, caixas perdidas e receitas alternativas
 │   ├── mail.js            # correio da manhã (presente diário)
 │   ├── blueprints.js      # projetos salvos e códigos de compartilhar
+│   ├── weekly.js          # desafio da semana (sorteado pela semana) e códigos de placar
+│   ├── friends.js         # janela de amigos: placar, visitar fábrica, parcerias
+│   ├── arm.js             # braço robótico
 │   ├── input.js           # teclas configuráveis
 │   ├── gamepad.js         # controle (gamepad)
 │   ├── palette.js         # cores de sinal e modos pra daltonismo
@@ -311,6 +325,7 @@ Para testar movimento, colisões (inclusive paredes), deslize, controle e café 
 ```sh
 node --experimental-vm-modules --test tests/player.test.mjs
 node --test tests/challenges.test.mjs   # as soluções de referência de todos os desafios ganham ouro
+node --test tests/weekly.test.mjs       # 3 anos de desafios da semana, todos resolvíveis; códigos de placar
 ```
 
 ---

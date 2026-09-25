@@ -21,6 +21,7 @@ const METHODS = ['minerar', 'minerio', 'fundir', 'receitas', 'fabricar', 'pode_f
   'quantidade', 'estoque', 'saida', 'ocupada', 'status', 'energia', 'producao', 'consumo', 'pesquisa', 'progresso', 'faltando', 'pesquisar', 'drone',
   'ir', 'ir_para', 'voltar', 'pegar', 'soltar', 'carga', 'posicao', 'ocupado', 'embaixo', 'ligar', 'desligar', 'cor', 'piscar', 'ligada', 'escrever',
   'mostrar', 'limpar', 'titulo', 'grafico', 'tocar', 'som', 'contagem', 'ultimo', 'zerar', 'combustivel', 'ligado', 'destruidos', 'nome', 'tipo', 'entregues', 'aceita',
+  'mover', 'segurando', 'atras', 'frente', 'movidos', 'dizer', 'pular', 'seguir', 'ficar', 'colher', 'humor', 'amizade',
   'append', 'pop', 'insert', 'remove', 'index', 'count', 'sort', 'reverse', 'copy', 'keys', 'values', 'items', 'get', 'upper', 'lower', 'split', 'strip',
   'replace', 'startswith', 'endswith', 'join', 'find'];
 

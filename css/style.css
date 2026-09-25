@@ -683,3 +683,19 @@ button.on { background: var(--accent); color: var(--ink); border-color: var(--ac
 
 /* sem backdrop-filter: no Firefox, desfocar a tela 3D atrás do HUD a cada quadro derruba o FPS */
 #fps { position: absolute; bottom: 8px; right: 12px; font: 12px var(--mono); color: var(--good); background: var(--panel); border: 1px solid var(--line); padding: 3px 8px; pointer-events: none; }
+
+/* ═══════════════ v1.4: amigos ═══════════════ */
+#visit-banner { display: none; position: absolute; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(40, 20, 70, .92); border: 1px solid #b18cff; color: var(--text); padding: 6px 12px; font-size: 13px; z-index: 5; }
+body.visiting #visit-banner { display: block; }
+#visit-banner button { margin-left: 8px; }
+.fr-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.fr-name { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.fr-name input, .fr-cols textarea { background: var(--code-bg); color: var(--text); border: 1px solid var(--line); padding: 6px 8px; font: 12.5px var(--mono); }
+.fr-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.fr-cols textarea { width: 100%; resize: vertical; flex: 1; min-width: 0; }
+.fr-table { margin-top: 12px; }
+.fr-table td.fr-best { color: var(--accent2); font-weight: 700; }
+.fr-table tr.fr-me td { background: rgba(255, 176, 32, .06); }
+.fr-file { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; border: 1px solid var(--line-hi); background: var(--bg3); font-size: 13px; }
+.fr-file input { display: none; }
+.chx-item.week { border-color: rgba(177, 140, 255, .5); }
