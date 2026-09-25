@@ -1,6 +1,6 @@
 // Grid, entidades e máquinas da fábrica.
 import * as THREE from 'three';
-import { CELL, ITEMS, ORES, SMELT, RECIPES, MACHINES, DECOR, TIERS, TIERABLE, DECOR_BONUS, DECOR_BONUS_MAX, recipeOut } from './data.js';
+import { CELL, ITEMS, ORES, SMELT, RECIPES, MACHINES, DECOR, TIERS, TIERABLE, DECOR_BONUS, DECOR_BONUS_MAX, recipeOut, BELT_TIERS, isBeltTier, PURITY } from './data.js';
 import { cloneModel, assets } from './assets.js';
 import { PAL } from './palette.js';
 import { game } from './state.js';
@@ -16,6 +16,7 @@ export const grid = new Map();     // "x,z" -> entidade ou bloqueio estático (c
 export const gridUp = new Map();   // "x,z" -> entidade no 2º andar (esteiras elevadas)
 export const ELEV = 1.8;           // altura do 2º andar
 export const ores = new Map();     // "x,z" -> tipo de minério
+export const purity = new Map();   // "x,z" -> impuro | normal | puro
 export const ENTITY_CLASSES = {};
 export const key = (x, z) => x + ',' + z;
 export const cellCenter = (x, z) => new THREE.Vector3((x + 0.5) * CELL, 0, (z + 0.5) * CELL);
@@ -55,10 +56,26 @@ chevTexShort.repeat.set(1, 1);
 const chevronMatShort = new THREE.MeshBasicMaterial({ map: chevTexShort, transparent: true, depthWrite: false, opacity: 0.85 });
 const chevGeo = new THREE.PlaneGeometry(CELL * 0.42, CELL);
 const chevGeoShort = new THREE.PlaneGeometry(CELL * 0.42, CELL * 0.5);
+// setinhas de cada tipo de esteira (cor e velocidade próprias: rápida = ciano, expressa = rosa)
+const TIER_COLOR = { esteira: 0xffffff, esteira_rapida: 0x7ff4ff, esteira_expressa: 0xff8ae8 };
+const chevByTier = { esteira: { tex: chevTex, texShort: chevTexShort, mat: chevronMat, matShort: chevronMatShort } };
+function chevFor(type) {
+  if (!isBeltTier(type)) type = 'esteira';
+  if (!chevByTier[type]) {
+    const tex = chevTex.clone(), texShort = chevTexShort.clone();
+    tex.repeat.set(1, 2); texShort.repeat.set(1, 1);
+    const mk = (map) => new THREE.MeshBasicMaterial({ map, color: TIER_COLOR[type], transparent: true, depthWrite: false, opacity: 0.95 });
+    chevByTier[type] = { tex, texShort, mat: mk(tex), matShort: mk(texShort) };
+  }
+  return chevByTier[type];
+}
 export function animateBelts(dt) {
   const v = (game.economy?.beltSpeed || 1) * dt;
-  chevTex.offset.y -= v * 2;
-  chevTexShort.offset.y -= v * 2;
+  for (const [type, c] of Object.entries(chevByTier)) {
+    const k = BELT_TIERS[type] || 1;
+    c.tex.offset.y -= v * 2 * k;
+    c.texShort.offset.y -= v * 2 * k;
+  }
 }
 
 // ─── esteiras desenhadas de uma vez (instancing) ───
@@ -71,12 +88,17 @@ function batchGroup(name, parts) {
   if (!g) g = beltBatch.groups[name] = { parts, meshes: [], cap: 0 };
   return g;
 }
-function modelParts(key) {
+function modelParts(key, tint) {
   const tpl = assets.models[key];
   tpl.updateMatrixWorld(true);
   const inv = tpl.matrixWorld.clone().invert();
   const parts = [];
-  tpl.traverse((o) => { if (o.isMesh) parts.push({ geo: o.geometry, mat: o.material, local: inv.clone().multiply(o.matrixWorld), cast: o.castShadow }); });
+  tpl.traverse((o) => {
+    if (!o.isMesh) return;
+    let mat = o.material;
+    if (tint != null) { mat = mat.clone(); mat.color = mat.color.clone().lerp(new THREE.Color(tint), 0.45); }
+    parts.push({ geo: o.geometry, mat, local: inv.clone().multiply(o.matrixWorld), cast: o.castShadow });
+  });
   return parts;
 }
 function fillGroup(g, mats) {
@@ -102,18 +124,27 @@ function fillGroup(g, mats) {
 export function flushBelts() {
   if (!beltBatch.dirty || !assets.models.belt) return;
   beltBatch.dirty = false;
-  const lists = { belt: [], beltCorner: [], chev: [], chevShort: [] };
+  // um lote por tipo de esteira (comum, rápida, expressa)
+  const lists = {};
+  for (const t of Object.keys(BELT_TIERS)) lists[t] = { belt: [], beltCorner: [], chev: [], chevShort: [] };
   for (const e of game.entities) {
     if (!e.instanced || e.removed) continue;
     e.obj.updateMatrixWorld(true);
-    lists[e.shape === 'straight' ? 'belt' : 'beltCorner'].push(e.model.matrixWorld.clone());
-    lists[e.shape === 'straight' ? 'chev' : 'chevShort'].push(e.chev.matrixWorld.clone());
+    const L = lists[e.type];
+    L[e.shape === 'straight' ? 'belt' : 'beltCorner'].push(e.model.matrixWorld.clone());
+    L[e.shape === 'straight' ? 'chev' : 'chevShort'].push(e.chev.matrixWorld.clone());
   }
-  fillGroup(batchGroup('belt', modelParts('belt')), lists.belt);
-  fillGroup(batchGroup('beltCorner', modelParts('beltCorner')), lists.beltCorner);
   const I = new THREE.Matrix4();
-  fillGroup(batchGroup('chev', [{ geo: chevGeo, mat: chevronMat, local: I, cast: false, order: 2 }]), lists.chev);
-  fillGroup(batchGroup('chevShort', [{ geo: chevGeoShort, mat: chevronMatShort, local: I, cast: false, order: 2 }]), lists.chevShort);
+  for (const [t, L] of Object.entries(lists)) {
+    const pre = t === 'esteira' ? '' : t + ':';
+    const tint = t === 'esteira' ? null : TIER_COLOR[t];
+    if (!beltBatch.groups[pre + 'belt'] && !L.belt.length && !L.beltCorner.length) continue; // tipo ainda não usado
+    const c = chevFor(t);
+    fillGroup(batchGroup(pre + 'belt', modelParts('belt', tint)), L.belt);
+    fillGroup(batchGroup(pre + 'beltCorner', modelParts('beltCorner', tint)), L.beltCorner);
+    fillGroup(batchGroup(pre + 'chev', [{ geo: chevGeo, mat: c.mat, local: I, cast: false, order: 2 }]), L.chev);
+    fillGroup(batchGroup(pre + 'chevShort', [{ geo: chevGeoShort, mat: c.matShort, local: I, cast: false, order: 2 }]), L.chevShort);
+  }
 }
 
 // setinha no chão (laranja = saída, azul = entrada)
@@ -196,13 +227,13 @@ export class Belt extends Entity {
     this.shape = 'straight';
     this.addModel('belt');
     this.name = '';
-    this.chev = new THREE.Mesh(chevGeo, chevronMat);
+    this.chev = new THREE.Mesh(chevGeo, chevFor(type).mat);
     this.chev.rotation.x = -Math.PI / 2; // +v da textura aponta pra -z local (a frente)
     this.chev.position.y = BELT_Y + 0.006;
     this.chev.renderOrder = 2;
     this.obj.add(this.chev);
     // esteira comum: desenhada em lote (ver flushBelts)
-    this.instanced = type === 'esteira';
+    this.instanced = isBeltTier(type);
     if (this.instanced) { this.model.visible = false; this.chev.visible = false; }
   }
   get outputDirs() { return [this.dir]; }
@@ -231,7 +262,7 @@ export class Belt extends Entity {
   itemY() { return BELT_Y; }
   onItemPassed() { }
   update(dt) {
-    const v = game.economy.beltSpeed * dt;
+    const v = game.economy.beltSpeed * (BELT_TIERS[this.type] || 1) * dt;
     for (let i = 0; i < this.items.length; i++) {
       const it = this.items[i];
       const limit = i === 0 ? 1 : this.items[i - 1].p - SPACING;
@@ -268,14 +299,14 @@ export class Belt extends Entity {
     if (shape === 'straight') {
       this.addModel('belt');
       this.chev.geometry = chevGeo;
-      this.chev.material = chevronMat;
+      this.chev.material = chevFor(this.type).mat;
       this.chev.position.z = 0;
     } else {
       // o modelo da curva, sem girar, liga os lados oeste e sul; giramos pra ligar entrada -> frente
       const m = this.addModel('beltCorner');
       m.rotation.y = shape === 'left' ? -Math.PI / 2 : -Math.PI;
       this.chev.geometry = chevGeoShort;
-      this.chev.material = chevronMatShort;
+      this.chev.material = chevFor(this.type).matShort;
       this.chev.position.z = -CELL * 0.25;
     }
     if (this.instanced) { this.model.visible = false; markBeltsDirty(); }
@@ -364,6 +395,30 @@ export class Machine extends Entity {
     return b;
   }
 
+  // ─── modo contínuo: a máquina repete sozinha um trabalho (ligado por programa com .ligar()) ───
+  // autoRequest(kind, arg) é de cada máquina; aqui só o liga/desliga e o controle de erro
+  setAuto(kind, arg = null) { this.auto = kind ? { kind, arg } : null; this.autoB = null; this.autoErr = null; }
+  autoRequest() { return null; }
+  autoApi(doc, validate) {
+    return {
+      ligar: {
+        max: 2, doc,
+        fn: (a) => { const arg = validate ? validate(a) : null; this.setAuto('on', arg); game.economy.stats.autoOn = (game.economy.stats.autoOn || 0) + 1; return null; },
+      },
+      desligar: { fn: () => { this.setAuto(null); return null; }, doc: 'Desliga o modo contínuo' },
+      ligada: { fn: () => !!this.auto, doc: 'True se o modo contínuo está ligado' },
+    };
+  }
+  runAuto() {
+    if (!this.auto || this.job || this.queue.length) return;
+    if (this.autoB && this.autoB.error) { // o último deu erro de verdade (não é só "esperando"): desliga
+      this.autoErr = this.autoB.error;
+      this.auto = null;
+      return;
+    }
+    try { this.autoB = this.autoRequest(this.auto.kind, this.auto.arg); } catch (e) { this.autoErr = e.message; this.auto = null; }
+  }
+
   // avisa o computador dono do pedido (placar de eficiência)
   credit(b, v, kind) {
     const pc = b.owner;
@@ -406,6 +461,7 @@ export class Machine extends Entity {
       this.waiting = !!waiting;
     } else this.status = this.job.label;
     if (this.noPower && (this.job || this.queue.length)) this.status = 'Sem energia ⚡';
+    if (this.auto) { this.runAuto(); this.status = '♾ ' + this.status; } else if (this.autoErr && !this.job && !this.queue.length) this.status = 'Modo contínuo parou: ' + this.autoErr;
     this.tryEject(dt);
     this.animate(dt);
   }
@@ -454,10 +510,11 @@ export class Machine extends Entity {
     return l;
   }
 
-  serialize() { return { ...super.serialize(), inv: this.inv, out: this.out, tier: this.tier }; }
+  serialize() { return { ...super.serialize(), inv: this.inv, out: this.out, tier: this.tier, auto: this.auto || null }; }
   load(d) {
     if (d.name) this.rename(d.name);
     if (d.tier) this.setTier(d.tier);
+    this.auto = d.auto && d.auto.kind ? { kind: d.auto.kind, arg: d.auto.arg ?? null } : null;
     this.inv = {}; for (const [k, v] of Object.entries(d.inv || {})) if (isItem(k)) this.inv[k] = v;
     this.out = (d.out || []).filter(isItem);
   }
@@ -490,9 +547,13 @@ export class Miner extends Machine {
     this.oreType = ores.get(key(x, z)) || null;
   }
   get hasOutput() { return true; }
+  get purity() { return purity.get(key(this.x, this.z)) || 'normal'; }
+  autoRequest() { return this.api().minerar.fn([]); }
   api() {
     return {
       ...super.api(),
+      ...this.autoApi('Liga o modo contínuo: minera sem parar (sem travar o programa) até .desligar()'),
+      pureza: { fn: () => this.purity, doc: 'Pureza do veio: "impuro" (½×), "normal" ou "puro" (2×)' },
       minerar: {
         doc: 'Tira 1 minério do chão (demora alguns segundos). Retorna o nome do item.',
         fn: () => {
@@ -506,7 +567,7 @@ export class Miner extends Machine {
               if (ore.tech && !game.economy.hasTech(ore.tech)) throw new JiboiaError(`Minerar ${ore.nome} precisa da pesquisa "${TECH_NAME(ore.tech)}" no Laboratório`);
               return this.out.length >= this.outCap ? 'Saída cheia' : null;
             },
-            dur: ore.tempo,
+            dur: () => ore.tempo / PURITY[this.purity].mult,
             finish: () => {
               this.out.push(ore.item);
               game.economy.produced(ore.item);
@@ -523,7 +584,8 @@ export class Miner extends Machine {
   }
   infoLines() {
     const raro = this.oreType && ORES[this.oreType].raro ? ` (restam ${game.veinLeft ? game.veinLeft(this.x, this.z) : '?'})` : '';
-    return [`Veio: ${this.oreType ? ORES[this.oreType].nome + raro : 'nenhum!'}`, ...super.infoLines()];
+    const pu = PURITY[this.purity];
+    return [`Veio: ${this.oreType ? `${ORES[this.oreType].nome} ${pu.icone} ${pu.nome} (${pu.mult}×)${raro}` : 'nenhum!'}`, ...super.infoLines()];
   }
 }
 
@@ -549,9 +611,15 @@ export class Smelter extends Machine {
   get inputSides() { return [1, 2, 3]; }
   canAccept(type, travelDir) { return !this.fromFront(travelDir) && SMELT_INPUTS.has(type) && this.invCount() < 20; }
   hasInputs(r) { return Object.entries(SMELT[r].in).every(([k, n]) => (this.inv[k] || 0) >= n); }
+  autoRequest(kind, arg) { return this.api().fundir.fn(arg ? [arg] : []); }
   api() {
     return {
       ...super.api(),
+      ...this.autoApi('Liga o modo contínuo: funde sem parar o que chegar (ou só a receita pedida: .ligar("aco"))', (a) => {
+        const r = a[0] ?? null;
+        if (r !== null && !SMELT[r] && !smeltRecipe(r)) throw new JiboiaError(`A fornalha não sabe fazer "${r}". Ela funde: ${Object.keys(SMELT).join(', ')}`);
+        return r;
+      }),
       fundir: {
         max: 1,
         doc: 'Derrete 1 minério em lingote (ou faz "aco" com lingote de ferro + carvão). Espera os itens chegarem.',
@@ -624,6 +692,7 @@ export class Assembler extends Machine {
   get inputSides() { return [1, 2, 3]; }
   canAccept(type, travelDir) { return !this.fromFront(travelDir) && ALL_INGREDIENTS.has(type) && this.invCount() < 30; }
   hasIngredients(r) { return Object.entries(RECIPES[r].in).every(([k, n]) => (this.inv[k] || 0) >= n); }
+  autoRequest(kind, arg) { return this.api().fabricar.fn([arg]); }
   checkRecipe(r) {
     if (typeof r !== 'string') throw new JiboiaError('fabricar() precisa do nome da receita entre aspas, ex: "engrenagem"');
     if (!RECIPES[r]) {
@@ -637,6 +706,11 @@ export class Assembler extends Machine {
   api() {
     return {
       ...super.api(),
+      ...this.autoApi('Liga o modo contínuo: fabrica a receita sem parar: .ligar("engrenagem")', (a) => {
+        if (a[0] == null) throw new JiboiaError('ligar() da montadora precisa da receita, ex: .ligar("engrenagem")');
+        this.checkRecipe(a[0]);
+        return a[0];
+      }),
       fabricar: {
         min: 1, max: 1,
         doc: 'Fabrica uma receita (espera os ingredientes chegarem).',
@@ -694,6 +768,24 @@ export class Sorter extends Machine {
     this.held = { type, mesh };
   }
   tryEject() { }
+  // modo contínuo: regras {"item": "lado"} e um lado padrão pro resto
+  autoRequest(kind, arg) {
+    const rules = arg?.regras || {}, padrao = arg?.padrao || 'frente';
+    let d = null;
+    return this.request({
+      label: 'Separando',
+      check: () => {
+        if (!this.held) return 'Esperando item';
+        const lado = rules[this.held.type] || padrao;
+        d = this.dirFromName(lado);
+        const t = this.entityIn(d);
+        if (!t || !t.canAccept(this.held.type, d)) return `Saída "${lado}" bloqueada`;
+        return null;
+      },
+      start: () => { this.entityIn(d).accept(this.held.type, d, this.held.mesh); this.held = null; audio.play('sorter', { pos: this.pos, volume: 0.3 }); },
+      dur: 0.35, finish: () => true,
+    });
+  }
   dirFromName(n) {
     const map = { frente: 0, direita: 1, esquerda: 3, tras: 2, 'trás': 2 };
     if (!(n in map)) throw new JiboiaError(`Direção "${n}" não existe. Use "esquerda", "direita" ou "frente"`);
@@ -702,6 +794,16 @@ export class Sorter extends Machine {
   api() {
     return {
       ...super.api(),
+      ...this.autoApi('Separa sozinho: .ligar({"minerio_ferro": "esquerda"}, "direita") (regras por item e um lado pro resto)', (a) => {
+        const regras = {};
+        if (a[0] != null) {
+          if (!(a[0] instanceof JDict)) throw new JiboiaError('ligar() do separador precisa de um dicionário, ex: {"minerio_ferro": "esquerda"}');
+          for (const [k, v] of a[0].m) { checkItemArg(k, 'ligar'); this.dirFromName(v); regras[k] = v; }
+        }
+        const padrao = a[1] ?? 'frente';
+        this.dirFromName(padrao);
+        return { regras, padrao };
+      }),
       item: { fn: () => this.held ? this.held.type : null, doc: 'Nome do item que está no separador (ou None)' },
       esperar_item: {
         doc: 'Espera chegar um item e retorna o nome dele',
@@ -902,7 +1004,7 @@ export class Pole extends Entity {
 }
 
 Object.assign(ENTITY_CLASSES, {
-  esteira: Belt, minerador: Miner, fornalha: Smelter, montadora: Assembler,
+  esteira: Belt, esteira_rapida: Belt, esteira_expressa: Belt, minerador: Miner, fornalha: Smelter, montadora: Assembler,
   separador: Sorter, venda: Seller, bau: Chest, gerador: Generator, gerador_grande: Generator, poste: Pole,
 });
 
@@ -952,7 +1054,7 @@ export function removeEntity(e) {
 export function refreshBeltsAround(x, z) {
   for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
     const e = grid.get(key(x + dx, z + dz));
-    if (e && e.type === 'esteira') e.refreshShape();
+    if (e && isBeltTier(e.type)) e.refreshShape();
   }
 }
 

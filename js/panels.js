@@ -6,7 +6,7 @@ import { renderDisks } from './disks.js';
 import { Lab } from './machines2.js';
 import { thumbs } from './thumbs.js';
 import { audio } from './audio.js';
-import { ores, findByName, itemName } from './machines.js';
+import { ores, purity, findByName, itemName } from './machines.js';
 import { wires } from './power.js';
 import { structures, edgeSegment } from './structures.js';
 import { PIECES, MATERIALS } from './data.js';
@@ -203,7 +203,7 @@ export function renderMap(el) {
     el.innerHTML = `<div class="map-wrap"><canvas id="mapc" width="1100" height="720"></canvas>
       <div class="map-legend">${Object.entries(ORE_COLOR).map(([k, c]) => `<span><i style="background:${c}"></i>${ORES[k].nome}</span>`).join('')}
       <span><i style="background:#ffb020"></i>venda</span><span><i style="background:#3ee6b8"></i>computador</span><span><i style="background:#ffd84a"></i>energia</span>
-      <span class="muted">roda do mouse: zoom · arrastar: mover · Tab fecha</span></div></div>`;
+      <span class="muted">bolinha grande com borda = veio puro (2×), pequena = impuro (½×)</span><span class="muted">roda do mouse: zoom · arrastar: mover · Tab fecha</span></div></div>`;
     const c = el.querySelector('canvas');
     c.addEventListener('wheel', (e) => { e.preventDefault(); mapView.zoom = Math.max(0.6, Math.min(5, mapView.zoom * (e.deltaY < 0 ? 1.15 : 0.87))); drawMap(c); }, { passive: false });
     c.addEventListener('mousedown', (e) => { mapView.drag = { x: e.clientX, y: e.clientY, cx: mapView.cx, cz: mapView.cz }; });
@@ -246,7 +246,9 @@ function drawMap(c) {
   // veios
   for (const [k, t] of ores) {
     const [x, z] = k.split(',').map(Number);
-    g.fillStyle = ORE_COLOR[t]; g.beginPath(); g.arc(X(x + 0.5), Z(z + 0.5), Math.max(2.5, s * 0.45), 0, Math.PI * 2); g.fill();
+    const pu = purity.get(k) || 'normal';
+    g.fillStyle = ORE_COLOR[t]; g.beginPath(); g.arc(X(x + 0.5), Z(z + 0.5), Math.max(2.5, s * (pu === 'puro' ? 0.55 : pu === 'impuro' ? 0.3 : 0.45)), 0, Math.PI * 2); g.fill();
+    if (pu === 'puro') { g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); }
   }
   // plataforma
   g.fillStyle = '#ffffff22'; g.strokeStyle = '#ffb020'; g.lineWidth = 2;

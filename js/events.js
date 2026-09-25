@@ -6,7 +6,7 @@ import { CELL, ITEMS, ORES } from './data.js';
 import { cloneModel, tint } from './assets.js';
 import { audio } from './audio.js';
 import { puff } from './fx.js';
-import { grid, ores, key, cellCenter } from './machines.js';
+import { grid, ores, purity, key, cellCenter } from './machines.js';
 import { isBuildableCell, colliders } from './world.js';
 import { gainDisk } from './disks.js';
 import { virtualLight } from './lights.js';
@@ -147,6 +147,7 @@ const veinObjs = new Map();
 export function addVein(x, z, left) {
   const k = key(x, z);
   ores.set(k, 'estelar');
+  purity.set(k, 'normal');
   const c = cellCenter(x, z);
   const g = new THREE.Group();
   g.position.copy(c);

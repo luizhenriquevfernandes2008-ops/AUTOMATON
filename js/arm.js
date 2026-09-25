@@ -79,10 +79,12 @@ export class RobotArm extends Machine {
     if (!t.canAccept || !t.canAccept(this.held.type, this.dir)) return 'Esperando espaço na frente';
     return null;
   }
+  autoRequest(kind, arg) { return this.api().mover.fn(arg ? [arg] : []); }
   api() {
     const dur = () => 0.55;
     return {
       ...super.api(),
+      ...this.autoApi('Liga o modo contínuo: move itens sem parar (ou só um tipo: .ligar("chip"))', (a) => needItem(a[0] ?? null, 'ligar')),
       pegar: {
         max: 1, doc: 'Pega 1 item de trás (do tipo pedido, ou qualquer). Espera ter item. Retorna o nome',
         fn: (a) => {

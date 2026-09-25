@@ -31,7 +31,7 @@ function partsOf(key, tint) {
 const _q = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0), _p = new THREE.Vector3(), _s = new THREE.Vector3();
 // põe um modelo no cenário (posição, giro em y, escala). Retorna um id pra tirar depois
 export function addStatic(key, x, z, rotY = 0, scale = 1, y = 0, tint = null) {
-  const gk = tint ? `${key}#${tint.cor}` : key;
+  const gk = tint ? `${key}#${tint.cor}#${tint.forca || 0}` : key;
   let g = groups.get(gk);
   if (!g) { g = { parts: partsOf(key, tint), items: new Map(), meshes: [], dirty: true }; groups.set(gk, g); }
   const it = { x, y, z, rotY, scale, visible: true, m: new THREE.Matrix4() };

@@ -1,8 +1,8 @@
 // Monta o cenário: céu, chão, floresta, veios de minério, escritório, loja e painel do mercado.
 import * as THREE from 'three';
 import { assets, cloneModel, TREE_KEYS, PROP_KEYS } from './assets.js';
-import { CELL, GRID_MIN, GRID_MAX, ORES, ITEMS, REGIONS } from './data.js';
-import { grid, ores, key, cellCenter } from './machines.js';
+import { CELL, GRID_MIN, GRID_MAX, ORES, ITEMS, REGIONS, PURITY } from './data.js';
+import { grid, ores, purity, key, cellCenter } from './machines.js';
 import { Platform } from './machines2.js';
 import { makeLabel } from './fx.js';
 import { addStatic, removeStatic, setStaticScale, setStaticVisible } from './staticBatch.js';
@@ -194,6 +194,15 @@ function buildRegionSigns() {
   }
 }
 
+// pureza de cada veio (sempre a mesma pro mesmo lugar): ~25% impuro, ~50% normal, ~25% puro.
+// Os veios do começo (tutorial) são normais.
+const START_NODES = new Set(['-4,-4', '-5,-6', '5,-5', '7,-7']);
+export function purityAt(x, z) {
+  if (START_NODES.has(key(x, z))) return 'normal';
+  const h = (Math.imul(x, 73856093) ^ Math.imul(z, 19349663)) >>> 0;
+  const r = h % 100;
+  return r < 25 ? 'impuro' : r < 75 ? 'normal' : 'puro';
+}
 // veios: cristais e manchinhas desenhados em lote (um por tipo de minério)
 const spotGeo = new THREE.CircleGeometry(CELL * 0.62, 20).rotateX(-Math.PI / 2);
 function buildOres() {
@@ -203,10 +212,13 @@ function buildOres() {
     const spots = new THREE.InstancedMesh(spotGeo, new THREE.MeshStandardMaterial({ color: ore.cor, roughness: 1, transparent: true, opacity: 0.35, depthWrite: false }), cells.length);
     cells.forEach(([x, z], i) => {
       ores.set(key(x, z), type);
+      const pu = purityAt(x, z);
+      purity.set(key(x, z), pu);
       const c = cellCenter(x, z);
-      const batch = addStatic(i % 2 ? 'crystalA' : 'crystalB', c.x, c.z, rnd() * Math.PI * 2, 0.95, 0, { cor: ore.cor, emissivo: ore.cor, forca: 0.12 });
-      spots.setMatrixAt(i, new THREE.Matrix4().makeTranslation(c.x, 0.02, c.z));
-      game.oreModels.set(key(x, z), { batch });
+      const scale = PURITY[pu].escala;
+      const batch = addStatic(i % 2 ? 'crystalA' : 'crystalB', c.x, c.z, rnd() * Math.PI * 2, scale, 0, { cor: ore.cor, emissivo: ore.cor, forca: pu === 'puro' ? 0.35 : 0.12 });
+      spots.setMatrixAt(i, new THREE.Matrix4().makeScale(scale, 1, scale).premultiply(new THREE.Matrix4().makeTranslation(c.x, 0.02, c.z)));
+      game.oreModels.set(key(x, z), { batch, scale });
     });
     spots.receiveShadow = true;
     spots.computeBoundingSphere();
@@ -217,7 +229,7 @@ function buildOres() {
 export function setOreVisible(x, z, v) {
   const m = game.oreModels?.get(key(x, z));
   if (!m) return;
-  if (m.batch) setStaticScale(m.batch, v ? 0.95 : 0.45);
+  if (m.batch) setStaticScale(m.batch, v ? m.scale : 0.45);
   else m.scale.setScalar(v ? 0.95 : 0.45); // veio de meteorito (objeto comum)
 }
 

@@ -187,7 +187,7 @@ export class Economy {
     has('biblioteca', (s.libsImported || 0) > 0);
     has('depurador', (s.breakpoints || 0) > 0);
     has('musico', (s.notes || 0) >= 8);
-    has('esteiras_100', game.entities.filter((e) => e.type === 'esteira').length >= 100);
+    has('esteiras_100', game.entities.filter((e) => e.type.startsWith('esteira') && e.items).length >= 100);
     has('noite', !!s.nightSeen);
     has('chuva', !!s.rainSeen);
     has('foto', (s.photos || 0) > 0);
