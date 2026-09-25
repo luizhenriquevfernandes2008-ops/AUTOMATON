@@ -1,5 +1,5 @@
 // Dinheiro, XP, níveis, inventário, melhorias e mercado com preços que flutuam.
-import { ITEMS, UPGRADES, xpForLevel, START_INVENTORY, START_MONEY, OBJECTIVES, TECHS, REGIONS, ACHIEVEMENTS } from './data.js';
+import { ITEMS, UPGRADES, xpForLevel, START_INVENTORY, START_MONEY, OBJECTIVES, TECHS, REGIONS, ACHIEVEMENTS, INF_TECHS, SATELLITES, FRIEND_LEVELS, RECIPES, SMELT } from './data.js';
 
 const DEFAULT_LIB = `# Biblioteca "util": use importar("util") em qualquer computador
 # Tudo que for definido aqui vira disponível no programa.
@@ -58,6 +58,53 @@ export class Economy {
     this.records = { moneyMin: 0, itemsMin: 0, sale: 0 };
     this.recentSale = 0;
     game.on('sold', (v) => { this.recentSale = Math.max(this.recentSale, v); });
+    // v1.3: fichas, estrelas, contratos, desafios, discos, programa espacial, correio, Oopi
+    this.tokens = 0;             // 🎟️ fichas (contratos, desafios, correio)
+    this.stars = 0;              // ⭐ estrelas (missões do Programa Espacial)
+    this.contracts = null;       // estado do quadro de contratos (contracts.js)
+    this.challenges = {};        // id -> { code, best: { instr, linhas, vars }, solved }
+    this.disks = 0;              // 💾 discos ainda não analisados
+    this.altRecipes = [];        // receitas alternativas liberadas
+    this.crates = [];            // caixas perdidas já abertas
+    this.inf = {};               // nível das pesquisas infinitas
+    this.sats = {};              // satélites em órbita (tipo -> quantos)
+    this.mission = { n: 0, sat: null, progress: {} };
+    this.daily = { last: null, streak: 0 };
+    this.oopi = { hats: [], colors: ['padrao'], hat: null, color: 'padrao', friend: 0 };
+    this.combo = { n: 0, t: 0 };
+  }
+
+  // ─── bônus permanentes (pesquisas infinitas × satélites) ───
+  infLvl(id) { return this.inf[id] || 0; }
+  satLvl(id) { return this.sats[id] || 0; }
+  infBonus(id) { return this.infLvl(id) * INF_TECHS[id].efeito; }
+  get cpuMul() { return (1 + this.infBonus('cpu')) * (1 + 0.08 * this.satLvl('comunicacao')); }
+  get marketMul() { return (1 + this.infBonus('mercado')) * (1 + 0.05 * this.satLvl('mercado')); }
+  get logMul() { return (1 + this.infBonus('logistica')) * (1 + 0.06 * this.satLvl('gps')); }
+  get farmMul() { return (1 + this.infBonus('horta')) * (1 + 0.12 * this.satLvl('clima')); }
+  typeSpeed(type) {
+    if (type === 'minerador') return 1 + this.infBonus('mineracao');
+    if (type === 'fornalha' || type === 'montadora') return 1 + this.infBonus('fundicao');
+    return 1;
+  }
+  hasAlt(k) { return this.altRecipes.includes(k); }
+  addTokens(n) { this.tokens += n; game.emit('tokens', n); }
+  spendTokens(n) { if (this.tokens < n) return false; this.tokens -= n; game.emit('tokens', -n); return true; }
+  // itens descobertos (álbum)
+  discovered(k) { const s = this.stats; return (s.produced[k] || 0) > 0 || (s.sold[k] || 0) > 0 || (k === 'fragmento_estelar' && (s.fragments || 0) > 0) || !!(s.gotItems && s.gotItems[k]); }
+  get friendLevel() { let l = 0; FRIEND_LEVELS.forEach((p, i) => { if (this.oopi.friend >= p) l = i; }); return l + 1; }
+
+  // combo de vendas: vendas seguidas (menos de 10 s entre elas) dão bônus de até +20%
+  comboSale(total) {
+    const c = this.combo;
+    c.n = game.time - c.t < 10 ? c.n + 1 : 1;
+    c.t = game.time;
+    this.stats.bestCombo = Math.max(this.stats.bestCombo || 0, c.n);
+    const pct = Math.min(c.n - 1, 10) * 0.02;
+    const bonus = Math.round(total * pct * 10) / 10;
+    if (bonus > 0) { this.addMoney(bonus); this.stats.earned += bonus; }
+    game.emit('combo', c.n);
+    return { n: c.n, bonus, pct };
   }
 
   // ─── recordes (o Oopi comemora) ───
@@ -161,6 +208,26 @@ export class Economy {
     has('overclock', (s.hwUpgrades || 0) > 0);
     has('recorde', (s.records || 0) > 0);
     has('oopi_tarefa', (s.oopiTasks || 0) > 0);
+    has('contrato', (s.contracts || 0) > 0);
+    has('contratos_25', (s.contracts || 0) >= 25);
+    has('lendario', (s.legendary || 0) > 0);
+    has('relampago', (s.fastContracts || 0) > 0);
+    const ch = Object.values(this.challenges);
+    has('desafio', ch.some((c) => c.solved));
+    has('desafio_ouro', !!s.challengeGold);
+    has('desafios_todos', !!s.allChallenges);
+    has('disco', (s.disksFound || 0) > 0);
+    has('receita_alt', this.altRecipes.length > 0);
+    has('satelite2', this.mission.n >= 1);
+    has('missao_5', this.mission.n >= 5);
+    has('infinita', Object.values(this.inf).some((v) => v > 0));
+    has('quantico', (p.computador_quantico || 0) > 0);
+    has('combo_10', (s.bestCombo || 0) >= 10);
+    has('correio_7', (this.daily.streak || 0) >= 7);
+    has('projeto', (s.blueprints || 0) > 0);
+    has('album', Object.keys(ITEMS).every((k) => this.discovered(k)));
+    has('chapeu', !!this.oopi.hat);
+    has('amizade', this.friendLevel >= 5);
   }
 
   // ─── histórico pros gráficos ───
@@ -199,7 +266,7 @@ export class Economy {
   }
 
   get cpuHz() { return UPGRADES.cpu.valores[this.upgrades.cpu]; }
-  get beltSpeed() { return UPGRADES.esteira.valores[this.upgrades.esteira]; }
+  get beltSpeed() { return UPGRADES.esteira.valores[this.upgrades.esteira] * this.logMul; }
   get machineSpeed() { return UPGRADES.maquinas.valores[this.upgrades.maquinas]; }
   get xpNeeded() { return xpForLevel(this.level); }
 
@@ -210,7 +277,7 @@ export class Economy {
     const t = this.marketTime;
     const wave = 1 + 0.22 * Math.sin((t * Math.PI * 2) / m.period + m.phase) + 0.08 * Math.sin((t * Math.PI * 2) / (m.period * 0.37) + m.phase * 2.3);
     const fair = this.fair && this.fair.items.includes(item) ? this.fair.mult : 1;
-    return Math.max(0.5, Math.round(base * wave * m.sat * fair * 10) / 10);
+    return Math.max(0.5, Math.round(base * wave * m.sat * fair * this.marketMul * 10) / 10);
   }
   onFair(item) { return !!(this.fair && this.fair.items.includes(item)); }
 
@@ -308,6 +375,11 @@ export class Economy {
       case 'motor': ok = (s.produced.motor || 0) > 0; break;
       case 'robot': ok = (s.produced.robozinho || 0) > 0; break;
       case 'rich': ok = this.money >= 20000; break;
+      case 'contract': ok = (s.contracts || 0) > 0; break;
+      case 'challenge': ok = Object.values(this.challenges).some((c) => c.solved); break;
+      case 'disk': ok = this.altRecipes.length > 0; break;
+      case 'launch': ok = this.launched; break;
+      case 'mission': ok = this.mission.n >= 1; break;
     }
     void ctx;
     if (ok) {
@@ -325,6 +397,8 @@ export class Economy {
       regions: this.regions, achievements: this.achievements, libs: this.libs, netStore: this.netStore,
       series: this.series.slice(-120), lastSeen: Date.now(), tutorialStep: this.tutorialStep,
       materials: this.materials, records: this.records,
+      tokens: this.tokens, stars: this.stars, contracts: this.contracts, challenges: this.challenges, disks: this.disks,
+      altRecipes: this.altRecipes, diskChoice: this.diskChoice || null, crates: this.crates, inf: this.inf, sats: this.sats, mission: this.mission, daily: this.daily, oopi: this.oopi,
       sat: Object.fromEntries(Object.entries(this.market).map(([k, m]) => [k, m.sat])),
     };
   }
@@ -347,6 +421,21 @@ export class Economy {
     this.tutorialStep = d.tutorialStep ?? -1;
     this.materials = { ...this.materials, ...(d.materials || {}) };
     this.records = { ...this.records, ...(d.records || {}) };
+    this.tokens = d.tokens || 0;
+    this.stars = d.stars || 0;
+    this.contracts = d.contracts || null;
+    this.challenges = d.challenges || {};
+    this.disks = d.disks || 0;
+    this.altRecipes = (d.altRecipes || []).filter((k) => RECIPES[k]?.alt || SMELT[k]?.alt);
+    this.crates = d.crates || [];
+    this.diskChoice = (d.diskChoice || []).filter((k) => (RECIPES[k]?.alt || SMELT[k]?.alt) && !this.altRecipes.includes(k));
+    if (!this.diskChoice.length) this.diskChoice = null;
+    this.inf = Object.fromEntries(Object.entries(d.inf || {}).filter(([k]) => INF_TECHS[k]));
+    this.sats = Object.fromEntries(Object.entries(d.sats || {}).filter(([k]) => SATELLITES[k]));
+    this.mission = { n: 0, sat: null, progress: {}, ...(d.mission || {}) };
+    if (this.mission.sat && !SATELLITES[this.mission.sat]) this.mission.sat = null;
+    this.daily = { last: null, streak: 0, ...(d.daily || {}) };
+    this.oopi = { ...this.oopi, ...(d.oopi || {}) };
     this.lastEarned = this.stats.earned;
     this.lastProducedTotal = Object.values(this.stats.produced || {}).reduce((a, b) => a + b, 0);
     this.applyOffline(d.lastSeen);

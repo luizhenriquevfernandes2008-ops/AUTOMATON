@@ -24,6 +24,8 @@ export const ACTIONS = [
   { id: 'foto', nome: 'Modo foto', def: 'KeyP', grupo: 'janelas' },
   { id: 'musica', nome: 'Próxima música', def: 'KeyM', grupo: 'janelas' },
   { id: 'radio', nome: 'Trocar rádio', def: 'KeyG', grupo: 'janelas' },
+  { id: 'projetos', nome: 'Projetos (plantas salvas)', def: 'KeyJ', grupo: 'janelas' },
+  { id: 'contratos', nome: 'Quadro de Contratos', def: 'KeyL', grupo: 'janelas' },
 ];
 const DEF = Object.fromEntries(ACTIONS.map((a) => [a.id, a.def]));
 

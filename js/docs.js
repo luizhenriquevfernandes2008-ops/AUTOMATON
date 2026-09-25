@@ -1,12 +1,12 @@
 // Manual da Jiboia que aparece dentro do editor.
-import { ITEMS, RECIPES, SMELT, ORES } from './data.js';
+import { ITEMS, RECIPES, SMELT, ORES, recipeOut } from './data.js';
 
 const code = (s) => `<pre class="doc-code">${s.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>`;
 
 export function manualHTML(level) {
   const itemRows = Object.entries(ITEMS).map(([k, v]) => `<tr><td><code>"${k}"</code></td><td>${v.nome}</td><td>$ ${v.base}</td></tr>`).join('');
-  const smeltRows = Object.entries(SMELT).map(([k, v]) => `<tr class="${v.nivel > level ? 'locked' : ''}"><td>${ITEMS[k].nome}</td><td>→ ${ITEMS[v.out].nome}</td><td>${v.tempo}s</td><td>nív. ${v.nivel}</td></tr>`).join('');
-  const recRows = Object.entries(RECIPES).map(([k, r]) => `<tr class="${r.nivel > level ? 'locked' : ''}"><td><code>"${k}"</code></td><td>${Object.entries(r.in).map(([i, n]) => `${n}× ${ITEMS[i].nome}`).join(' + ')}</td><td>→ ${r.qtd}× ${ITEMS[k].nome}</td><td>${r.tempo}s</td><td>nív. ${r.nivel}</td></tr>`).join('');
+  const smeltRows = Object.entries(SMELT).map(([k, v]) => `<tr class="${v.nivel > level ? 'locked' : ''}"><td><code>"${k}"</code>${v.alt ? ' 💾' : ''}</td><td>${Object.entries(v.in).map(([i, n]) => `${n}× ${ITEMS[i].nome}`).join(' + ')} → ${v.qtd || 1}× ${ITEMS[v.out].nome}</td><td>${v.tempo}s</td><td>nív. ${v.nivel}</td></tr>`).join('');
+  const recRows = Object.entries(RECIPES).map(([k, r]) => `<tr class="${r.nivel > level ? 'locked' : ''}"><td><code>"${k}"</code>${r.alt ? ' 💾' : ''}</td><td>${Object.entries(r.in).map(([i, n]) => `${n}× ${ITEMS[i].nome}`).join(' + ')}</td><td>→ ${r.qtd}× ${ITEMS[recipeOut(k, r)].nome}</td><td>${r.tempo}s</td><td>nív. ${r.nivel}</td></tr>`).join('');
   const oreRows = Object.entries(ORES).map(([k, o]) => `<tr><td>${o.nome}</td><td><code>"${o.item}"</code></td><td>${o.tempo}s</td><td>${o.nivel ? 'nív. ' + o.nivel : '—'}</td></tr>`).join('');
   return `
 <div class="doc">
@@ -92,6 +92,34 @@ ${code(`enquanto Verdadeiro:
 <tr><td><code>esperar_ate(funcao)</code> ⏳</td><td>Fica chamando a função até ela retornar True. Ex: <code>esperar_ate(caixa_cheia)</code></td></tr>
 </table>
 
+<h3>Contratos 📋 <small>(nível 2)</small></h3>
+<table>
+<tr><td><code>contratos()</code></td><td>Lista dos contratos aceitos: <code>{"cliente", "raridade", "premio", "faltando": {...}, "segundos"}</code></td></tr>
+<tr><td><code>fichas()</code>, <code>estrelas()</code></td><td>Suas 🎟️ fichas e ⭐ estrelas</td></tr>
+<tr><td><code>doca.faltando()</code>, <code>doca.aceita("item")</code></td><td>Na Doca de Entrega: o que falta entregar e se ela aceita um item agora</td></tr>
+</table>
+
+<h3>Funções dos desafios 🧩 <small>(cada uma libera ao resolver um desafio)</small></h3>
+<table>
+<tr><td><code>anunciar(texto)</code></td><td>Mostra um aviso na tela</td></tr>
+<tr><td><code>contar(lista, x)</code></td><td>Quantas vezes <i>x</i> aparece</td></tr>
+<tr><td><code>media(lista)</code></td><td>Média dos números</td></tr>
+<tr><td><code>unicos(lista)</code></td><td>A lista sem repetidos</td></tr>
+<tr><td><code>mais_caro(lista)</code></td><td>O item com o maior preço agora: <code>mais_caro(["chip", "motor"])</code></td></tr>
+<tr><td><code>maior_chave(dic)</code></td><td>A chave com o maior valor (ótimo com <code>.estoque()</code>)</td></tr>
+<tr><td><code>faltando()</code></td><td>Tudo que os contratos aceitos ainda pedem</td></tr>
+<tr><td><code>relatorio()</code></td><td><code>{"dinheiro", "nivel", "fichas", "estrelas", "contratos", "por_minuto"}</code></td></tr>
+<tr><td><code>inverter(lista)</code>, <code>chance(p)</code></td><td>Lista de trás pra frente · True com probabilidade <i>p</i></td></tr>
+</table>
+${code(`# manda pra doca só o que os contratos pedem
+sep = maquina("separador1")
+while True:
+    item = sep.esperar_item()
+    if item in faltando():
+        sep.enviar("esquerda")   # esteira até a doca de entrega
+    else:
+        sep.enviar("direita")    # caixa de venda`)}
+
 <h3>Bibliotecas 📚</h3>
 <p>Na aba <b>Bibliotecas</b> você escreve funções uma vez. Em qualquer computador: <code>importar("util")</code> e as funções ficam disponíveis.</p>
 
@@ -160,7 +188,7 @@ ${code(`enquanto Verdadeiro:
 <table><tr><th>Veio</th><th>Item</th><th>Tempo</th><th>Libera</th></tr>${oreRows}</table>
 
 <h3>Fornalha</h3>
-<table><tr><th>Entra</th><th>Sai</th><th>Tempo</th><th>Libera</th></tr>${smeltRows}</table>
+<table><tr><th>Receita</th><th>Entra → sai</th><th>Tempo</th><th>Libera</th></tr>${smeltRows}</table>
 
 <h3>Receitas da Montadora</h3>
 <table><tr><th>Nome</th><th>Precisa</th><th>Faz</th><th>Tempo</th><th>Libera</th></tr>${recRows}</table>

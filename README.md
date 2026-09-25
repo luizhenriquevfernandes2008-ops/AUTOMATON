@@ -8,6 +8,20 @@ O objetivo grande é o **Projeto Foguete**: juntar peças cada vez mais complexa
 
 ### 🆕 Novidades
 
+**v1.3: motivos pra voltar todo dia**
+- 📋 **Quadro de Contratos** (nível 2): clientes pedem itens (comum, raro e 🌟 lendário) com prazo. Entregue por esteira na **Doca de Entrega** e ganhe dinheiro, XP e **🎟️ fichas**. Entrega rápida dá +25%; perder o prazo não tira nada.
+- 🧩 **Terminal de Desafios**: 10 quebra-cabeças de programação estilo Zachtronics, com notas de **instruções, linhas e memória** (🥉🥈🥇). Cada um libera uma **função nova** da Jiboia.
+- 🛰️ **Programa Espacial**: depois do foguete, lance missões repetíveis. Cada **satélite** em órbita dá um bônus permanente, e cada missão rende **⭐ estrelas**.
+- ♾️ **Pesquisas infinitas** no Laboratório (pagas com itens + estrelas), sem fim de jogo.
+- 💾 **Discos de dados** (8 caixas perdidas na floresta, meteoros, correio, contratos lendários) liberam **11 receitas alternativas**.
+- 🔋 Itens novos: **Bateria**, **Painel de LED** e **Computador Quântico**.
+- 🎟️ **Loja de fichas**: chapéus e cores pro Oopi, decoração exclusiva (astronauta, alien, rover, nave) e mais vagas de contrato.
+- 💞 **Amizade com o Oopi** (níveis 1 a 5, com presentes) e 📖 **álbum de itens**.
+- 📬 **Correio da manhã**: presente diário com sequência de 7 dias e o jornalzinho da fábrica.
+- 🔥 **Combo de vendas** (até +20%), confete nos marcos e dinheiro que pula no HUD.
+- 📐 **Projetos**: salve grupos copiados e troque com amigos por um código de texto.
+- 19 conquistas e 5 objetivos novos.
+
 **v1.2**
 - 🧱 **Construção com materiais** (madeira, tijolo, concreto, vidro, aço): paredes, janelas, portas, pisos, tetos, cercas, pintura e quadros de domínio público. **Depósito de Materiais** pra receber por esteira.
 - 🛋️ **Escritório personalizável** com 14 móveis novos.
@@ -52,6 +66,8 @@ O progresso é **salvo automaticamente** a cada 30 segundos, e a fábrica **cont
 | `Ctrl+Z` | desfazer |
 | `B` | loja |
 | `Tab` | mapa visto de cima |
+| `L` | 📋 quadro de contratos |
+| `J` | 📐 projetos salvos |
 | `K` | estatísticas, placar e conquistas |
 | `H` | guia |
 | `P` | modo foto |
@@ -89,12 +105,19 @@ No editor de código: `Ctrl+Enter` executa, `Tab`/`Shift+Tab` indentam, `Ctrl+Es
 - **Pintura** com 9 cores e **quadros de domínio público** (Van Gogh, Hokusai, Monet, Vermeer, Almeida Júnior) pra pendurar nas paredes.
 - **Móveis pro escritório:** estante, poltrona, sofá, TV, tapete, luminárias, mesa, frigobar, ursinho, ventilador de teto e mais. Eles podem ficar dentro do escritório.
 
+### Metas que se renovam (v1.3)
+- **📋 Contratos**: pedidos com prazo e raridade no quadro do escritório; entrega por esteira na **Doca de Entrega**. Rendem **🎟️ fichas**, que compram chapéus e cores pro Oopi, decoração exclusiva e vagas extras.
+- **🧩 Desafios de programação**: 10 quebra-cabeças isolados (`pegar()` / `entregar()` / `tem_mais()`), com 3 medalhas por desafio. Resolver libera funções como `mais_caro()`, `faltando()` e `maior_chave()`.
+- **🛰️ Programa Espacial**: missões repetíveis depois do foguete, com 6 tipos de satélite (até 5 de cada) e bônus que somam.
+- **♾️ Pesquisas infinitas** e **💾 discos de dados** com receitas alternativas.
+- **📬 Correio da manhã** diário, **🔥 combo de vendas**, **📖 álbum**, **💞 amizade com o Oopi** e **📐 projetos** compartilháveis.
+
 ### Progressão
 - **Níveis e XP** vendendo produtos; **loja** com máquinas, melhorias e decoração.
-- **Árvore de pesquisa** no Laboratório (12 tecnologias).
+- **Árvore de pesquisa** no Laboratório (14 tecnologias + 6 infinitas).
 - **Projeto Foguete** em 5 fases, com o foguete sendo montado de verdade na plataforma e **lançamento** no final.
 - **Expansão do mapa:** 4 regiões pra comprar, com veios novos (inclusive carvão).
-- **46 conquistas**, **estatísticas com gráficos** e **placar de eficiência** (🥉🥈🥇) pra cada computador.
+- **65 conquistas**, **estatísticas com gráficos** e **placar de eficiência** (🥉🥈🥇) pra cada computador.
 - **Mercado** com preços que sobem e descem.
 - **Recordes da fábrica** ($/min, itens/min, maior venda): o Oopi comemora quando você bate um.
 
@@ -149,8 +172,9 @@ Minerador ─▶ Fornalha ─▶ Montadora ─▶ Plataforma do Foguete / Caixa 
 | Canteiro | nível 1 | – | `.plantar("cafe")`, `.colher()`: horta |
 | Irrigador | nível 2 | 1 | Rega os canteiros em volta |
 | Depósito de Materiais | nível 1 | – | Guarda materiais de construção no estoque 🧱 |
+| Doca de Entrega | nível 2 | – | Recebe os itens dos contratos aceitos 📋 |
 
-Itens: minério de ferro/cobre, quartzo, carvão, escória, lingotes, silício, aço, tijolo, engrenagem, fio, chip, viga, motor, processador, robozinho, **módulo de foguete**, **satélite**, os da horta (**grão de café**, milho, cenoura, abóbora, melancia), os materiais (**madeira**, **concreto**, **vidro**) e o raro **fragmento estelar**. A tabela completa fica na loja (aba Receitas) e no manual do editor.
+Itens: minério de ferro/cobre, quartzo, carvão, escória, lingotes, silício, aço, tijolo, engrenagem, fio, chip, viga, motor, processador, robozinho, **módulo de foguete**, **satélite**, os da horta (**grão de café**, milho, cenoura, abóbora, melancia), os materiais (**madeira**, **concreto**, **vidro**), o raro **fragmento estelar** e os de ponta (**bateria**, **painel de LED**, **computador quântico**). A tabela completa fica na loja (aba Receitas) e no manual do editor.
 
 ---
 
@@ -180,6 +204,15 @@ e = esperar_evento()                      # {"tipo": "item", "fonte": "sensor1",
 esperar_ate(caixa_cheia)                  # espera uma função virar True
 
 importar("util")                          # bibliotecas de funções (aba Bibliotecas)
+```
+
+**Contratos e desafios** (v1.3):
+
+```python
+for c in contratos():                     # contratos aceitos no quadro
+    print(c["cliente"], c["faltando"], c["segundos"])
+if "chip" in faltando():                  # liberada pelo desafio "Montadora de cabeça"
+    anunciar("chegando chip!")            # liberada pelo desafio "Primeira entrega"
 ```
 
 **Depurador:** clique no número da linha pra criar um breakpoint, use ⏭ Passo e veja as variáveis na aba **Depurar**. **Autocompletar** sugere funções, métodos, nomes de máquinas e itens (dá pra desligar).
@@ -212,6 +245,13 @@ AUTOMATON/
 │   ├── farm.js            # horta: canteiro, irrigador e depósito de materiais
 │   ├── structures.js      # construção: paredes/pisos/tetos nas bordas das células, materiais, pintura, quadros
 │   ├── events.js          # chuva de meteoros (veio raro), feira, aurora e arco-íris
+│   ├── contracts.js       # quadro de contratos, doca de entrega, nave de carga
+│   ├── challenges.js      # desafios de programação: dados, execução e notas (roda no Node também)
+│   ├── challengeUI.js     # terminal de desafios e editor
+│   ├── space.js           # programa espacial (missões, satélites no céu)
+│   ├── disks.js           # discos de dados, caixas perdidas e receitas alternativas
+│   ├── mail.js            # correio da manhã (presente diário)
+│   ├── blueprints.js      # projetos salvos e códigos de compartilhar
 │   ├── input.js           # teclas configuráveis
 │   ├── gamepad.js         # controle (gamepad)
 │   ├── palette.js         # cores de sinal e modos pra daltonismo
@@ -255,6 +295,10 @@ AUTOMATON/
 - **Nova planta:** `CROPS` (`data.js`), com os modelos de cada fase em `assets.js`.
 - **Nova peça de construção / material / quadro:** `PIECES`, `MATERIALS`, `PAINTINGS` (`data.js`).
 - **Novo evento:** `startEvent` em `events.js`.
+- **Novo cliente / raridade de contrato:** `CLIENTS`, `RARITY` (`data.js`).
+- **Novo desafio:** `CHALLENGES` (`challenges.js`): gerador da entrada, solução esperada e metas; ponha a solução de referência em `tests/challenges.test.mjs`.
+- **Novo satélite / pesquisa infinita / receita alternativa:** `SATELLITES`, `INF_TECHS` (`data.js`), receitas com `alt: true` em `RECIPES`/`SMELT`.
+- **Novo chapéu do Oopi:** `OOPI_HATS` (`data.js`) + modelo em `assets.js`.
 
 Pra depurar, abra o console do navegador (`F12`). O estado do jogo fica em `window.automaton`.
 
@@ -262,6 +306,7 @@ Para testar movimento, colisões (inclusive paredes), deslize, controle e café 
 
 ```sh
 node --experimental-vm-modules --test tests/player.test.mjs
+node --test tests/challenges.test.mjs   # as soluções de referência de todos os desafios ganham ouro
 ```
 
 ---

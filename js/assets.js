@@ -129,6 +129,24 @@ export const MODEL_DEFS = {
   meteorRock: [S + 'meteor.glb', { fit: 0.9 }],
   meteorSmall: [S + 'meteor_half.glb', { fit: 0.4, center: true }],
   crater: [S + 'craterLarge.glb', { fit: CELL * 1.5 }],
+  // v1.3: contratos, desafios, discos, Oopi e loja de fichas
+  dockBase: [S + 'platform_center.glb', { fit: CELL * 0.98 }],
+  boxCard: [U + 'cardboardBoxClosed.glb', { fit: 0.55 }],
+  boxCardOpen: [U + 'cardboardBoxOpen.glb', { fit: 0.6 }],
+  crateLost: [U + 'cardboardBoxClosed.glb', { fit: 0.9 }],
+  books: [U + 'books.glb', { fit: 0.35 }],
+  terminal: [S + 'desk_computer.glb', { fit: 1.6 }],
+  terminalChair: [S + 'desk_chair.glb', { h: 1.0 }],
+  cargoShip: [S + 'craft_speederA.glb', { fit: 2.6 }],
+  d_astronaut: [S + 'astronautA.glb', { h: 1.6 }],
+  d_alien: [S + 'alien.glb', { h: 1.0 }],
+  d_rover: [S + 'rover.glb', { fit: CELL * 0.95 }],
+  d_ship: [S + 'craft_speederA.glb', { fit: CELL * 0.98 }],
+  hat_flower: [N + 'flower_yellowA.glb', { h: 0.22 }],
+  hat_cone: [F + 'cone.glb', { h: 0.3 }],
+  hat_mushroom: [N + 'mushroom_red.glb', { h: 0.26 }],
+  hat_dish: [S + 'satelliteDish.glb', { h: 0.3 }],
+  hat_crystal: [S + 'rock_crystals.glb', { h: 0.14 }],
 };
 
 const TREES = ['tree_default', 'tree_oak', 'tree_detailed', 'tree_fat', 'tree_pineRoundA', 'tree_pineRoundB', 'tree_pineRoundC',
@@ -314,6 +332,19 @@ function buildProcedural() {
     const t = M.o_sideTableBase.clone(true); g.add(t);
     const l = M.o_tableLamp.clone(true); l.position.y = M.o_sideTableBase.userData.size.y; g.add(l);
     M.o_sideTable = wrap(g, new THREE.Vector3(CELL * 0.55, M.o_sideTableBase.userData.size.y + 0.55, CELL * 0.55));
+  }
+  // doca de entrega: plataforma com caixas de papelão empilhadas
+  {
+    const g = new THREE.Group();
+    g.add(M.dockBase.clone(true));
+    const h0 = M.dockBase.userData.size.y;
+    for (const [x, z, y, r] of [[-0.3, -0.25, 0, 0.2], [0.28, -0.2, 0, -0.3], [-0.2, 0.28, 0, 0.5], [0, 0, 1, 0.1]]) {
+      const b = M.boxCard.clone(true);
+      b.position.set(x, h0 + y * M.boxCard.userData.size.y, z);
+      b.rotation.y = r;
+      g.add(b);
+    }
+    M.deliveryDock = wrap(g, new THREE.Vector3(CELL, h0 + M.boxCard.userData.size.y * 2, CELL));
   }
   // depósito de materiais: barril grande com pilha de tábuas por cima
   {

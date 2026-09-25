@@ -447,7 +447,108 @@ Se passar do limite, o programa para com um aviso. Dica: `lista.pop(0)` tira o i
 
 ---
 
-## 20. Problemas comuns
+## 20. 📋 Contratos e 🎟️ fichas (nível 2)
+
+No escritório tem o **📋 Quadro de Contratos** (`E` nele, ou `L` de qualquer lugar). Clientes da cidade pedem itens da sua fábrica.
+
+1. Escolha um pedido e clique em **Aceitar** (começa com 2 vagas; dá pra comprar mais com fichas).
+2. Compre uma **Doca de Entrega** (loja, nível 2, $ 150) e mande os itens **por esteira** até ela (qualquer lado). Ela só aceita o que os contratos pedem.
+3. Quando chegar tudo, uma navezinha leva a encomenda e você ganha **dinheiro, XP e 🎟️ fichas**.
+
+| Raridade | Fichas | Extra |
+|---|---|---|
+| Comum | 1 | |
+| Raro | 2 | pedidos maiores, prêmio maior |
+| 🌟 Lendário | 4 | + 1 💾 disco de dados (a partir do nível 5) |
+
+- Entregou na **primeira metade do prazo**? **+25%** ⚡.
+- **Perder o prazo não tira nada**: o pedido só some e outro cliente aparece.
+- No código: `contratos()` lista os aceitos, `maquina("doca_entrega1").faltando()` diz o que falta.
+
+**Loja de fichas** (loja → aba **🎟️ Fichas**): chapéus pro Oopi (florzinha, cone, cogumelo, engrenagem, antena, coroa de cristal), cores pro Oopi, decoração exclusiva (astronauta, alienzinho, rover, nave estelar, todas com bônus) e **mais vagas de contrato**.
+
+## 21. 🧩 Desafios de programação
+
+Na mesa do escritório (lado direito) fica o **🧩 Terminal de Desafios**: 10 quebra-cabeças em Jiboia, separados da fábrica.
+
+```python
+# pegar() tira o próximo item da entrada; entregar(x) responde
+while True:
+    entregar(pegar())     # quando a entrada acaba, pegar() termina o programa
+```
+
+`tem_mais()` diz se ainda tem entrada. Cada solução é testada em 3 entradas e ganha **3 notas**, cada uma com 🥉 (resolveu), 🥈 ou 🥇:
+
+| Nota | O que mede |
+|---|---|
+| ⚙️ Instruções | quantas instruções o programa executou (média das 3 entradas) |
+| 📏 Linhas | linhas de código (sem comentários e linhas vazias) |
+| 🧠 Memória | quantas variáveis ele guardou ao mesmo tempo |
+
+Resolver dá dinheiro, fichas (cada 🥇 nova dá +1) e libera uma **função nova pros computadores da fábrica**:
+
+| Desafio | Libera |
+|---|---|
+| 1 · Primeira entrega | `anunciar(texto)`: aviso na tela |
+| 2 · Separador esperto | `contar(lista, x)` |
+| 3 · Contador de quartzo | `media(lista)` |
+| 4 · Só os pares | `unicos(lista)` |
+| 5 · Pares de lingotes | `mais_caro(lista)`: o item mais caro agora |
+| 6 · Maior de cada lote | `maior_chave(dicionario)` |
+| 7 · Montadora de cabeça | `faltando()`: o que os contratos ainda pedem |
+| 8 · Compressão de esteira | `relatorio()` |
+| 9 · Fila de pedidos | `inverter(lista)` |
+| 10 · Espiral de Fibonacci | `chance(p)` |
+
+## 22. 💾 Discos de dados e receitas alternativas
+
+Discos vêm de:
+- **📦 Caixas perdidas**: 8 espalhadas pela floresta em volta da fábrica, com uma luzinha azul. Chegue perto e aperte `E`. O Oopi às vezes dá dica de onde estão.
+- **Chuva de meteoros**: às vezes uma pedrinha vem com um disco grudado.
+- **Correio da manhã** (dia 5 da sequência) e **contratos lendários**.
+
+No **Laboratório** (`E`), lá embaixo: **🔍 Analisar um disco** mostra 2 receitas alternativas; escolha uma. Exemplos:
+
+| Receita | Onde | Faz |
+|---|---|---|
+| `"engrenagem_fundida"` | montadora | 1 aço → 2 engrenagens |
+| `"fio_de_ferro"` | montadora | 2 lingotes de ferro → 3 fios |
+| `"motor_compacto"` | montadora | 1 engrenagem + 1 chip → 1 motor |
+| `"silicio_puro"` | fornalha | 1 quartzo + 1 carvão → 2 silícios |
+| `"aco_direto"` | fornalha | 2 minérios de ferro + 1 carvão → 1 aço |
+
+(são 11 no total; a aba **Receitas** da loja mostra as que você já liberou)
+
+## 23. 🛰️ Programa Espacial e ♾️ pesquisas infinitas
+
+Depois do primeiro lançamento, a plataforma vira o **Programa Espacial** (+2 ⭐ de presente):
+
+1. `E` na plataforma e escolha um **satélite**.
+2. Leve os itens da missão por esteira (módulos de foguete, satélites e itens de ponta). Cada missão pede um pouco mais que a anterior.
+3. **🚀 Lançar missão**: o satélite fica em órbita (dá pra ver os pontinhos no céu à noite) e você ganha dinheiro e **⭐ estrelas**.
+
+| Satélite | Bônus (cada um, até 5) |
+|---|---|
+| 📡 Comunicação | +8% de clock nos computadores |
+| 💹 Financeiro | +5% no preço de venda |
+| 🧭 GPS | +6% nas esteiras e drones |
+| 🌦️ Meteorológico | +12% de crescimento na horta e mais chuva |
+| 🔭 Telescópio | mais chuvas de meteoros e veios maiores |
+| 🛰️ Estação Solar | +20% nos painéis solares, e eles geram um pouco à noite |
+
+**♾️ Pesquisas infinitas** (Laboratório, depois do lançamento): Mineração Profunda, Metalurgia Fina, Compilador Otimizado, Marketing, Esteiras Turbo e Adubo Estelar. Cada nível custa mais itens e algumas ⭐ (as estrelas voltam se você trocar de pesquisa).
+
+**Itens de ponta**: **Bateria** e **Painel de LED** (pesquisa *Eletrônica Avançada*, fase 4 do foguete) e **Computador Quântico** (pesquisa *Computação Quântica*, depois do lançamento: 2 processadores + 2 fragmentos estelares + 1 bateria).
+
+## 24. 📬 Correio, 🔥 combo, 📐 projetos, 📖 álbum e 💞 amizade
+
+- **Correio da manhã**: a primeira vez que você entra no dia (dia de verdade) chega um pacote. Dias seguidos rendem mais: dia 3 = 1 🎟️, dia 5 = 💾, dia 7 = 3 🎟️ + dinheiro. Tem até o jornalzinho da fábrica 📰.
+- **Combo de vendas**: vendas com menos de 10 segundos entre elas somam combo. Cada passo dá +2% (até +20%) e o som fica mais agudo 🔥.
+- **Projetos** (`J`): copie um grupo com `C`, dê um nome e salve. Serve pra qualquer fábrica. O botão **🔗 Código** gera um texto `AUTOMATON1:…` pra mandar pra um amigo, que cola em **📥 Importar** (o programa dos computadores importados não roda sozinho).
+- **Álbum** (`K` → Álbum): todo item que você fabrica, colhe ou vende aparece lá.
+- **Amizade com o Oopi**: carinho (+1, no máximo a cada 20 s) e tarefas (+3). Nível 2 ganha a florzinha, nível 3 ele pega as pedrinhas de meteoro sozinho, nível 4 ganha a coroa de cristal, nível 5 dá +1 ficha nos contratos raros e lendários.
+
+## 25. Problemas comuns
 
 | Problema | Solução |
 |---|---|
@@ -461,6 +562,9 @@ Se passar do limite, o programa para com um aviso. Dica: `lista.pop(0)` tira o i
 | A planta não cresce | Terra seca (💧), teto que não é de vidro em cima, ou é de noite. |
 | "Falta material" na construção | Mande material pro Depósito de Materiais ou compre na loja (aba Materiais). |
 | Não consigo colocar máquina no escritório | Lá só vão móveis e construção. |
+| A Doca de Entrega não aceita o item | Nenhum contrato aceito pede esse item (ou já chegou tudo dele). Veja o 📋 quadro. |
+| "função liberada resolvendo o desafio…" | Resolva o desafio indicado no 🧩 Terminal de Desafios. |
+| Não acho as caixas perdidas | Elas brilham em azul na floresta, fora do piso. Olhe o mapa com calma e escute as dicas do Oopi. |
 
 ---
 
@@ -491,6 +595,8 @@ Aperte **E na cafeteira do escritório** pra tomar um cafezinho: **+30% de veloc
 | `Ctrl+Z` | desfazer |
 | `B` | loja |
 | `Tab` | mapa |
+| `L` | 📋 contratos |
+| `J` | 📐 projetos |
 | `K` | estatísticas, placar e conquistas |
 | `P` | modo foto |
 | `G` | trocar estação do rádio |

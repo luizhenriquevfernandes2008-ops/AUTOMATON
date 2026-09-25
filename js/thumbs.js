@@ -1,7 +1,7 @@
 // Gera ícones (PNG) renderizando os modelos 3D de verdade.
 import * as THREE from 'three';
 import { assets, cloneModel } from './assets.js';
-import { MACHINES, DECOR, ITEMS, PAINTINGS } from './data.js';
+import { MACHINES, DECOR, ITEMS, PAINTINGS, OOPI_HATS } from './data.js';
 import { MODEL_YAW } from './machines.js';
 import { itemPreviewObject } from './itemMeshes.js';
 
@@ -47,6 +47,7 @@ export function generateThumbs() {
     const o = itemPreviewObject(k);
     thumbs['item:' + k] = shot(o);
   }
+  for (const [k, h] of Object.entries(OOPI_HATS)) { const g = new THREE.Group(); g.add(cloneModel(h.model)); thumbs['hat:' + k] = shot(g); }
   r.dispose();
   r.forceContextLoss();
   // ícone do cabo

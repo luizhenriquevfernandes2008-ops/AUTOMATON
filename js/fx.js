@@ -129,3 +129,37 @@ export function setLabel(sprite, text) {
   g.fillText(text, 128, 33);
   sprite.material.map.needsUpdate = true;
 }
+
+// confete na tela (marcos importantes): canvas por cima de tudo, some sozinho
+let confCanvas = null, confBits = [], confRaf = 0;
+export function confetti(n = 120) {
+  if (typeof document === 'undefined' || confBits.length > 500) return;
+  if (!confCanvas) {
+    confCanvas = document.createElement('canvas');
+    confCanvas.id = 'confetti';
+    document.body.appendChild(confCanvas);
+  }
+  confCanvas.width = innerWidth; confCanvas.height = innerHeight;
+  const cols = ['#ffcf5c', '#ff6ec7', '#3ee6b8', '#7fb2ff', '#ff9a4a', '#b18cff'];
+  for (let i = 0; i < n; i++) {
+    confBits.push({
+      x: innerWidth * (0.2 + Math.random() * 0.6), y: innerHeight * 0.35 + (Math.random() - 0.5) * 80,
+      vx: (Math.random() - 0.5) * 900, vy: -300 - Math.random() * 700, r: Math.random() * 6, vr: (Math.random() - 0.5) * 14,
+      w: 6 + Math.random() * 8, h: 4 + Math.random() * 6, c: cols[i % cols.length], life: 2.6 + Math.random(),
+    });
+  }
+  if (!confRaf) { let last = performance.now(); const step = (now) => { const dt = Math.min(0.05, (now - last) / 1000); last = now; drawConfetti(dt); confRaf = confBits.length ? requestAnimationFrame(step) : 0; }; confRaf = requestAnimationFrame(step); }
+}
+function drawConfetti(dt) {
+  const g = confCanvas.getContext('2d');
+  g.clearRect(0, 0, confCanvas.width, confCanvas.height);
+  for (let i = confBits.length - 1; i >= 0; i--) {
+    const b = confBits[i];
+    b.life -= dt;
+    b.vy += 1100 * dt; b.vx *= 1 - dt * 1.5;
+    b.x += b.vx * dt; b.y += b.vy * dt; b.r += b.vr * dt;
+    if (b.life <= 0 || b.y > confCanvas.height + 20) { confBits.splice(i, 1); continue; }
+    g.save(); g.globalAlpha = Math.min(1, b.life); g.translate(b.x, b.y); g.rotate(b.r); g.scale(1, Math.abs(Math.cos(b.r * 1.7)) + 0.2);
+    g.fillStyle = b.c; g.fillRect(-b.w / 2, -b.h / 2, b.w, b.h); g.restore();
+  }
+}

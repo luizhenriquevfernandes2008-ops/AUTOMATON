@@ -11,7 +11,8 @@ const PT_KW = ['se', 'senaose', 'senao', 'enquanto', 'para', 'em', 'funcao', 're
 const KW = new Set(PY_KW.concat(PT_KW).filter((w) => !['True', 'False', 'None', 'Verdadeiro', 'Falso', 'Nada'].includes(w)));
 const CONSTS = new Set(['True', 'False', 'None', 'Verdadeiro', 'Falso', 'Nada']);
 const GAME_FUNCS = ['maquina', 'maquinas', 'esperar', 'tempo', 'dinheiro', 'nivel', 'preco', 'itens', 'apitar', 'eu', 'energia',
-  'enviar', 'receber', 'tem_mensagem', 'compartilhar', 'ler', 'ouvir', 'esperar_evento', 'esperar_ate', 'importar'];
+  'enviar', 'receber', 'tem_mensagem', 'compartilhar', 'ler', 'ouvir', 'esperar_evento', 'esperar_ate', 'importar',
+  'contratos', 'fichas', 'estrelas', 'anunciar', 'contar', 'media', 'unicos', 'mais_caro', 'maior_chave', 'faltando', 'relatorio', 'inverter', 'chance'];
 const STD_FUNCS = ['print', 'escrever', 'mostrar', 'len', 'tamanho', 'range', 'intervalo', 'str', 'texto', 'int', 'inteiro', 'float', 'decimal', 'bool',
   'abs', 'round', 'arredondar', 'min', 'max', 'sum', 'soma', 'list', 'lista', 'dict', 'sorted', 'ordenado', 'aleatorio', 'randint', 'random', 'tipo', 'type'];
 const BUILTINS = new Set(GAME_FUNCS.concat(STD_FUNCS));
@@ -19,7 +20,7 @@ const BUILTINS = new Set(GAME_FUNCS.concat(STD_FUNCS));
 const METHODS = ['minerar', 'minerio', 'fundir', 'receitas', 'fabricar', 'pode_fabricar', 'vender', 'preco', 'esperar_item', 'enviar', 'item', 'retirar',
   'quantidade', 'estoque', 'saida', 'ocupada', 'status', 'energia', 'producao', 'consumo', 'pesquisa', 'progresso', 'faltando', 'pesquisar', 'drone',
   'ir', 'ir_para', 'voltar', 'pegar', 'soltar', 'carga', 'posicao', 'ocupado', 'embaixo', 'ligar', 'desligar', 'cor', 'piscar', 'ligada', 'escrever',
-  'mostrar', 'limpar', 'titulo', 'grafico', 'tocar', 'som', 'contagem', 'ultimo', 'zerar', 'combustivel', 'ligado', 'destruidos', 'nome', 'tipo',
+  'mostrar', 'limpar', 'titulo', 'grafico', 'tocar', 'som', 'contagem', 'ultimo', 'zerar', 'combustivel', 'ligado', 'destruidos', 'nome', 'tipo', 'entregues', 'aceita',
   'append', 'pop', 'insert', 'remove', 'index', 'count', 'sort', 'reverse', 'copy', 'keys', 'values', 'items', 'get', 'upper', 'lower', 'split', 'strip',
   'replace', 'startswith', 'endswith', 'join', 'find'];
 
