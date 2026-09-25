@@ -9,6 +9,7 @@ import { puff } from './fx.js';
 import { grid, ores, key, cellCenter } from './machines.js';
 import { isBuildableCell, colliders } from './world.js';
 import { gainDisk } from './disks.js';
+import { virtualLight } from './lights.js';
 
 const VEIN_SIZE = 40;         // fragmentos em cada veio de meteorito
 const state = {
@@ -154,7 +155,7 @@ export function addVein(x, z, left) {
   tint(rock, 0x6a4a9a, 0xb18cff, 0.5);
   rock.position.y = 0.05;
   g.add(rock);
-  const light = new THREE.PointLight(0xb18cff, 3, 5, 1.5);
+  const light = virtualLight(new THREE.PointLight(0xb18cff, 3, 5, 1.5));
   light.position.y = 1;
   g.add(light);
   game.scene.add(g);

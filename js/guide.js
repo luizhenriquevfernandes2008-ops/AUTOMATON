@@ -243,6 +243,7 @@ while True:
 <tr><td>A esteira faz uma curva estranha</td><td>Ela vira curva sozinha quando o item chega pelo lado. Gire com <kbd>R</kbd> (ou tecla <kbd>E</kbd> na máquina → Girar).</td></tr>
 <tr><td>Computador com tela "SEM ENERGIA"</td><td>Ligue um cabo nele.</td></tr>
 <tr><td>Erro "Não achei a máquina"</td><td>O nome no código tem que ser igual à plaquinha em cima da máquina.</td></tr>
+<tr><td>FPS baixo (o jogo trava)</td><td>Ligue <b>Configurações → Mostrar FPS</b>. Baixe a <b>Qualidade</b> pra Média ou Baixa. No Firefox, confira se a aceleração de hardware está ligada.</td></tr>
 <tr><td>Tudo lento</td><td>Energia fraca (HUD ⚡ vermelho): mais geradores. Ou compre "Clock da CPU" na loja.</td></tr>
 <tr><td>"Memória cheia" / "Lista cheia"</td><td>Reaproveite variáveis, use <code>.pop(0)</code>, ou melhore a memória no ⚙ Hardware.</td></tr>
 <tr><td>A planta não cresce</td><td>Terra seca, teto que não é de vidro em cima, ou é de noite.</td></tr>

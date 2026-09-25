@@ -7,6 +7,7 @@ import { cloneModel } from './assets.js';
 import { audio } from './audio.js';
 import { confetti } from './fx.js';
 import { colliders, interactables } from './world.js';
+import { virtualLight } from './lights.js';
 
 const METRICS = [['instr', '⚙️ Instruções', 'executadas em média'], ['linhas', '📏 Linhas', 'de código (sem comentários)'], ['vars', '🧠 Memória', 'variáveis ao mesmo tempo']];
 const escH = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -20,7 +21,7 @@ export function buildTerminal() {
   const desk = cloneModel('terminal'); g.add(desk);
   const chair = cloneModel('terminalChair'); chair.position.set(0, 0, -0.95); g.add(chair);
   const books = cloneModel('books'); books.position.set(0.6, desk.userData.size?.y || 0.8, -0.15); g.add(books);
-  const glow = new THREE.PointLight(0x3ee6b8, 2.5, 4, 1.6);
+  const glow = virtualLight(new THREE.PointLight(0x3ee6b8, 2.5, 4, 1.6));
   glow.position.set(0, 1.3, 0.3);
   g.add(glow);
   game.scene.add(g);

@@ -34,6 +34,9 @@ import { buildContractBoard, updateContracts, updateShips } from './contracts.js
 import { buildTerminal } from './challengeUI.js';
 import { buildCrates, openCrate } from './disks.js';
 import { updateOrbit } from './space.js';
+import { updateLights } from './lights.js';
+import { flushStatic } from './staticBatch.js';
+import { settings as userSettings } from './settings.js';
 import { checkDaily, openMail } from './mail.js';
 
 const $ = (s) => document.querySelector(s);
@@ -356,7 +359,7 @@ function interact() {
 game.on('region', (id) => clearRegion(id));
 
 // ─── loop ───
-let last = performance.now();
+let last = performance.now(), fpsT = performance.now(), fpsN = 0;
 let objTimer = 0, saveTimer = 30, powerTimer = 0, decorTimer = 0, achTimer = 3, recordTimer = 30;
 game.on('moved', (e) => { if (e.instanced) markBeltsDirty(); });
 function simStep(dt) {
@@ -413,7 +416,15 @@ function loop(now) {
   updateGamepad(dt, actions);
   flushBelts();
   flushItems();
+  flushStatic();
+  updateLights(dt);
   renderer.render(scene, camera);
+  // contador de FPS (Configurações → Mostrar FPS)
+  fpsN++;
+  if (now - fpsT >= 1000) {
+    if (userSettings.fps) { const i = renderer.info.render; $('#fps').textContent = `${Math.round((fpsN * 1000) / (now - fpsT))} fps · ${i.calls} draws`; }
+    fpsN = 0; fpsT = now;
+  }
 }
 addEventListener('beforeunload', () => { if (!game.skipSave && game.economy) saveGame(); });
 

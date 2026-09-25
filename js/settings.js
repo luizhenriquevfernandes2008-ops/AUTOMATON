@@ -1,11 +1,12 @@
 // Configurações do jogador (salvas à parte do save da fábrica).
 import { game } from './state.js';
+import { setLightBudget } from './lights.js';
 import { audio, STATIONS } from './audio.js';
 import { setPalette, MODES } from './palette.js';
 
 const KEY = 'automaton_settings';
 export const settings = {
-  music: 0.45, sfx: 0.7, ambience: 0.35, sens: 0.8, fov: 72, quality: 'alta', musicOn: true, station: 0, pet: true, autocomplete: true,
+  music: 0.45, sfx: 0.7, ambience: 0.35, sens: 0.8, fov: 72, quality: 'alta', musicOn: true, station: 0, pet: true, autocomplete: true, fps: false,
   colorblind: 'normal', edFont: 14, padSens: 1, keys: {},
 };
 
@@ -41,6 +42,7 @@ export function applyQuality() {
   const q = settings.quality;
   r.setPixelRatio(q === 'alta' ? Math.min(devicePixelRatio, 1.75) : q === 'media' ? Math.min(devicePixelRatio, 1.25) : 1);
   r.setSize(innerWidth, innerHeight);
+  setLightBudget(q === 'alta' ? 8 : q === 'media' ? 6 : 4);
   if (sun) {
     sun.castShadow = q !== 'baixa';
     const size = q === 'alta' ? 2048 : 1024;
@@ -104,6 +106,8 @@ export function bindSettingInputs() {
   cb.innerHTML = Object.entries(MODES).map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
   cb.value = settings.colorblind || 'normal';
   cb.onchange = () => { settings.colorblind = cb.value; setPalette(cb.value); saveSettings(); };
+  toggle('set-fps', 'fps', () => document.getElementById('fps')?.classList.toggle('hidden', !settings.fps));
+  document.getElementById('fps')?.classList.toggle('hidden', !settings.fps);
   toggle('set-ac', 'autocomplete', () => { const cb = document.getElementById('ed-ac-toggle'); if (cb) cb.checked = settings.autocomplete; });
 }
 

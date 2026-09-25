@@ -8,6 +8,7 @@ import { audio } from './audio.js';
 import { puff } from './fx.js';
 import { colliders, interactables } from './world.js';
 import { thumbs } from './thumbs.js';
+import { virtualLight } from './lights.js';
 
 // caixas perdidas espalhadas pela floresta (posição em metros). Cada uma tem 1 disco (e um trocado)
 export const CRATES = [
@@ -30,7 +31,7 @@ export function buildCrates() {
     g.rotation.y = (c.x * 13 + c.z * 7) % 6;
     const box = cloneModel('crateLost');
     g.add(box);
-    const glow = new THREE.PointLight(0x6cf5ff, 2.2, 4, 1.6);
+    const glow = virtualLight(new THREE.PointLight(0x6cf5ff, 2.2, 4, 1.6));
     glow.position.y = 0.9;
     g.add(glow);
     game.scene.add(g);

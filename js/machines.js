@@ -7,6 +7,7 @@ import { game } from './state.js';
 import { takeItemMesh, releaseItemMesh } from './itemMeshes.js';
 import { Blocking, Builtin, JDict, JiboiaError, suggest } from './lang/jiboia.js';
 import { audio } from './audio.js';
+import { virtualLight } from './lights.js';
 import { puff, floatText, makeLabel, setLabel } from './fx.js';
 import { powerRatio, powerText, usesPower, disconnectAll, recompute as recomputePower, canWire, outputOf } from './power.js';
 
@@ -845,7 +846,7 @@ export class Decor extends Entity {
     this.addModel(this.def.model);
     if (this.def.noTeto) this.model.position.y = 2.2; // pendurado perto do teto
     if (this.def.luz) {
-      const l = new THREE.PointLight(0xffc98a, 6, 7, 1.5);
+      const l = virtualLight(new THREE.PointLight(0xffc98a, 6, 7, 1.5));
       l.position.y = this.def.casa ? 1.1 : 1.6;
       this.obj.add(l);
     }

@@ -21,6 +21,7 @@ O objetivo grande é o **Projeto Foguete**: juntar peças cada vez mais complexa
 - 🔥 **Combo de vendas** (até +20%), confete nos marcos e dinheiro que pula no HUD.
 - 📐 **Projetos**: salve grupos copiados e troque com amigos por um código de texto.
 - 19 conquistas e 5 objetivos novos.
+- ⚡ **Desempenho**: árvores, pedras, cristais e gramadinhos desenhados em lote (~75% menos chamadas de desenho), **orçamento fixo de luzes** (no máximo 8 luzes pontuais, sem travadinhas ao colocar luminárias), painéis sem desfoque de fundo (pesado no Firefox) e opção **Mostrar FPS** nas Configurações.
 
 **v1.2**
 - 🧱 **Construção com materiais** (madeira, tijolo, concreto, vidro, aço): paredes, janelas, portas, pisos, tetos, cercas, pintura e quadros de domínio público. **Depósito de Materiais** pra receber por esteira.
@@ -137,7 +138,7 @@ No editor de código: `Ctrl+Enter` executa, `Tab`/`Shift+Tab` indentam, `Ctrl+Es
 - **Mapa** visto de cima com zoom.
 - **Tutorial interativo** opcional (o jogo pergunta no começo; dá pra refazer no menu).
 - **3 espaços de save**, **teclas configuráveis**, **controle (gamepad)**, **modo daltônico** (deuteranopia, protanopia e tritanopia) e **tamanho da fonte do editor**.
-- **Otimizado pra fábricas grandes:** esteiras e itens são desenhados em lote (*instancing*), com uma chamada de desenho por tipo em vez de uma por objeto.
+- **Otimizado pra fábricas grandes:** esteiras, itens e o cenário (árvores, pedras, cristais) são desenhados em lote (*instancing*), com uma chamada de desenho por tipo em vez de uma por objeto. As luzes pontuais passam por um orçamento fixo (`lights.js`): só as mais perto da câmera acendem de verdade.
 
 ---
 
@@ -269,6 +270,8 @@ AUTOMATON/
 │   ├── guide.js · docs.js # guia e manual dentro do jogo
 │   ├── audio.js           # efeitos, estações de rádio, notas sintetizadas
 │   ├── itemMeshes.js      # visual dos itens, desenhados em lote (InstancedMesh)
+│   ├── lights.js          # orçamento de luzes (só as N mais perto da câmera)
+│   ├── staticBatch.js     # cenário parado desenhado em lote (InstancedMesh)
 │   ├── fx.js · thumbs.js · save.js (3 fábricas)
 │   └── lang/jiboia.js     # a linguagem: lexer → parser (AST) → interpretador
 ├── lib/                   # three.js r169 (+ addons)

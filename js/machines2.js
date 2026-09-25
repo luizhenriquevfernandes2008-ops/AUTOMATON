@@ -10,6 +10,7 @@ import { takeItemMesh, releaseItemMesh } from './itemMeshes.js';
 import { cloneModel } from './assets.js';
 import { Blocking, JiboiaError, JDict, suggest } from './lang/jiboia.js';
 import { audio } from './audio.js';
+import { virtualLight } from './lights.js';
 import { puff, floatText, makeLabel, setLabel, confetti } from './fx.js';
 import { powerRatio, outputOf } from './power.js';
 
@@ -573,7 +574,7 @@ export class Lamp extends Machine {
     this.bulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 10), new THREE.MeshStandardMaterial({ color: 0x555566, emissive: 0x000000 }));
     this.bulb.position.y = (this.model.userData.size?.y || 1.2) + 0.12;
     this.obj.add(this.bulb);
-    this.light = new THREE.PointLight(this.color, 0, 9, 1.6);
+    this.light = virtualLight(new THREE.PointLight(this.color, 0, 9, 1.6));
     this.light.position.y = this.bulb.position.y;
     this.obj.add(this.light);
     this.lamp.visible = false;
