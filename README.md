@@ -8,6 +8,12 @@ O objetivo grande é o **Projeto Foguete**: juntar peças cada vez mais complexa
 
 ### 🆕 Novidades
 
+**v1.5: multiplayer de verdade e fábrica rápida**
+- 🌐 **Jogar junto** (tecla `O`): até **4 pessoas construindo a mesma fábrica ao mesmo tempo**, cada uma de casa. O anfitrião cria uma sala e manda o código de 5 letras; dinheiro, peças e pesquisas são compartilhados; tem chat e cada jogador aparece como um astronauta. Precisa do servidor de salas no ar (veja **Multiplayer: colocar o servidor no ar** abaixo).
+- ♾ **Modo contínuo**: `.ligar()` / `.desligar()` no minerador, fornalha, montadora, braço e separador (com regras: `.ligar({"quartzo": "esquerda"}, "direita")`). A máquina trabalha sem parar e **sem travar o programa**: um computador comanda a fábrica inteira.
+- ⏩ **Esteira Rápida (2×)** e 🚄 **Esteira Expressa (3×)**, liberadas por pesquisa. Coloque por cima de uma esteira pra trocar (mantém direção e itens).
+- ⭐ **Pureza dos veios**: impuro (½×), normal e puro (2×), como no Satisfactory. Aparece no minerador e no mapa.
+
 **v1.4: jogar com amigos**
 - 🤝 **Amigos** (tecla `N`), tudo por **código de texto**, sem servidor:
   - 📅 **Desafio da semana**: um quebra-cabeça novo toda segunda, igual pra todo mundo. Troque códigos de nota com os amigos e monte um **placar**; o jogo roda a solução de cada um pra conferir. Depois de resolver, dá pra ver o código dos amigos.
@@ -79,6 +85,7 @@ O progresso é **salvo automaticamente** a cada 30 segundos, e a fábrica **cont
 | `L` | 📋 quadro de contratos |
 | `J` | 📐 projetos salvos |
 | `N` | 🤝 amigos (desafio da semana, visitas, parcerias) |
+| `O` | 🌐 jogar junto (multiplayer) |
 | `K` | estatísticas, placar e conquistas |
 | `H` | guia |
 | `P` | modo foto |
@@ -185,10 +192,48 @@ Minerador ─▶ Fornalha ─▶ Montadora ─▶ Plataforma do Foguete / Caixa 
 | Depósito de Materiais | nível 1 | – | Guarda materiais de construção no estoque 🧱 |
 | Doca de Entrega | nível 2 | – | Recebe os itens dos contratos aceitos 📋 |
 | Braço Robótico | nível 3 | 2 | `.mover()`: pega atrás e solta na frente 🦾 |
+| Esteira Rápida · Expressa | pesquisas Esteiras Rápidas / Expressas | – | 2× / 3× mais itens por minuto |
 
 Itens: minério de ferro/cobre, quartzo, carvão, escória, lingotes, silício, aço, tijolo, engrenagem, fio, chip, viga, motor, processador, robozinho, **módulo de foguete**, **satélite**, os da horta (**grão de café**, milho, cenoura, abóbora, melancia), os materiais (**madeira**, **concreto**, **vidro**), o raro **fragmento estelar** e os de ponta (**bateria**, **painel de LED**, **computador quântico**). A tabela completa fica na loja (aba Receitas) e no manual do editor.
 
 ---
+
+## ⚡ Velocidade e logística
+
+Cada `minerar()` tira **1 minério** e o programa espera terminar (3 s no ferro, num veio normal). Pra acelerar:
+
+| O quê | Efeito |
+|---|---|
+| **Modo contínuo** `m.ligar()` | a máquina trabalha sozinha sem parar, e o programa segue livre |
+| Veio **puro** ⭐ | 2× (impuro: ½×) |
+| **Engrenagens Turbo** (loja) | até 2× em todas as máquinas |
+| **Mk2 / Mk3** (pesquisa + `E` na máquina) | 1,5× / 2,2× |
+| Decoração perto | até +30% |
+| **Mineração Profunda** (pesquisa infinita) | +8% por nível |
+| Energia sobrando | se faltar ⚡, tudo fica lento |
+
+Uma **esteira** comum leva ~176 itens/min (com o Motor das Esteiras no máximo, ~420). A **Rápida** leva o dobro e a **Expressa**, o triplo. Com muitos mineradores contínuos, a esteira enche e a fábrica trava: use divisores, juntadores, separadores com regras e esteiras mais rápidas pra manter tudo fluindo.
+
+```python
+for nome in maquinas("minerador"):
+    maquina(nome).ligar()                       # todos minerando ao mesmo tempo
+maquina("fornalha1").ligar()                    # funde o que chegar
+maquina("montadora1").ligar("engrenagem")
+maquina("separador1").ligar({"escoria": "direita"}, "frente")
+```
+
+## 🌐 Multiplayer: colocar o servidor no ar
+
+O multiplayer precisa de um **servidor de salas** na internet. Ele só liga os jogadores (a fábrica roda no PC do anfitrião). O código está em `servidor-online/` e dá pra hospedar de graça no **Render**:
+
+1. Crie uma conta grátis em **https://render.com** (dá pra entrar com o GitHub).
+2. No painel: **New +** → **Blueprint** → escolha este repositório. O Render lê o `render.yaml` e cria o serviço `automaton-multiplayer` sozinho. Clique em **Apply**.
+3. Quando terminar (uns 2 minutos), copie o endereço do serviço (algo como `https://automaton-multiplayer.onrender.com`).
+4. No jogo: `O` → **⚙️ Servidor** → cole o endereço trocando `https://` por **`wss://`** → **Salvar**. Os dois jogadores precisam usar o mesmo endereço. (Se o seu serviço se chamar exatamente `automaton-multiplayer`, esse já é o padrão e nem precisa mexer.)
+
+No plano grátis o servidor "dorme" depois de 15 minutos sem ninguém; a primeira conexão do dia pode levar até ~1 minuto pra acordar. Pra testar no seu PC: `cd servidor-online && npm install && npm start` e use `ws://localhost:8787`.
+
+**Como jogar junto:** o anfitrião aperta `O` → **Criar sala** e manda o código de 5 letras. O amigo aperta `O`, digita o código e entra. Enquanto o amigo está na sala, a fábrica dele fica guardada (nada é salvo no PC dele); ao sair, ele volta pra ela. Algumas coisas ficam só com o anfitrião: loja de fichas, discos, desafios, correio e amigos.
 
 ## 🐍 A linguagem Jiboia
 
@@ -267,6 +312,8 @@ AUTOMATON/
 │   ├── weekly.js          # desafio da semana (sorteado pela semana) e códigos de placar
 │   ├── friends.js         # janela de amigos: placar, visitar fábrica, parcerias
 │   ├── arm.js             # braço robótico
+│   ├── mp.js              # multiplayer: sala, sincronização anfitrião/convidado, bonequinhos, chat
+├── servidor-online/       # servidor de salas do multiplayer (Node + ws) · render.yaml na raiz
 │   ├── input.js           # teclas configuráveis
 │   ├── gamepad.js         # controle (gamepad)
 │   ├── palette.js         # cores de sinal e modos pra daltonismo

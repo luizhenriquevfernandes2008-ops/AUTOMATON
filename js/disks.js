@@ -88,6 +88,7 @@ function recipeCard(k, btn) {
 
 // analisa um disco: sorteia 2 receitas ainda não conhecidas (fica guardado até escolher)
 export function analyzeDisk() {
+  if (game.mp?.isGuest) return 'No multiplayer, só o anfitrião analisa discos';
   const eco = game.economy;
   if (eco.diskChoice?.length) return null;
   if (eco.disks <= 0) return 'Você não tem discos. Procure caixas perdidas na floresta 📦';

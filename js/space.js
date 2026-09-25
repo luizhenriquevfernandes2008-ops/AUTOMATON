@@ -62,6 +62,7 @@ export function renderSpace(el) {
   const ch = el.querySelector('#sp-change');
   if (ch) ch.onclick = () => {
     if (Object.keys(m.progress).length && !confirm('Trocar de satélite? Os itens já entregues nesta missão serão perdidos.')) return;
+    if (game.mp?.guestRpc('unmission', {})) return;
     m.sat = null; m.progress = {}; pl.buildRocket(); renderSpace(el);
   };
 }

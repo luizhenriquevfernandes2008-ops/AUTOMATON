@@ -582,7 +582,39 @@ while True:
 
 Outros: `.ir(x, z)`, `.voltar()`, `.colher()`, `.pular()`, `.seguir()`, `.ficar()`, `.carga()`, `.humor()`, `.amizade()`.
 
-## 27. Problemas comuns
+## 27. ♾ Fábrica rápida: modo contínuo, esteiras e pureza
+
+**Modo contínuo.** `minerar()` tira um minério e o programa espera. Com `.ligar()`, a máquina trabalha **sozinha sem parar**, e o programa fica livre pra fazer outras coisas (ou até terminar):
+
+```python
+for nome in maquinas("minerador"):
+    maquina(nome).ligar()
+maquina("fornalha1").ligar()                       # funde tudo que chegar
+maquina("montadora1").ligar("engrenagem")          # montadora precisa da receita
+maquina("braco1").ligar("motor")                   # braço move só motores
+maquina("separador1").ligar({"quartzo": "esquerda", "escoria": "direita"}, "frente")
+```
+
+`.desligar()` para e `.ligada()` diz se está ligada. O status da máquina mostra **♾** quando está no modo contínuo. Se der um erro de verdade (ex: falta nível), ela desliga e o motivo aparece no status.
+
+**Esteiras.** Comum ~176 itens/min, **Rápida** 2× (pesquisa *Esteiras Rápidas*, fase 1) e **Expressa** 3× (pesquisa *Esteiras Expressas*, fase 3). Pra trocar, **coloque a nova por cima** da antiga: ela mantém a direção e os itens, e a antiga volta pro inventário (`Ctrl+Z` desfaz).
+
+**Pureza dos veios.** Cada veio é **impuro** (▫️ ½ da velocidade), **normal** ou **puro** (⭐ 2×). Veja no painel do minerador ou no mapa (`Tab`: bolinha grande com borda = puro). Os primeiros veios perto do escritório são normais.
+
+**Logística.** Com muitas máquinas contínuas, a esteira enche e tudo para ("Saída cheia"). Divida com **divisores**, junte com **juntadores**, separe com **separadores com regras** e troque por esteiras mais rápidas.
+
+## 28. 🌐 Jogar junto (multiplayer, tecla `O`)
+
+Até **4 pessoas** constroem a **mesma fábrica** ao mesmo tempo, cada uma na sua casa.
+
+- **Anfitrião**: `O` → **🌐 Criar sala**. Aparece um código de 5 letras: mande pro amigo. A fábrica é a sua, e continua salvando normalmente. Enquanto tiver alguém na sala, **ela não pausa** (nem no menu de pausa).
+- **Convidado**: `O` → digite o código → **Entrar**. A fábrica do anfitrião aparece em volta de você. A sua fica guardada, esperando; ao sair, você volta pra ela.
+- **Tudo compartilhado**: dinheiro, inventário, pesquisas, contratos e foguete. O que qualquer um constrói, liga, programa ou compra aparece pra todo mundo.
+- Cada jogador aparece como um **astronauta** com o nome em cima. Tem **chat** na janela `O`.
+- Ficam **só com o anfitrião**: loja de fichas, discos, desafios, correio, amigos e o depurador.
+- Precisa do **servidor de salas** no ar (uma vez só, grátis): veja o README, seção *Multiplayer: colocar o servidor no ar*.
+
+## 29. Problemas comuns
 
 | Problema | Solução |
 |---|---|
@@ -599,6 +631,8 @@ Outros: `.ir(x, z)`, `.voltar()`, `.colher()`, `.pular()`, `.seguir()`, `.ficar(
 | Não consigo colocar máquina no escritório | Lá só vão móveis e construção. |
 | A Doca de Entrega não aceita o item | Nenhum contrato aceito pede esse item (ou já chegou tudo dele). Veja o 📋 quadro. |
 | "função liberada resolvendo o desafio…" | Resolva o desafio indicado no 🧩 Terminal de Desafios. |
+| "Não consegui conectar no servidor" (multiplayer) | Confira o endereço em `O` → ⚙️ Servidor (começa com `wss://`). No plano grátis ele dorme: espere ~1 minuto e tente de novo. |
+| A fábrica "trava" com "Saída cheia" | A esteira não dá conta: use esteiras rápidas/expressas, divisores ou mais caixas de venda. |
 | "O Oopi só obedece programas de quem é amigo dele" | Faça carinho (`E`) e peça tarefas (`F`) até a amizade nível 2. |
 | O código do amigo "é de outra semana" | Os desafios da semana mudam toda segunda; peça o código da semana atual. |
 | Não acho as caixas perdidas | Elas brilham em azul na floresta, fora do piso. Olhe o mapa com calma e escute as dicas do Oopi. |
@@ -634,6 +668,7 @@ Aperte **E na cafeteira do escritório** pra tomar um cafezinho: **+30% de veloc
 | `Tab` | mapa |
 | `L` | 📋 contratos |
 | `N` | 🤝 amigos |
+| `O` | 🌐 jogar junto |
 | `J` | 📐 projetos |
 | `K` | estatísticas, placar e conquistas |
 | `P` | modo foto |

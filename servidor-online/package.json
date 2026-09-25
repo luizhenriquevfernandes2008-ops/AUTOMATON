@@ -1,0 +1,11 @@
+{
+  "name": "automaton-multiplayer",
+  "version": "1.5.0",
+  "description": "Servidor de salas do AUTOMATON: liga os jogadores (o jogo do anfitrião roda a fábrica).",
+  "type": "module",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" },
+  "license": "MIT"
+}

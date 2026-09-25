@@ -391,6 +391,8 @@ export class Builder {
 
   // ─── colocar / tirar (com histórico pro Ctrl+Z) ───
   spawn(t, x, z, dir, data) {
+    // multiplayer: convidado pede pro anfitrião (e usa uma peça de mentirinha até a confirmação chegar)
+    if (game.mp?.intercept('spawn', { t, x, z, dir, d: data || null })) return game.mp.fake(t, x, z, dir);
     const e = createEntity(t, x, z, dir);
     if (data) {
       const d = { ...data };
@@ -401,12 +403,16 @@ export class Builder {
     if (t === 'minerador') setOreVisible(x, z, false);
     const c = cellCenter(x, z);
     for (const tf of game.tufts || []) if (Math.hypot(tf.position.x - c.x, tf.position.z - c.z) < CELL * 0.8) tf.visible = false;
+    game.mp?.op('spawn', { t, x, z, dir, d: e.serialize() });
     return e;
   }
   despawn(e) {
+    const a = `${e.x},${e.z},${e.layer || 0}`;
+    if (game.mp?.intercept('despawn', { a })) return;
     if (e.type === 'computador') this.codeStash.push({ name: e.name, code: e.code });
     removeEntity(e);
     if (e.type === 'minerador') setOreVisible(e.x, e.z, true);
+    game.mp?.op('despawn', { a });
   }
   pushUndo(entry) {
     this.undoStack.push(entry);
@@ -524,10 +530,12 @@ export class Builder {
   }
 
   rotateEntity(e) {
+    if (game.mp?.intercept('rotate', { a: `${e.x},${e.z},${e.layer || 0}` })) return;
     this.pushUndo({ kind: 'rotate', e, dir: e.dir });
     e.dir = (e.dir + 1) % 4;
     e.obj.rotation.y = -e.dir * Math.PI / 2;
     game.emit('moved', e);
+    game.mp?.op('rotate', { a: `${e.x},${e.z},${e.layer || 0}`, dir: e.dir });
   }
 
   undo() {

@@ -125,7 +125,10 @@ export class Editor {
   }
 
   close() {
-    if (this.pc) this.pc.code = this.ta.value;
+    if (this.pc) {
+      this.pc.code = this.ta.value;
+      game.mp?.guestRpc('code', { a: this.pc.addr, code: this.pc.code }); // multiplayer: guarda o código no anfitrião
+    }
     this.pc = null;
     this.hideAc();
   }

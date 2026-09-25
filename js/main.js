@@ -39,6 +39,7 @@ import { updateLights } from './lights.js';
 import { flushStatic } from './staticBatch.js';
 import { settings as userSettings } from './settings.js';
 import { detectGpu, warnGpuOnStart, watchFps, shortGpu } from './gpu.js';
+import { mp } from './mp.js';
 import { checkDaily, openMail } from './mail.js';
 
 const $ = (s) => document.querySelector(s);
@@ -121,7 +122,7 @@ function bootLog(text, state = 'ok') {
 }
 async function boot() {
   const bar = $('#load-bar'), txt = $('#load-text');
-  bootLog('AUTOMATON v1.4 · kernel jiboia 🐍');
+  bootLog('AUTOMATON v1.5 · kernel jiboia 🐍');
   const l1 = bootLog('carregando modelos 3D, texturas e céu…', 'run');
   await loadAll(renderer, (p) => { bar.style.width = Math.round(p * 80) + '%'; txt.textContent = `modelos ${Math.round(p * 100)}%`; });
   l1.innerHTML = '<span class="ok">[ ok ]</span> modelos 3D, texturas e céu';
@@ -247,6 +248,8 @@ $('#btn-reset').onclick = () => {
 function goHome() { game.skipSave = true; location.replace(location.pathname); }
 $('#visit-home').onclick = goHome;
 $('#btn-friends').onclick = () => game.ui.openOverlay('friends');
+$('#btn-mp').onclick = () => game.ui.openOverlay('multiplayer');
+$('#mp-hud').onclick = () => game.ui.openOverlay('multiplayer');
 $('#btn-menu').onclick = () => {
   if (VISITING) { goHome(); return; }
   saveGame();
@@ -285,6 +288,7 @@ addEventListener('keydown', (e) => {
     case 'projetos': game.ui.openOverlay('projects'); break;
     case 'contratos': game.ui.openOverlay('contracts'); break;
     case 'amigos': game.ui.openOverlay('friends'); break;
+    case 'multiplayer': game.ui.openOverlay('multiplayer'); break;
     case 'peca': actions.piece(e.shiftKey ? -1 : 1); break;
     case 'material': actions.material(e.shiftKey ? -1 : 1); break;
   }
@@ -386,6 +390,8 @@ let last = performance.now(), fpsT = performance.now(), fpsN = 0;
 let objTimer = 0, saveTimer = 30, powerTimer = 0, decorTimer = 0, achTimer = 3, recordTimer = 30;
 game.on('moved', (e) => { if (e.instanced) markBeltsDirty(); });
 function simStep(dt) {
+  // multiplayer: o convidado não simula (quem manda é o anfitrião), só anima o que chega
+  if (mp.isGuest) { if (mp.ready) mp.guestStep(dt); return; }
   game.time += dt;
   game.economy.update(dt);
   const ents = game.entities;
@@ -416,7 +422,9 @@ function loop(now) {
   const dt = Math.min(0.05, rawDt);
   if (rawDt < 1) watchFps(rawDt);
   last = now;
-  const simulate = (game.mode === 'play' || game.mode === 'ui') && !(photo.on && photo.freeze);
+  // multiplayer: com gente na sala, a fábrica do anfitrião não pausa (nem no menu de pausa)
+  const hostingLive = mp.role === 'host' && mp.peers.size > 0;
+  const simulate = (game.mode === 'play' || game.mode === 'ui' || (hostingLive && game.mode !== 'menu')) && !(photo.on && photo.freeze && !hostingLive);
   if (simulate) simStep(dt);
   updateSky(dt, simulate || game.mode === 'menu');
   updateFx(dt);
@@ -439,6 +447,7 @@ function loop(now) {
   game.sun.target.position.set(Math.round(p.x), 0, Math.round(p.z));
   if (game.campfire) game.campfire.intensity = 7 + Math.sin(now * 0.013) * 1.2 + Math.sin(now * 0.031) * 0.8;
   updateGamepad(dt, actions);
+  mp.update(dt);
   flushBelts();
   flushItems();
   flushStatic();

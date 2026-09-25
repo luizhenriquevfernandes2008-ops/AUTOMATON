@@ -699,3 +699,16 @@ body.visiting #visit-banner { display: block; }
 .fr-file { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; border: 1px solid var(--line-hi); background: var(--bg3); font-size: 13px; }
 .fr-file input { display: none; }
 .chx-item.week { border-color: rgba(177, 140, 255, .5); }
+
+/* ═══════════════ v1.5: multiplayer ═══════════════ */
+#mp-hud { display: none; position: absolute; top: 132px; left: 16px; }
+body.mp-host #mp-hud, body.mp-guest #mp-hud { display: block; }
+body.mp-host #mp-hud::after { content: ' anfitrião'; }
+body.mp-guest #mp-hud::after { content: ' convidado'; }
+.mp-win { display: flex; flex-direction: column; gap: 12px; }
+.mp-code { font: 700 40px var(--mono); letter-spacing: .3em; color: var(--accent2); }
+.mp-players div { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.mp-chat { max-height: 180px; overflow: auto; font-size: 13.5px; display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.mp-win input { background: var(--code-bg); color: var(--text); border: 1px solid var(--line); padding: 7px 9px; font: 13px var(--mono); }
+.mp-win #mp-say { flex: 1; }
+.mp-win details summary { cursor: pointer; color: var(--muted); }

@@ -78,7 +78,7 @@ export function saveData() {
   };
 }
 export function saveGame() {
-  if (VISITING) return false;
+  if (VISITING || game.mp?.isGuest) return false; // visita e convidado no multiplayer nunca salvam
   try {
     const data = saveData();
     localStorage.setItem(KEY, JSON.stringify(data));

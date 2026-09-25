@@ -55,16 +55,20 @@ export function checkConnect(a, b) {
 }
 const nameOf = (e) => MACHINES[e.type]?.nome || e.type;
 
+const addrOf = (e) => `${e.x},${e.z},${e.layer || 0}`;
 export function connect(a, b) {
+  if (game.mp?.intercept('wire', { a: addrOf(a), b: addrOf(b) })) return null; // multiplayer: o anfitrião liga
   const err = checkConnect(a, b);
   if (err) return err;
   const w = { a, b, mesh: null };
   wires.push(w);
   recompute();
+  game.mp?.op('wire', { a: addrOf(a), b: addrOf(b) });
   return null;
 }
 
 export function disconnectAll(e) {
+  if (game.mp?.intercept('unwireAll', { a: addrOf(e) })) return wires.filter((w) => w.a === e || w.b === e).length;
   let n = 0;
   for (let i = wires.length - 1; i >= 0; i--) {
     const w = wires[i];
@@ -74,17 +78,19 @@ export function disconnectAll(e) {
       n++;
     }
   }
-  if (n) recompute();
+  if (n) { recompute(); game.mp?.op('unwireAll', { a: addrOf(e) }); }
   return n;
 }
 
 export function disconnect(a, b) {
+  if (game.mp?.intercept('unwire', { a: addrOf(a), b: addrOf(b) })) return true;
   const i = wires.findIndex((w) => (w.a === a && w.b === b) || (w.a === b && w.b === a));
   if (i < 0) return false;
   const w = wires[i];
   if (w.mesh) { game.scene.remove(w.mesh); w.mesh.geometry.dispose(); }
   wires.splice(i, 1);
   recompute();
+  game.mp?.op('unwire', { a: addrOf(a), b: addrOf(b) });
   return true;
 }
 

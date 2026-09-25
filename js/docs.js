@@ -120,6 +120,14 @@ while True:
     else:
         sep.enviar("direita")    # caixa de venda`)}
 
+<h3>Modo contínuo ♾</h3>
+<table>
+<tr><td><code>m.ligar()</code></td><td>A máquina trabalha sozinha sem parar (e o programa segue). Minerador, fornalha (<code>.ligar("aco")</code> opcional), montadora (<code>.ligar("engrenagem")</code>), braço (<code>.ligar("chip")</code> opcional)</td></tr>
+<tr><td><code>sep.ligar({"quartzo": "esquerda"}, "direita")</code></td><td>Separador contínuo: regras por item e um lado padrão pro resto</td></tr>
+<tr><td><code>m.desligar()</code>, <code>m.ligada()</code></td><td>Desliga · True se está ligada</td></tr>
+<tr><td><code>minerador.pureza()</code></td><td>"impuro" (½×), "normal" ou "puro" (2×)</td></tr>
+</table>
+
 <h3>Braço Robótico 🦾 <small>(nível 3)</small></h3>
 <p>Pega do que está <b>atrás</b> dele (seta azul: esteira, baú, caixa de venda, saída de máquina, canteiro) e solta <b>na frente</b> (seta laranja).</p>
 <table>

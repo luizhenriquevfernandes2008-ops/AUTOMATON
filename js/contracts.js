@@ -84,6 +84,7 @@ export function makeOffer(forceRarity) {
 }
 
 export function acceptContract(id) {
+  if (game.mp?.guestRpc('contract', { id })) return null;
   const s = st();
   const i = s.offers.findIndex((o) => o.id === id);
   if (i < 0) return 'Esse pedido não existe mais';
@@ -98,6 +99,7 @@ export function acceptContract(id) {
   return null;
 }
 export function cancelContract(id) {
+  if (game.mp?.guestRpc('uncontract', { id })) return;
   const s = st();
   const i = s.active.findIndex((o) => o.id === id);
   if (i >= 0) { s.active.splice(i, 1); game.emit('contracts'); }

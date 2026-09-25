@@ -237,7 +237,14 @@ while True:
 <li><b>🤖 Oopi programável</b> (amizade nível 2): <code>o = maquina("oopi")</code>, <code>o.ir_para("bau1")</code>, <code>o.pegar()</code>, <code>o.soltar()</code>, <code>o.dizer("oi")</code>.</li>
 </ul>
 
-<h3>23. 🧰 Ferramentas</h3>
+<h3>23. ♾ Fábrica rápida e 🌐 jogar junto</h3>
+<ul>
+<li><b>Modo contínuo</b>: <code>maquina("minerador1").ligar()</code> faz a máquina trabalhar sozinha sem parar, sem travar o programa. Vale pra minerador, fornalha, montadora (<code>.ligar("engrenagem")</code>), braço e separador (<code>.ligar({"quartzo": "esquerda"}, "direita")</code>). <code>.desligar()</code> para.</li>
+<li><b>Esteiras Rápida (2×) e Expressa (3×)</b>: coloque por cima de uma esteira pra trocar. <b>Veios</b> podem ser impuros (½×), normais ou puros (2×).</li>
+<li><b>🌐 Jogar junto</b> (<kbd>O</kbd>): o anfitrião cria uma sala e manda o código; até 4 pessoas constroem a mesma fábrica ao mesmo tempo, com dinheiro compartilhado e chat.</li>
+</ul>
+
+<h3>24. 🧰 Ferramentas</h3>
 <ul>
 <li><kbd>C</kbd> copiar uma área (clique em 2 cantos) · <kbd>V</kbd> colar de novo · <kbd>R</kbd> gira o grupo. Peças que faltarem são compradas.</li>
 <li><kbd>Ctrl+Z</kbd> desfaz (colocar, tirar, cabos, colar, girar).</li>
@@ -246,7 +253,7 @@ while True:
 <li>Menu: <b>3 fábricas</b> (saves separados). Configurações: <b>teclas</b>, <b>modo daltônico</b>, <b>fonte do editor</b> e <b>controle</b> 🎮 (alavancas andam e olham, <kbd>A</kbd> pula, <kbd>X</kbd> usa, <kbd>RT</kbd> coloca, <kbd>Start</kbd> pausa).</li>
 </ul>
 
-<h3>24. Problemas comuns</h3>
+<h3>25. Problemas comuns</h3>
 <table>
 <tr><th>Problema</th><th>Solução</th></tr>
 <tr><td>O item para no fim da esteira</td><td>A próxima peça não aceita por esse lado (seta laranja) ou está cheia.</td></tr>

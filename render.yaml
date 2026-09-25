@@ -1,0 +1,11 @@
+# Deploy do servidor multiplayer no Render (render.com), plano grátis.
+# No Render: New + → Blueprint → escolha este repositório. Ele cria o serviço sozinho.
+services:
+  - type: web
+    name: automaton-multiplayer
+    runtime: node
+    rootDir: servidor-online
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /

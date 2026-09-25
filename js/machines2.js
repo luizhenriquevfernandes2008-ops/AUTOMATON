@@ -62,6 +62,7 @@ export class Lab extends Machine {
   }
   setResearch(id) {
     if (this.research === id) return null;
+    if (game.mp?.guestRpc('research', { a: `${this.x},${this.z},0`, id })) return null;
     const eco = game.economy;
     // pesquisas infinitas gastam ⭐ estrelas ao começar (voltam se trocar)
     if (id && id.startsWith('inf:')) {
@@ -218,6 +219,7 @@ export class Platform {
   readyToLaunch() { const g = this.goal(); return !!g && g.final && this.percent() >= 1 && !this.launching; }
   // Programa Espacial: escolhe o satélite da próxima missão
   chooseMission(sat) {
+    if (game.mp?.guestRpc('mission', { sat })) return null;
     const eco = game.economy;
     if (!eco.launched || !SATELLITES[sat] || this.launching) return 'Não dá pra escolher agora';
     if (eco.satLvl(sat) >= 5) return 'Esse satélite já está no máximo (5 em órbita)';
@@ -241,6 +243,7 @@ export class Platform {
     game.emit('phaseDone', eco.phase);
   }
   launch() {
+    if (game.mp?.guestRpc('launch', {})) return;
     if (!this.readyToLaunch()) return;
     this.launching = 0.001;
     audio.play('launch', { volume: 1 });
